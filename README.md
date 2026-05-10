@@ -18,6 +18,20 @@ AI Memory OS is a high-performance, zero-config cognitive storage and retrieval 
 
 ---
 
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    User((User/Dev)) -->|REST API/Web| Controller[Desktop Controller/Electron]
+    Controller -->|Launch| Backend[FastAPI Backend Binary]
+    Backend -->|Store| VectorDB[(LanceDB/Qdrant)]
+    Backend -->|Metadata| SQLite[(SQLite/Postgres)]
+    Backend -->|Rel| GraphDB[(NetworkX/Neo4j)]
+    Backend -->|Proxy| LLM[LLM Providers: OpenAI/Ollama/DashScope]
+```
+
+---
+
 ## 📊 Version Comparison
 
 | Feature | Zero-Dependency (Standalone) | Full Version (Production) |
