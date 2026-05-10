@@ -1,0 +1,29 @@
+{
+  "name": "ai-memory-os",
+  "version": "1.0.0",
+  "description": "AI Memory OS - Team Knowledge Database",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.memoryos.app",
+    "productName": "AI Memory OS",
+    "files": ["main.js", "preload.js", "icon.png"],
+    "extraResources": [
+      {"from": "bin", "to": "bin"},
+      {"from": "../backend/ui", "to": "backend/ui"},
+      {"from": "../backend/app_ui", "to": "backend/app_ui"}
+    ],
+    "mac": {"target": "dmg"},
+    "win": {"target": "nsis"},
+    "linux": {"target": "AppImage"}
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

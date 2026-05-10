@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'memory-os'
+    static_configs:
+      - targets: ['memory-os-app:8000']

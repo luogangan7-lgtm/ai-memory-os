@@ -1,0 +1,10 @@
+#!/bin/bash
+# AI Memory OS - Daily Backup Cron
+# Add to crontab: 0 3 * * * /opt/memory-os/config/backup-cron
+BACKUP_DIR=/backups/memory-os
+mkdir -p $BACKUP_DIR
+DATE=$(date +%Y%m%d)
+curl -s -H "Authorization: Bearer $MEMORY_OS_ADMIN_KEY" \
+  http://localhost:8000/memory/backup > $BACKUP_DIR/backup-$DATE.json
+# Keep last 30 days
+find $BACKUP_DIR -name "backup-*.json" -mtime +30 -delete

@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Memory OS | 个人认知终端</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <!-- Marked.js and DOMPurify for secure Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-base: #05070a;
+            --bg-surface: rgba(22, 27, 34, 0.6);
+            --bg-surface-hover: rgba(48, 54, 61, 0.8);
+            --border-color: rgba(48, 54, 61, 0.8);
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-blue: #2f81f7;
+            --accent-green: #238636;
+            --blur: blur(20px);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Topbar */
+        .topbar {
+            height: 60px;
+            background: var(--bg-surface);
+            backdrop-filter: var(--blur);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 40px;
+            justify-content: space-between;
+            z-index: 100;
+        }
+        .brand { font-weight: 600; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+        .nav-links { display: flex; gap: 10px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color);}
+        .nav-link { 
+            color: var(--text-secondary); cursor: pointer; padding: 6px 16px; border-radius: 6px; transition: 0.2s; font-size: 0.9rem; font-weight: 500;
+        }
+        .nav-link:hover { color: var(--text-primary); }
+        .nav-link.active { color: var(--text-primary); background: var(--accent-blue); box-shadow: 0 2px 10px rgba(47,129,247,0.3); }
+        .user-chip { font-size: 0.85rem; color: var(--text-secondary); background: rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s;}
+        .user-chip:hover { border-color: var(--accent-red); color: var(--accent-red); }
+        
+        /* Layout */
+        .container { flex: 1; display: flex; overflow: hidden; position: relative; }
+        .page { flex: 1; padding: 40px; overflow-y: auto; display: none; max-width: 1000px; margin: 0 auto; width: 100%; animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Search & Input */
+        .omni-search {
+            position: relative; margin-bottom: 40px;
+        }
+        .omni-search input {
+            width: 100%; padding: 20px 24px; font-size: 1.1rem; border-radius: 16px;
+            background: rgba(22, 27, 34, 0.8); border: 1px solid var(--border-color); color: var(--text-primary);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6); outline: none; transition: 0.3s;
+            backdrop-filter: var(--blur);
+        }
+        .omni-search input:focus { border-color: var(--accent-blue); box-shadow: 0 8px 40px rgba(47, 129, 247, 0.25); transform: translateY(-2px); }
+        .omni-search .hint { position: absolute; right: 24px; top: 22px; color: var(--text-secondary); font-size: 0.9rem; pointer-events: none; }
+
+        /* Timeline Feed */
+        .timeline { position: relative; padding-left: 30px; }
+        .timeline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--border-color); }
+        
+        .memory-card {
+            background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px;
+            padding: 24px; cursor: pointer; transition: 0.2s; position: relative; margin-bottom: 24px;
+        }
+        .memory-card::before {
+            content: ''; position: absolute; left: -35px; top: 30px; width: 10px; height: 10px; border-radius: 50%;
+            background: var(--text-secondary); border: 2px solid var(--bg-base); z-index: 2; transition: 0.2s;
+        }
+        .memory-card:hover { border-color: var(--accent-blue); transform: translateX(4px); }
+        .memory-card:hover::before { background: var(--accent-blue); box-shadow: 0 0 10px var(--accent-blue); }
+        
+        .card-meta { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; }
+        .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
+        .badge.core { background: rgba(35, 134, 54, 0.2); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.4); }
+        .badge.recent { background: rgba(47, 129, 247, 0.2); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.4); }
+        
+        .card-title { font-weight: 600; font-size: 1.2rem; margin-bottom: 10px; line-height: 1.4; }
+        .card-preview { font-size: 0.95rem; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.6; }
+
+        /* Drawer / Fullscreen Reader */
+        #reader-drawer {
+            position: fixed; top: 0; right: -100%; width: 50vw; min-width: 600px; height: 100vh;
+            background: var(--bg-base); border-left: 1px solid var(--border-color);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.8); z-index: 1000; transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; flex-direction: column;
+        }
+        #reader-drawer.open { right: 0; }
+        #reader-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 999; display: none; opacity: 0; transition: 0.3s; }
+        #reader-overlay.open { display: block; opacity: 1; }
+        
+        .reader-header { padding: 24px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .reader-content { padding: 40px; overflow-y: auto; flex: 1; }
+        
+        .markdown-body { line-height: 1.7; color: var(--text-primary); font-size: 1.05rem; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 32px 0 16px; font-weight: 600; color: #fff; }
+        .markdown-body pre { background: #0d1117; padding: 20px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--border-color); margin: 20px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;}
+        .markdown-body code { font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .markdown-body p { margin-bottom: 16px; }
+        .markdown-body blockquote { border-left: 4px solid var(--accent-blue); padding-left: 16px; color: var(--text-secondary); margin: 20px 0; }
+        .markdown-body ul, .markdown-body ol { margin-bottom: 16px; padding-left: 24px; }
+
+        /* Dropzone */
+        .dropzone {
+            border: 2px dashed var(--border-color); border-radius: 16px; padding: 60px 40px; text-align: center;
+            background: rgba(255,255,255,0.02); transition: 0.3s; cursor: pointer; margin-bottom: 40px; position: relative; overflow: hidden;
+        }
+        .dropzone.dragover { border-color: var(--accent-blue); background: rgba(47, 129, 247, 0.05); transform: scale(1.02); }
+        .dz-icon { color: var(--text-secondary); transition: 0.3s; }
+        .dropzone:hover .dz-icon { color: var(--accent-blue); transform: translateY(-5px); }
+
+        /* Quick Idea */
+        .idea-box { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
+        .idea-box textarea { width: 100%; height: 100px; background: transparent; border: none; color: #fff; font-size: 1.1rem; resize: none; outline: none; font-family: inherit; }
+        .idea-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px; }
+
+        /* Integration Hub */
+        .hub-tabs { display: flex; gap: 2px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; margin-bottom: 24px; }
+        .hub-tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 6px; font-size: 0.9rem; color: var(--text-secondary); transition: 0.2s; }
+        .hub-tab:hover { color: #fff; }
+        .hub-tab.active { background: var(--bg-surface-hover); color: #fff; font-weight: 500; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .hub-pane { display: none; animation: fadeIn 0.3s; }
+        .hub-pane.active { display: block; }
+
+        .code-block {
+            background: #0d1117; padding: 24px; border-radius: 12px; border: 1px solid var(--border-color);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: #c9d1d9; overflow-x: auto;
+            position: relative; line-height: 1.6;
+        }
+        .copy-btn { position: absolute; right: 16px; top: 16px; background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 0.8rem;}
+        .copy-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* Simple Auth Modal */
+        #auth-modal { position: fixed; inset: 0; background: rgba(5, 7, 10, 0.95); backdrop-filter: var(--blur); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+        .auth-box { width: 380px; background: var(--bg-surface); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+        .auth-box input { width: 100%; padding: 14px 16px; margin-bottom: 16px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: #fff; border-radius: 8px; font-size: 1rem; outline: none; transition: 0.2s; }
+        .auth-box input:focus { border-color: var(--accent-blue); }
+        .auth-box button { width: 100%; padding: 14px; background: var(--accent-blue); border: none; color: #fff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: 0.2s; }
+        .auth-box button:hover { background: #1f6feb; box-shadow: 0 4px 15px rgba(47,129,247,0.4); }
+        
+        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--bg-surface); border: 1px solid var(--border-color); padding: 14px 28px; border-radius: 30px; font-size: 0.95rem; opacity: 0; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 10001; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: var(--blur); }
+        #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+        button.primary { background: var(--accent-blue); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: 0.2s; }
+        button.primary:hover { filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+
+    <div id="auth-modal">
+        <div class="auth-box">
+            <h2 style="font-weight: 600; font-size: 1.8rem; margin-bottom: 10px;">连接神经元</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 30px; font-size: 0.9rem;">只需用户名即可为您分配专属思维空间</p>
+            <input type="text" id="auth-user" placeholder="Username (任意名称)" autocomplete="off">
+            <input type="password" id="auth-pwd" placeholder="Password (用于保护您的记忆)" autocomplete="off">
+            <button onclick="handleAuth()">建立神经连接</button>
+        </div>
+    </div>
+
+    <div class="topbar">
+        <div class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12 2.1 7.1"/><path d="M12 12l9.9 4.9"/></svg>
+            Memory OS
+        </div>
+        <div class="nav-links">
+            <div class="nav-link active" onclick="nav('feed')">思维流 (Feed)</div>
+            <div class="nav-link" onclick="nav('ingest')">记忆摄入 (Ingest)</div>
+            <div class="nav-link" onclick="nav('hub')">Agent 枢纽 (Hub)</div>
+        </div>
+        <div class="user-chip" id="user-display" onclick="logout()">未连接</div>
+    </div>
+
+    <div class="container">
+        
+        <!-- Feed / Search Page -->
+        <div id="page-feed" class="page active">
+            <div class="omni-search">
+                <input type="text" id="search-input" placeholder="全域检索: 你上周在思考什么框架？..." onkeypress="if(event.key==='Enter') doSearch()">
+                <div class="hint">按 Enter 触发深度检索</div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 style="font-weight: 500; font-size: 1.1rem;">您的意识流 (Timeline)</h3>
+                <span style="font-size: 0.85rem; color: var(--text-secondary);" id="feed-status"></span>
+            </div>
+            
+            <div class="timeline" id="feed-container">
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">加载记忆碎片中...</div>
+            </div>
+        </div>
+
+        <!-- Ingestion Page -->
+        <div id="page-ingest" class="page">
+            <div class="idea-box" style="margin-bottom: 40px;">
+                <textarea id="quick-idea" placeholder="脑海中闪过什么念头？立即记录下来..."></textarea>
+                <div class="idea-footer">
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">支持 Markdown 语法</span>
+                    <button class="primary" onclick="saveIdea()">存入大脑</button>
+                </div>
+            </div>
+            
+            <div class="dropzone" id="dropzone" onclick="document.getElementById('file-upload').click()">
+                <svg class="dz-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:20px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                <h2 style="margin-bottom: 12px; font-weight: 500;">文件引力波黑洞</h2>
+                <input type="file" id="file-upload" style="display:none" onchange="handleFileUpload(event)">
+                <p style="color: var(--text-secondary);">将 PDF, MD, TXT 文件拖拽至此区域即可上传，系统会自动分片并建立知识关联点。</p>
+            </div>
+        </div>
+
+        <!-- Integration Hub -->
+        <div id="page-hub" class="page">
+            <h2 style="margin-bottom: 12px; font-weight: 600;">大模型接入枢纽 (Integration Hub)</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6;">将您的第二大脑连接到任意 Agent、IDE 或代码工程。核心原理：<strong style="color: var(--accent-blue)">所有请求过代理后，系统自动完成记忆检索注入和新知识存储，无需任何额外代码。</strong></p>
+
+            <!-- Architecture Flow Banner -->
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px 32px; margin-bottom: 32px; display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; font-size:0.9rem;">
+                <div style="text-align:center; padding: 10px 16px; border: 1px solid var(--accent-blue); border-radius: 8px; color: var(--accent-blue);">您的 Agent / SDK</div>
+                <div style="color: var(--text-secondary);">→ POST /v1/chat/completions →</div>
+                <div style="text-align:center; padding: 10px 16px; border: 1px solid var(--accent-green); border-radius: 8px; background: rgba(35,134,54,0.1);">
+                    <div style="color: var(--accent-green); font-weight:600;">Memory OS 代理层</div>
+                    <div style="font-size:0.78rem; color: var(--text-secondary); margin-top:4px;">① 检索 Top-K 相关记忆<br>② 注入到 System Prompt<br>③ 存储本次对话</div>
+                </div>
+                <div style="color: var(--text-secondary);">→ 携带记忆上下文 →</div>
+                <div style="text-align:center; padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 8px;">真实大模型 API</div>
+                <div style="color: var(--text-secondary); font-size:0.8rem; margin-top:4px; width:100%; text-align:center; padding-top:8px; border-top: 1px solid var(--border-color);">💡 节省 Token: 系统只注入语义最相关的 3~5 条记忆片段（约 500 tokens），而非全量历史（可能数万 tokens）</div>
+            </div>
+            
+            <div style="background: rgba(47, 129, 247, 0.1); border: 1px solid var(--accent-blue); padding: 24px; border-radius: 12px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">您的专属系统令牌 (Bearer Token)</div>
+                    <code id="api-key-display" style="font-size: 1.4rem; font-weight: 600; font-family: 'JetBrains Mono', monospace;">••••••••••••••••</code>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="primary" style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); color: #fff;" onclick="testPing()">连通性自测 (Ping)</button>
+                    <button class="primary" onclick="copyKey()">复制 Token</button>
+                </div>
+            </div>
+
+            <div class="hub-tabs">
+                <div class="hub-tab active" onclick="switchTab('tab-terminal', this)">终端 Agent (OpenClaw)</div>
+                <div class="hub-tab" onclick="switchTab('tab-desktop', this)">桌面智能体 (Claude/Hermes)</div>
+                <div class="hub-tab" onclick="switchTab('tab-ide', this)">IDE 编程助手 (Cursor/Codex)</div>
+                <div class="hub-tab" onclick="switchTab('tab-sdk', this)">Python 代理 SDK</div>
+            </div>
+
+            <!-- Tab 1: Terminal -->
+            <div id="tab-terminal" class="hub-pane active">
+                <h3 style="margin-bottom: 8px; font-weight: 500;">配置 OpenClaw 或 CLI 助手</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">设置环境变量后，<strong>所有发出的对话请求</strong>都会自动经过记忆代理层，对话内容被自动记录，相关历史被自动注入。</p>
+                <div class="code-block" style="margin-bottom:16px;">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+# 设置代理地址（所有对话会自动记忆化）
+export OPENAI_BASE_URL="http://<span id="t1-host">localhost:8003</span>/v1"
+export OPENAI_API_KEY="<span class="hub-key">mos_xxxx</span>"
+
+# 启动 OpenClaw — 无需任何其他配置
+openclaw
+
+# 原理: 当 OpenClaw 发出任意 /v1/chat/completions 请求时：
+# 1. Memory OS 自动检索您过去相关的操作记录和知识
+# 2. 将其压缩注入到 system prompt（节省 Token）
+# 3. 对话结束后自动将新内容存入记忆库
+                </div>
+            </div>
+
+            <!-- Tab 2: Desktop -->
+            <div id="tab-desktop" class="hub-pane">
+                <h3 style="margin-bottom: 8px; font-weight: 500;">配置桌面智能体 (Claude Desktop / Hermes / 爱马仕)</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">在客户端"高级设置 → 自定义 API 提供商"中填写以下配置，让桌面端应用共享同一个记忆网络。</p>
+                <div class="code-block" style="margin-bottom:16px;">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+# Claude Desktop / Hermes 配置填写位置：
+# 设置 → 高级 → 自定义 Model Provider
+
+Base URL (API Endpoint):
+http://<span id="t2-host">localhost:8003</span>/v1
+
+API Key:
+<span class="hub-key">mos_xxxx</span>
+
+# 重要: 模型名称填任意值（如 gpt-4o），
+# Memory OS 会路由到您在管理端配置的真实模型。
+# 所有对话自动双向记忆化（检索 + 存储）。
+                </div>
+            </div>
+
+            <!-- Tab 3: IDE -->
+            <div id="tab-ide" class="hub-pane">
+                <h3 style="margin-bottom: 8px; font-weight: 500;">配置 AI 编程助手 (Cursor / Codex / Antigravity)</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">IDE 插件接入后，助手能自动联想您过去的架构规范、报错处理记录，无需重复说明项目背景。</p>
+                <div class="code-block" style="margin-bottom:16px;">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+// Cursor / Codex settings.json 配置
+
+{
+  "openai.apiKey": "<span class="hub-key">mos_xxxx</span>",
+  "openai.baseUrl": "http://<span id="t3-host">localhost:8003</span>/v1",
+
+  // Antigravity (Gemini) 插件配置示例:
+  "antigravity.provider": "custom",
+  "antigravity.endpoint": "http://<span id="t3b-host">localhost:8003</span>/v1",
+  "antigravity.apiKey": "<span class="hub-key">mos_xxxx</span>"
+}
+
+// 效果: 每次 AI 补全请求都经过代理层：
+// 1. 自动检索您上传的文档/规范/历史报错
+// 2. 将相关内容注入 context（按需，不超 500 tokens）
+// 3. 本次代码问答自动记录为新记忆
+                </div>
+            </div>
+
+            <!-- Tab 4: Python SDK -->
+            <div id="tab-sdk" class="hub-pane">
+                <h3 style="margin-bottom: 8px; font-weight: 500;">Python 代理接入 (自动记忆化)</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">直接使用 <code>openai</code> 库，只需改两行，即可让所有对话自动经过记忆库（检索 + 存储），无需任何额外逻辑。</p>
+                
+                <div style="background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.4); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size:0.88rem; color: #3fb950;">
+                    ✅ 使用代理模式：系统自动完成「记忆检索注入」和「对话存储」，Token 消耗大幅降低
+                </div>
+                
+                <div class="code-block" style="margin-bottom:24px;">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+from openai import OpenAI
+
+# 只需修改这两行，其余代码不动
+client = OpenAI(
+    base_url="http://<span id="t4-host">localhost:8003</span>/v1",  # 指向 Memory OS 代理
+    api_key="<span class="hub-key">mos_xxxx</span>"                  # 您的专属 Token
+)
+
+# 像普通 OpenAI SDK 一样使用 —— 记忆自动运作
+response = client.chat.completions.create(
+    model="qwen-turbo",   # 任意模型名，由后台路由
+    messages=[
+        {"role": "user", "content": "帮我回顾一下上周关于 PostgreSQL 优化的讨论"}
+    ]
+)
+
+# Memory OS 在背后做的事：
+# 1. 接收到您的 "PostgreSQL 优化" 请求
+# 2. 语义检索知识库，找到相关记忆片段（Top-3）
+# 3. 自动注入 system_prompt（仅 ~300-500 tokens）
+# 4. 将完整 messages 转发给真实大模型
+# 5. 将本次对话自动存为新记忆
+print(response.choices[0].message.content)
+                </div>
+
+                <h3 style="margin-bottom: 8px; font-weight: 500; margin-top:8px;">直接调用记忆 API（高级用法）</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">如需手动控制检索逻辑，可直接调用原生 Memory API。</p>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+import httpx
+
+BASE = "http://<span id="t5-host">localhost:8003</span>"
+HEADERS = {"Authorization": "Bearer <span class="hub-key">mos_xxxx</span>"}
+
+# 手动存入记忆
+httpx.post(f"{BASE}/memory/store", headers=HEADERS, json={
+    "title": "PostgreSQL 分区表优化方案",
+    "content": "使用 BRIN 索引替代 B-tree 可降低 90% 的索引体积...",
+    "source_type": "human"
+})
+
+# 手动语义检索（返回最相关 Top-5）
+results = httpx.post(f"{BASE}/memory/search", headers=HEADERS, json={
+    "query": "数据库索引优化方法", "top_k": 5
+}).json()
+
+for r in results:
+    m = r.get("memory", r)
+    print(f"[{m['lifecycle_stage']}] {m['title']}: {m['content'][:100]}...")
+                </div>
+
+        </div>
+
+
+    </div>
+
+    <!-- Drawer Reader Overlay & Content -->
+    <div id="reader-overlay" onclick="closeReader()"></div>
+    <div id="reader-drawer">
+        <div class="reader-header">
+            <div>
+                <span class="badge" id="rd-badge" style="margin-right: 10px;">STAGE</span>
+                <span style="color: var(--text-secondary); font-size: 0.9rem;" id="rd-meta">Category • Date</span>
+            </div>
+            <button onclick="closeReader()" style="background: none; border: none; color: var(--text-secondary); font-size: 2rem; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+        <div class="reader-content">
+            <h1 id="rd-title" style="margin-bottom: 30px; font-weight: 600; font-size: 2rem; color: #fff;">Title</h1>
+            <div id="rd-body" class="markdown-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast"></div>
+
+    <script>
+        let userToken = localStorage.getItem('mos_user_token');
+        let currentKey = "mos_xxxx";
+
+        function showToast(msg, type='info') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.border = `1px solid ${type==='error'?'var(--accent-red)':'var(--accent-blue)'}`;
+            t.classList.add('show');
+            setTimeout(()=>t.classList.remove('show'), 3500);
+        }
+
+        function nav(page, callerEl) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+            document.getElementById(`page-${page}`).classList.add('active');
+            
+            // Support both direct click (event) and programmatic calls
+            const activeEl = callerEl || (typeof event !== 'undefined' && event && event.currentTarget) || null;
+            if (activeEl) activeEl.classList.add('active');
+            
+            if (page === 'feed') doSearch();
+            if (page === 'hub') updateHubUI();
+        }
+
+        function switchTab(tabId, el) {
+            document.querySelectorAll('.hub-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.hub-pane').forEach(p => p.classList.remove('active'));
+            
+            const activeTab = el || (typeof event !== 'undefined' && event && event.currentTarget) || null;
+            if (activeTab) activeTab.classList.add('active');
+            
+            const pane = document.getElementById(tabId);
+            if (pane) pane.classList.add('active');
+        }
+
+        async function apiCall(endpoint, method='GET', body=null) {
+            const headers = {};
+            if (userToken) headers['Authorization'] = `Bearer ${userToken}`;
+            if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
+            
+            const res = await fetch(endpoint, {
+                method, headers, body: body instanceof FormData ? body : (body ? JSON.stringify(body) : null)
+            });
+            if (res.status === 401) { logout(); throw new Error("神经连接断开，请重新认证"); }
+            if (!res.ok) { let err; try { err = await res.json(); } catch(e) { err = {detail: "请求失败"}; } throw new Error(err.detail || "请求失败"); }
+            return await res.json();
+        }
+
+        async function handleAuth() {
+            const u = document.getElementById('auth-user').value.trim();
+            const p = document.getElementById('auth-pwd').value.trim();
+            if(!u || !p) return showToast("请输入有效的终端标识和密码", 'error');
+            
+            try {
+                let token;
+                const regRes = await fetch('/admin/auth/register', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p, team_id: "default"})
+                });
+                if (regRes.ok) {
+                    const data = await regRes.json();
+                    token = data.api_key;
+                } else if (regRes.status === 409) {
+                    const logRes = await fetch('/admin/auth/login', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({username: u, password: p})
+                    });
+                    if (!logRes.ok) throw new Error("密码错误");
+                    const data = await logRes.json();
+                    token = data.api_key;
+                } else { throw new Error("认证异常"); }
+                
+                userToken = token;
+                localStorage.setItem('mos_user_token', token);
+                currentKey = token;
+                document.getElementById('auth-modal').style.display = 'none';
+                document.getElementById('user-display').innerHTML = `<span style="color:var(--accent-green)">●</span> ${u}`;
+                showToast("神经连接建立成功", 'success');
+                updateHubUI();
+                // Show feed page
+                nav('feed', document.querySelector('.nav-link'));
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        function logout() {
+            localStorage.removeItem('mos_user_token');
+            userToken = null;
+            document.getElementById('auth-modal').style.display = 'flex';
+        }
+
+        function updateHubUI() {
+            const host = window.location.host || 'localhost:8003';
+            // Update all host spans
+            ['t1-host', 't2-host', 't3-host', 't3b-host', 't4-host', 't5-host'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = host;
+            });
+
+            if (userToken) {
+                currentKey = userToken;
+                document.getElementById('api-key-display').textContent = currentKey;
+                document.querySelectorAll('.hub-key').forEach(el => el.textContent = currentKey);
+            } else {
+                document.getElementById('api-key-display').textContent = '••••••••••••••••';
+                document.querySelectorAll('.hub-key').forEach(el => el.textContent = 'mos_xxxx');
+            }
+        }
+
+        function copyKey() {
+            if (!userToken) return showToast("请先登录以获取 Token", 'error');
+            navigator.clipboard.writeText(currentKey);
+            showToast("System Token 已复制到剪贴板", 'success');
+        }
+
+        function copyCode(btn) {
+            const code = btn.parentElement.innerText.replace('Copy\n', '');
+            navigator.clipboard.writeText(code);
+            showToast("配置代码已复制", 'success');
+        }
+
+        async function testPing() {
+            try {
+                const res = await apiCall('/memory/search', 'POST', {query: "test", top_k: 1});
+                showToast("⚡ 外部神经链路探测正常 (200 OK)", 'success');
+            } catch(e) { showToast("链路探测失败: " + e.message, 'error'); }
+        }
+
+        // Feed & Search Logic
+        async function doSearch() {
+            if (!userToken) return; // Don't search without auth
+            const query = document.getElementById('search-input')?.value || '';
+            const container = document.getElementById('feed-container');
+            const statusEl = document.getElementById('feed-status');
+            if (!container) return;
+            container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-secondary)">正在同步思维流...</div>';
+            if (statusEl) statusEl.textContent = query ? '全局深度搜索中' : '近期记忆流';
+            
+            try {
+                let results;
+                if (query) {
+                    results = await apiCall('/memory/search', 'POST', {query: query, top_k: 20});
+                } else {
+                    // Fetch recent memories via backup/list endpoint that doesn't need vector search
+                    results = await apiCall('/memory/search', 'POST', {query: " ", top_k: 20});
+                }
+                
+                if (!Array.isArray(results)) results = [];
+                
+                let html = '';
+                results.forEach(r => {
+                    const m = r.memory || r; // handle both wrapped and raw formats
+                    if (!m || !m.title) return;
+                    const isCore = (m.lifecycle_stage || '').toLowerCase() === 'core';
+                    const dateStr = new Date(m.created_at || Date.now()).toLocaleDateString('zh-CN');
+                    const preview = (m.content || '').substring(0, 200).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    // Decode URL-encoded filenames that might appear as titles
+                    let displayTitle = m.title;
+                    try { displayTitle = decodeURIComponent(m.title); } catch(e) {}
+                    displayTitle = displayTitle.replace(/</g, '&lt;');
+                    // Encode the memory object safely
+                    const memoryJson = encodeURIComponent(JSON.stringify(m));
+                    html += `
+                        <div class="memory-card" onclick="openReaderEncoded('${memoryJson}')">
+                            <div class="card-meta">
+                                <span class="badge ${isCore ? 'core' : 'recent'}">${m.lifecycle_stage || 'RECENT'}</span>
+                                <span>${m.category || '未分类'} · ${dateStr}</span>
+                            </div>
+                            <div class="card-title">${displayTitle}</div>
+                            <div class="card-preview">${preview}</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html || '<div style="text-align:center; padding:60px; color:var(--text-secondary)"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:16px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><br>暂无相关认知，添加第一条记忆吧！</div>';
+                if (statusEl) statusEl.textContent = `共 ${results.length} 条记忆映射`;
+            } catch(e) {
+                container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--accent-red)">链路异常: ${e.message}</div>`;
+                console.error('doSearch error:', e);
+            }
+        }
+
+        async function saveIdea() {
+            const el = document.getElementById('quick-idea');
+            const content = el.value.trim();
+            if(!content) return;
+            try {
+                await apiCall('/memory/store', 'POST', {
+                    title: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
+                    content: content,
+                    source_type: "human"
+                });
+                showToast("胶囊已存入长期记忆网络 ✓", 'success');
+                el.value = '';
+                // Switch to feed
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+                document.getElementById('page-feed').classList.add('active');
+                document.querySelector('.nav-link').classList.add('active');
+                setTimeout(doSearch, 300);
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        // Drag and drop handlers
+        const dropzone = document.getElementById('dropzone');
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropzone.classList.remove('dragover');
+            if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        async function handleFileUpload(e) { if(e.target.files.length) handleFile(e.target.files[0]); }
+        
+        async function handleFile(file) {
+            showToast(`正在吸收文档数据: ${file.name}...`);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('source_type', 'human');
+            try {
+                await apiCall('/memory/upload', 'POST', formData);
+                showToast("文档解析与图谱融合完毕 ✓", 'success');
+                // Switch to feed  
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+                document.getElementById('page-feed').classList.add('active');
+                document.querySelector('.nav-link').classList.add('active');
+                setTimeout(doSearch, 800); // give backend time to index
+            } catch(err) { showToast("解析异常: " + err.message, 'error'); }
+        }
+
+        // Drawer Reader - use encoded data to avoid HTML attribute injection
+        function openReaderEncoded(encodedMemory) {
+            try {
+                const memory = JSON.parse(decodeURIComponent(encodedMemory));
+                openReader(memory);
+            } catch(e) { console.error('Failed to decode memory', e); }
+        }
+
+        function openReader(memory) {
+            const isCore = (memory.lifecycle_stage || '').toLowerCase() === 'core';
+            const badge = document.getElementById('rd-badge');
+            badge.textContent = memory.lifecycle_stage || 'RECENT';
+            badge.className = `badge ${isCore ? 'core' : 'recent'}`;
+            
+            document.getElementById('rd-meta').textContent = `${memory.category || '未分类'} • ${new Date(memory.created_at || Date.now()).toLocaleString()}`;
+            document.getElementById('rd-title').textContent = memory.title;
+            
+            // DOMPurify + Marked
+            const rawHTML = marked.parse(memory.content || '');
+            document.getElementById('rd-body').innerHTML = DOMPurify.sanitize(rawHTML);
+            
+            document.getElementById('reader-overlay').classList.add('open');
+            document.getElementById('reader-drawer').classList.add('open');
+        }
+
+        function closeReader() {
+            document.getElementById('reader-overlay').classList.remove('open');
+            document.getElementById('reader-drawer').classList.remove('open');
+        }
+
+        // Init - check for existing token
+        document.addEventListener('DOMContentLoaded', () => {
+            updateHubUI();
+            if (userToken) {
+                document.getElementById('auth-modal').style.display = 'none';
+                document.getElementById('user-display').innerHTML = `<span style="color:var(--accent-green)">●</span> Online`;
+                // Programmatic feed load
+                nav('feed', document.querySelector('.nav-link'));
+            } else {
+                // Show landing or keep auth modal
+                document.getElementById('auth-modal').style.display = 'flex';
+            }
+        });
+    </script>
+</body>
+</html>
