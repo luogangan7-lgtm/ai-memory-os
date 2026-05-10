@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+build/
+dist/
+*.spec
+
+# Node/Electron
+node_modules/
+desktop/dist/
+desktop/bin/memory-os-backend*
+release/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App Data (Private)
+.codex/
+backend/app.log
+*.db
+lancedb/
+minio_data/
+qdrant_data/
+postgres_data/
+
+# Secrets
+.env
+providers.json
+accounts.json

@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang=zh><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>AI 记忆系统 仪表盘</title>
+<meta http-equiv=refresh content=10>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#0d1117;color:#c9d1d9;padding:24px}
+h1{font-size:20px;color:#58a6ff;margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;text-align:center}
+.stat .num{font-size:36px;font-weight:bold;color:#58a6ff}.stat .label{font-size:12px;color:#8b949e;margin-top:4px}
+.bar{height:8px;background:#21262d;border-radius:4px;margin-top:8px;overflow:hidden}
+.bar-fill{height:100%;background:#238636;border-radius:4px;transition:width 1s}
+table{width:100%;border-collapse:collapse;background:#161b22;border-radius:8px;overflow:hidden}
+th,td{padding:10px 14px;text-align:left;font-size:13px;border-bottom:1px solid #30363d}
+th{color:#8b949e;font-weight:normal;font-size:11px}
+tr:hover{background:#1c2128}</style></head><body>
+<h1>AI 记忆系统 仪表盘</h1><div class=grid id=stats></div>
+<div id=table></div>
+<script>
+async function load(){try{const d=await fetch("/admin/dashboard").then(r=>r.json());
+document.getElementById("stats").innerHTML=''
++'<div class=stat><div class=num>'+d.memories.total+'</div><div class=label>记忆总数</div></div>'
++'<div class=stat><div class=num>'+d.memories.by_agent+'</div><div class=label>智能体记忆</div></div>'
++'<div class=stat><div class=num>'+(d.costs.total||0).toFixed(4)+'</div><div class=label>总费用 $</div></div>'
++'<div class=stat><div class=num>'+d.estimated_tokens_saved.toLocaleString()+'</div><div class=label>节省 Token</div></div>'
++'<div class=stat><div class=num>$'+d.estimated_cost_saved.toFixed(4)+'</div><div class=label>节省费用</div></div>';
+}catch(e){document.getElementById("stats").textContent="仪表盘不可用: "+e.message}}
+load();
+</script></body></html>

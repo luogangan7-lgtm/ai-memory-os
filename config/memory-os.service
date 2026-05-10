@@ -1,0 +1,19 @@
+[Unit]
+Description=AI Memory OS
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=memoryos
+WorkingDirectory=/opt/memory-os
+Environment="PYTHONPATH=backend"
+EnvironmentFile=/opt/memory-os/config/.env
+ExecStart=/opt/memory-os/.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000 --workers 4
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
