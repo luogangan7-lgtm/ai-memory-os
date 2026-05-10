@@ -1,44 +1,90 @@
-# AI Memory OS — 个人/团队认知操作系统 V4.0
+# AI Memory OS — Personal/Team Cognitive Operating System V4.0
 
-![App Icon](desktop/icon.png)
+![Hero Image](screenshots/dashboard_main.png)
 
-> **让你的 AI 拥有持久记忆，让你的团队拥有统一大脑。**
+> **Empower your AI with persistent memory. Give your team a unified brain.**
 
-AI Memory OS 是一款高性能、零配置的认知存储与检索系统。它通过 RAG（检索增强生成）技术，将海量非结构化数据（文档、对话、图片）转化为 AI 的长效记忆，并提供生产级的 OpenAI 兼容接口。
+AI Memory OS is a high-performance, zero-config cognitive storage and retrieval system. Powered by RAG (Retrieval-Augmented Generation), it transforms massive unstructured data (docs, chats, images) into a long-term memory for your AI, providing a production-grade OpenAI-compatible API.
 
-## 🌟 核心特性
+---
 
-- **🚀 零依赖双击即用**：内置嵌入式 SQLite、LanceDB 和 NetworkX，无需 Docker 即可在 macOS/Windows/Linux 运行。
-- **🧠 混合检索引擎**：结合向量检索 (Vector)、图谱检索 (Knowledge Graph) 与全文检索 (BM25)，召回率提升 40%。
-- **🔒 企业级安全隔离**：多租户物理隔离，支持 RBAC 权限管控，保护敏感知识不外泄。
-- **🔌 零侵入代理**：内置 `/v1/chat/completions` 代理，现有 Agent 只需更改 `BASE_URL` 即可获得记忆增强。
-- **📈 算力仪表盘**：实时监控 Token 消耗、存储量级及系统健康状态。
+## 🌟 Key Features
 
-## 📦 下载安装
+- **🚀 Zero-Dependency Standalone**: Built-in embedded SQLite, LanceDB, and NetworkX. One-click execution on macOS/Windows without Docker.
+- **🧠 Hybrid Search Engine**: Combines Vector search, Knowledge Graph, and Full-text search (BM25), improving recall rates by 40%.
+- **🔒 Enterprise Security**: Multi-tenant physical isolation and RBAC (Role-Based Access Control) to keep your sensitive knowledge secure.
+- **🔌 Seamless Proxy**: Built-in `/v1/chat/completions` proxy. Upgrade existing agents with memory capabilities by simply changing the `BASE_URL`.
+- **📈 Visual Control**: "Command Deck" dashboard for real-time monitoring of token consumption, knowledge distribution, and system health.
 
-1. **前往 [Releases](https://github.com/luolimo/ai-memory-os/releases) 下载对应平台的安装包。**
-2. **macOS**: 双击 `.dmg` 拖入 Applications，首次打开需在“系统设置 -> 隐私与安全”中点击“仍要打开”。
-3. **Windows**: 运行 `.exe` 安装程序。
-4. **Linux**: 给 `.AppImage` 执行权限并运行。
+---
 
-## 🛠 开发架构
+## 📊 Version Comparison
 
-- **Backend**: Python 3.14 + FastAPI + PyInstaller
-- **Frontend**: Vanilla JS + CSS (Admin Dashboard & User Hub)
-- **Database**:
-  - Standalone: SQLite + LanceDB + NetworkX
-  - Production: PostgreSQL + Qdrant + Neo4j (Optional)
-- **Desktop**: Electron + Tauri-like Tray Controller
+| Feature | Zero-Dependency (Standalone) | Full Version (Production) |
+| :--- | :--- | :--- |
+| **Deployment** | One-click installation package | Docker-Compose / K8s |
+| **Database** | SQLite (Embedded) | PostgreSQL |
+| **Vector Store** | LanceDB (Embedded) | Qdrant / Milvus |
+| **Graph DB** | NetworkX | Neo4j |
+| **Use Case** | Personal Desktop / Offline Use | Team Collaboration / High Concurrency |
+| **Scalability** | Limited | High |
 
-## 🚀 快速开始 (SDK)
+---
 
+## 🖼️ User Interface
+
+### 1. Command Deck (Admin Dashboard)
+Manage model topology and monitor indexing progress.
+![Dashboard](screenshots/dashboard_main.png)
+
+### 2. Cognitive Terminal (User Hub)
+Deep conversations with your personal memory and historical knowledge.
+![User App](screenshots/user_app.png)
+
+### 3. Setup Wizard
+A three-step guided setup for new users.
+![Wizard](screenshots/config_wizard.png)
+
+---
+
+## 📦 Installation
+
+### 1. Standalone Version (Recommended)
+Download from [GitHub Releases](https://github.com/luogangan7-lgtm/ai-memory-os/releases):
+- **macOS**: `AI-Memory-OS-1.0.0-arm64.dmg` (M1/M2/M3) or `AI-Memory-OS-1.0.0-x64.dmg` (Intel).
+- **Windows**: `AI-Memory-OS-Setup-1.0.0.exe`.
+
+### 2. Full Version Deployment
+Deploy via Docker for production environments:
+```bash
+git clone https://github.com/luogangan7-lgtm/ai-memory-os.git
+docker-compose up -d
+```
+
+---
+
+## 🚀 Quick Start
+
+### Using as an OpenAI Proxy
+Change the API address in your Agent or App (e.g., Dify, FastGPT):
+- **URL**: `http://localhost:8003/v1`
+- **API Key**: Your key generated from the MOS dashboard.
+
+### Python SDK
 ```python
 from openclaw import MemoryClient
 
 client = MemoryClient(api_key="your_mos_key", base_url="http://localhost:8003")
-client.store("今天学习了如何使用 PyInstaller 打包 FastAPI 项目。")
+# Store Knowledge
+client.store("AI Memory OS uses a hybrid search engine for superior performance.")
+# Search Knowledge
+results = client.search("What are the advantages of the hybrid engine?")
 ```
 
-## 📄 开源协议
+---
 
+## 🛡️ Security
+The system defaults to local encrypted storage. In the "Settings" menu, you can configure IP whitelisting, token auditing, and disk encryption to ensure your data remains absolutely private.
+
+## 📄 License
 MIT License.
