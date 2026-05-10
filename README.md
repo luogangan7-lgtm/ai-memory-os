@@ -11,6 +11,7 @@ AI Memory OS is a high-performance, zero-config cognitive storage and retrieval 
 ## 🌟 Key Features
 
 - **🚀 Zero-Dependency Standalone**: Built-in embedded SQLite, LanceDB, and NetworkX. One-click execution on macOS/Windows without Docker.
+- **🔌 Intelligent Env Detection**: Desktop app automatically detects Docker and provides one-click download guidance, seamlessly switching between Standalone and Production modes.
 - **🧠 Hybrid Search Engine**: Combines Vector search, Knowledge Graph, and Full-text search (BM25), improving recall rates by 40%.
 - **🔒 Enterprise Security**: Multi-tenant physical isolation and RBAC (Role-Based Access Control) to keep your sensitive knowledge secure.
 - **🔌 Seamless Proxy**: Built-in `/v1/chat/completions` proxy. Upgrade existing agents with memory capabilities by simply changing the `BASE_URL`.
@@ -68,12 +69,13 @@ Download from [GitHub Releases](https://github.com/luogangan7-lgtm/ai-memory-os/
 - **macOS**: `AI-Memory-OS-1.0.0-arm64.dmg` (M1/M2/M3) or `AI-Memory-OS-1.0.0-x64.dmg` (Intel).
 - **Windows**: `AI-Memory-OS-Setup-1.0.0.exe`.
 
-### 2. Full Version Deployment
-Deploy via Docker for production environments:
+### 2. Full Version Deployment (Recommended for Production)
+Deploy the full production environment including databases, vector store, and backend via Docker:
 ```bash
 git clone https://github.com/luogangan7-lgtm/ai-memory-os.git
 docker-compose up -d
 ```
+After deployment, visit `http://localhost:8003/manage` to access the Command Deck.
 
 ---
 
