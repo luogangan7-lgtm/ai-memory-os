@@ -12,6 +12,43 @@ const PORT = 8003;
 const isPackaged = app.isPackaged;
 const baseDir = isPackaged ? process.resourcesPath : path.join(__dirname, '..');
 
+function checkDocker() {
+    return new Promise((resolve) => {
+        const { exec } = require('child_process');
+        exec('docker -v', (error) => {
+            if (error) {
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        });
+    });
+}
+
+async function handleDockerMissing() {
+    const { shell } = require('electron');
+    const result = await dialog.showMessageBox({
+        type: 'info',
+        title: 'Docker 环境检测',
+        message: '未检测到 Docker 环境',
+        detail: 'AI Memory OS 推荐使用 Docker 以获得完整性能（支持 PostgreSQL/Qdrant/Neo4j）。\n\n我们将自动为您开启“零依赖模式”（Standalone）。如果您想体验完整版，可以点击下方按钮直接下载 Docker Desktop。',
+        buttons: ['继续 (Standalone)', '立即下载 Docker'],
+        defaultId: 0
+    });
+
+    if (result.response === 1) {
+        let dockerUrl = 'https://www.docker.com/products/docker-desktop/';
+        if (process.platform === 'darwin') {
+            dockerUrl = process.arch === 'arm64' 
+                ? 'https://desktop.docker.com/mac/main/arm64/Docker.dmg' 
+                : 'https://desktop.docker.com/mac/main/amd64/Docker.dmg';
+        } else if (process.platform === 'win32') {
+            dockerUrl = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe';
+        }
+        shell.openExternal(dockerUrl);
+    }
+}
+
 function startBackend() {
     let executable = '';
     let args = [];
@@ -95,7 +132,11 @@ function createTray() {
     tray.setContextMenu(contextMenu);
 }
 
-app.on('ready', () => {
+app.on('ready', async () => {
+    const hasDocker = await checkDocker();
+    if (!hasDocker) {
+        await handleDockerMissing();
+    }
     startBackend();
     createTray();
     checkServer(createMainWindow);
