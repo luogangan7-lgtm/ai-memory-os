@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 
     init_biz(qs, gs, ip, rp, pg, registry)
     init_admin(registry, pg)
-    refl = ReflectionEngine(pg, gs)
+    refl = ReflectionEngine(pg, gs, registry=registry)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()
     app.state.scheduler = sched
@@ -60,18 +60,24 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # Rate limiting middleware
 from backend.services.rate_limit import rate_limit_middleware
+from backend.services.admin_limit import AdminLocalhostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
+app.add_middleware(AdminLocalhostMiddleware)
 
 # API routes
+from backend.api.mcp import router as mcp_router
+from backend.api.user_providers import router as user_providers_router
 app.include_router(biz_router)
 app.include_router(proxy_router)
 app.include_router(public_router)
+app.include_router(user_providers_router)
 app.include_router(admin_router, prefix="/admin")
+app.include_router(mcp_router)
 
 
 # UI routes
-UI_DIR = Path(__file__).parent / "ui"
+UI_DIR = Path(__file__).parent.parent / "webui-dist"
 APP_DIR = Path(__file__).parent / "app_ui"
 
 if UI_DIR.exists():
