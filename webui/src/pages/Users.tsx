@@ -25,7 +25,7 @@ export function UsersPage() {
       <div className='card'>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <input placeholder='search' value={q} onChange={e => setQ(e.target.value)} />
-          <button className='btn btn-cyan' onClick={load}>search</button>
+          <button className='btn btn-teal' onClick={load}>search</button>
         </div>
         <table className='table'>
           <thead><tr><th>User</th><th>Team</th><th>Memories</th><th>Tokens</th><th>Status</th><th>Action</th></tr></thead>

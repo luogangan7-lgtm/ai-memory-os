@@ -22,12 +22,12 @@ return(<div><div className="page-title">SYSTEM COMPUTE</div><div className="page
 <input type="password" value={ek} onChange={e=>setEk(e.target.value)} placeholder="API Key"/>
 <input value={em} onChange={e=>setEm(e.target.value)} placeholder="Model"/>
 <input value={eb} onChange={e=>setEb(e.target.value)} placeholder="Base URL"/>
-<button className="btn btn-cyan" onClick={se}>Save</button></div>
+<button className="btn btn-teal" onClick={se}>Save</button></div>
 <div className="card"><div className="card-head"><div className="card-title">Rerank</div></div>
 <select value={rp} onChange={e=>setRp(e.target.value)}><option>alibaba</option><option>cohere</option></select>
 <input type="password" value={rk} onChange={e=>setRk(e.target.value)} placeholder="API Key"/>
 <input value={rm} onChange={e=>setRm(e.target.value)} placeholder="Model"/>
 <label>Threshold: {rt}</label>
 <input type="range" min={0} max={1} step={0.05} value={rt} onChange={e=>setRt(+e.target.value)}/>
-<button className="btn btn-cyan" onClick={sr}>Save</button></div></div>
+<button className="btn btn-teal" onClick={sr}>Save</button></div></div>
 <div className="card"><div className="card-head"><div className="card-title">Local Models</div><button className="btn btn-ghost" onClick={dl}>Scan</button></div><p>{lr}</p></div></div>)}
