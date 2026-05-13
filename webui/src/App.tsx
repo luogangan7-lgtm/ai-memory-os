@@ -15,7 +15,7 @@ export default function App(){
 return(<BrowserRouter><AuthProvider><ToastProvider><AppShell/></ToastProvider></AuthProvider></BrowserRouter>)}
 function AppShell(){
 const { isLoading } = useAuth();
-if (isLoading) return <div style={{color:'#00E5FF',fontFamily:'Orbitron',display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#030A15',fontSize:18}}>LOADING COMMAND DECK...</div>;
+if (isLoading) return <div style={{color:'#00E5FF',fontFamily:'Syne',display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#030A15',fontSize:18}}>LOADING COMMAND DECK...</div>;
 // Dev mode: skip auth
 return(<Layout><Routes>
 <Route path="/" element={<DashboardPage/>}/>
