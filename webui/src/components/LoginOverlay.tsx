@@ -46,7 +46,7 @@ export function LoginOverlay() {
           </div>
           <button
             type="submit"
-            className="btn btn-cyan w-full mt-4"
+            className="btn btn-teal w-full mt-4"
             disabled={loading}
           >
             {loading ? "验证中..." : "🔓 验证凭据"}
