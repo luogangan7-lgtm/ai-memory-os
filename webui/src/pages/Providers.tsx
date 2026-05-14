@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { PROVIDERS, getRecommendations, getLocalProviders, type ProviderInfo, type ModelInfo } from '../data/models';
 
 function ProviderCard({p,selected,onToggle}:{p:ProviderInfo;selected:boolean;onToggle:()=>void}){
+const visibleModels = selected ? p.models : p.models.slice(0,3);
 return(<div className={`card ${selected?'card-selected':''}`} style={{cursor:'pointer'}} onClick={onToggle}>
 <div className='card-head'><div className='card-title'>
 <span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)',fontWeight:400}}>{p.nameZh}</span>
 {selected&&<span className='badge badge-teal' style={{marginLeft:8}}>ACTIVE</span>}
 </div></div>
 {p.features&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>{p.features.map(f=><span key={f} className='badge badge-violet'>{f}</span>)}</div>}
-{selected&&<div style={{marginTop:12}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8,fontFamily:'var(--mono)'}}>Models:</div>
-{p.models.map(m=><ModelBadge key={m.id} model={m}/>)}</div>}
-</div>)}
+<div style={{marginTop:12,paddingLeft:4}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8,fontFamily:'var(--mono)'}}>{p.models.length} models</div>
+{visibleModels.map(m=><ModelBadge key={m.id} model={m}/>)}
+{!selected && p.models.length > 3 && <div style={{fontSize:10,color:'var(--teal)',cursor:'pointer',marginTop:4}}>+{p.models.length-3} more — click to expand</div>}
+</div></div>)}
 function ModelBadge({model}:{model:ModelInfo}){
 return(<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 10px',marginBottom:4,background:'rgba(0,240,212,.04)',borderRadius:8,fontSize:12}}>
 <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:'var(--text)',fontFamily:'var(--mono)'}}>{model.name}</span>{model.recommended&&<span className='badge badge-amber'>REC</span>}{model.ctx&&<span style={{color:'var(--dim)',fontSize:10}}>{Math.round(model.ctx/1000)}k</span>}{model.size&&<span style={{color:'var(--dim)',fontSize:10}}>{model.size}</span>}</div>
@@ -25,7 +27,7 @@ const filtered=PROVIDERS.filter(p=>tab==='all'||p.region===tab);
 return(<div>
 <div className='page-header'><div><div className='page-title'>System Compute</div><div className='page-sub'>LLM Provider Configuration — select models for classifier, reflection, embedding and rerank</div></div></div>
 <div style={{display:'flex',gap:10,marginBottom:24}}>
-{['all','cn','intl','local'].map(t=><button key={t} className={`btn ${tab===t?'btn-teal':'btn-ghost'}`} onClick={()=>setTab(t as "all"|"cn"|"intl"|"local")}>{t==='all'?'All':t==='cn'?'China':'International'}{t==='local'?' Local':''}</button>)}
+{['all','cn','intl','local'].map(t=><button key={t} className={`btn ${tab===t?'btn-teal':'btn-ghost'}`} onClick={()=>setTab(t as "all"|"cn"|"intl"|"local")}>{t==='all'?'All':t==='cn'?'🇨🇳 China':t==='intl'?'🌐 International':t==='local'?'💻 Local':t}</button>)}
 </div>
 <div className='card' style={{borderColor:'rgba(0,240,212,.25)',background:'linear-gradient(135deg,rgba(10,18,36,.95),rgba(0,240,212,.03))'}}>
 <div className='card-title'><span>Recommended for Classifier</span></div>
