@@ -6,9 +6,9 @@ test.describe("Command Deck — Smoke Tests", () => {
     await expect(page.locator("canvas")).toBeVisible({ timeout: 10000 });
   });
 
-  test("displays AI MEMORY OS title", async ({ page }) => {
+  test("displays AI 记忆体 title", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("text=AI MEMORY OS")).toBeVisible();
+    await expect(page.locator("text=AI 记忆体")).toBeVisible();
   });
 
   test("Three.js canvas has valid WebGL context", async ({ page }) => {
@@ -26,6 +26,6 @@ test.describe("Command Deck — Smoke Tests", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
     await expect(page.locator("canvas")).toBeVisible();
-    await expect(page.locator("text=AI MEMORY OS")).toBeVisible();
+    await expect(page.locator("text=AI 记忆体")).toBeVisible();
   });
 });
