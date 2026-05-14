@@ -3,10 +3,10 @@ import { PROVIDERS, getRecommendations } from '../data/models';
 
 interface ActiveConfig { provider: string; apiKey: string; model: string; purpose: string; }
 const DEFAULT_CONFIGS: ActiveConfig[] = [
-  { provider:'deepseek', apiKey:'', model:'deepseek-chat', purpose:'classifier' },
-  { provider:'deepseek', apiKey:'', model:'deepseek-reasoner', purpose:'reflection' },
-  { provider:'alibaba', apiKey:'', model:'text-embedding-v3', purpose:'embedding' },
-  { provider:'alibaba', apiKey:'', model:'gte-rerank', purpose:'rerank' },
+  { provider:'deepseek', apiKey:'', model:'deepseek-v4-flash', purpose:'classifier' },
+  { provider:'deepseek', apiKey:'', model:'deepseek-v4-pro', purpose:'reflection' },
+  { provider:'alibaba', apiKey:'', model:'text-embedding-v4', purpose:'embedding' },
+  { provider:'alibaba', apiKey:'', model:'gte-rerank-v2', purpose:'rerank' },
 ];
 
 function ConfigRow({cfg,onChange}:{cfg:ActiveConfig;onChange:(c:ActiveConfig)=>void}){
