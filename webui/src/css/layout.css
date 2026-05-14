@@ -3,8 +3,8 @@
 :root{
 --void:#040810;--surface:rgba(10,18,36,0.88);--elevated:rgba(16,26,50,0.92);
 --teal:#00f0d4;--violet:#9d50ff;--amber:#ffb347;--emerald:#00e676;--crimson:#ff4d6d;
---text:#e4eeff;--muted:#6a7fa8;--dim:#3d4f6e;
---border:rgba(40,65,110,0.45);--border-glow:rgba(0,240,212,0.2);
+--text:#e4eeff;--muted:#8a9bc0;--dim:#5a6f8e;
+--border:rgba(80,110,160,0.5);--border-glow:rgba(0,240,212,0.2);
 --font:'Syne',sans-serif;--mono:'Fira Code',monospace;
 --shadow-sm:0 2px 8px rgba(0,0,0,.3);
 --shadow-md:0 8px 32px rgba(0,0,0,.5),0 0 0 1px rgba(0,240,212,.06);
