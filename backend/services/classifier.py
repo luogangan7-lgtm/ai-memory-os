@@ -103,7 +103,7 @@ async def classify_with_llm(text: str, registry) -> tuple[str, str, str]:
 返回格式（严格JSON）：
 {{"category": "...", "subcategory": "...", "topic": "..."}}"""
 
-        response = await registry.chat([
+        response = await registry.chat_for_engine("classifier", [
             {"role": "system", "content": "你是一个知识分类专家，严格按JSON格式回复。"},
             {"role": "user", "content": prompt}
         ])

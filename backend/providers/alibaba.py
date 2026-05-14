@@ -61,23 +61,36 @@ class AlibabaProvider(BaseProvider):
             return False
         return capability in ALIBABA_MODELS[model_id].capabilities
 
-    async def chat(self, messages: list[dict], **kwargs) -> str:
-        model = self.config.enabled_models.get("chat", "qwen-turbo")
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{DASHSCOPE_BASE}/compatible-mode/v1/chat/completions",
-                json={
-                    "model": model, "messages": messages,
-                    "max_tokens": kwargs.get("max_tokens", 1024),
-                    "temperature": kwargs.get("temperature", 0.3),
-                },
-                headers={
-                    "Authorization": f"Bearer {self.config.api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> Any:
+        model = self.config.enabled_models.get("llm", "qwen-plus")
+        client = httpx.AsyncClient(timeout=60)
+        try:
+            payload = {"model": model, "messages": messages, "stream": stream, **kwargs}
+            if stream:
+                async def stream_generator():
+                    try:
+                        async with client.stream("POST", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                                               json=payload,
+                                               headers={"Authorization": f"Bearer {self.config.api_key}"}) as resp:
+                            resp.raise_for_status()
+                            async for line in resp.aiter_lines():
+                                if line.strip():
+                                    yield line + "\n\n"
+                    finally:
+                        await client.aclose()
+                return stream_generator()
+            else:
+                resp = await client.post(
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.config.api_key}"}
+                )
+                resp.raise_for_status()
+                await client.aclose()
+                return resp.json()
+        except Exception:
+            await client.aclose()
+            raise
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         model = self.config.enabled_models.get("embedding", "text-embedding-v3")

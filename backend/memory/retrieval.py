@@ -77,6 +77,14 @@ class RetrievalPipeline:
             if float(r["payload"].get("confidence", 0)) >= min_confidence
         ]
 
+        # Rerank threshold filter (only apply if reranker is used)
+        if use_rerank and rerank_fn is not None:
+            from backend.services.config import settings
+            deduped = [
+                r for r in deduped
+                if float(r.get("score", 1.0)) >= getattr(settings, "search_rerank_threshold", 0.85)
+            ]
+
         # Phase 3: Graph enrichment
         if use_graph and deduped:
             memory_ids = [r["payload"]["memory_id"] for r in deduped]

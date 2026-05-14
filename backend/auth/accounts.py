@@ -43,13 +43,13 @@ def register(team_id: str, username: str, password: str, role: str = "user") -> 
     _save(accounts)
     return {"username": username, "api_key": token, "team_id": team_id, "role": role}
 
-def login(username: str, password: str) -> dict | None:
+def login(username: str, password: str) -> dict:
     accounts = _load()
     user = accounts.get(username)
     if not user:
-        return None
+        raise ValueError("该用户名未在系统注册")
     if not verify_password(password, user["password"]):
-        return None
+        raise ValueError("密码输入错误")
     return {"username": username, "api_key": user["api_key"], "team_id": user["team_id"], "role": user["role"]}
 
 def list_users() -> list[dict]:
@@ -74,6 +74,25 @@ def revoke_user(username: str) -> bool:
     # Rotate the key to invalidate it, mark as revoked
     accounts[username]["api_key"] = "REVOKED_" + secrets.token_hex(8)
     accounts[username]["revoked"] = True
+    _save(accounts)
+    return True
+
+def suspend_user(username: str) -> bool:
+    """Suspend a user account."""
+    accounts = _load()
+    if username not in accounts:
+        return False
+    accounts[username]["suspended"] = True
+    _save(accounts)
+    return True
+
+def activate_user(username: str) -> bool:
+    """Activate a suspended/revoked user account."""
+    accounts = _load()
+    if username not in accounts:
+        return False
+    accounts[username]["suspended"] = False
+    accounts[username]["revoked"] = False
     _save(accounts)
     return True
 

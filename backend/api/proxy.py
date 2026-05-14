@@ -1,10 +1,19 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
-import httpx, json, time, uuid
+import httpx, json, asyncio, tiktoken
 from datetime import datetime, timezone
 from backend.auth.middleware import get_current_team, get_agent_id
 
 router = APIRouter(prefix="/v1", tags=["proxy"])
+
+def count_tokens(text: str) -> int:
+    """Helper to compute exact or estimated token counts using tiktoken cl100k_base."""
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
+    except Exception:
+        # Fallback heuristic: approx 1.3 tokens per word, 2 per Chinese character
+        return int(len(text) * 1.5)
 
 @router.post("/chat/completions")
 async def chat_completions(
@@ -16,96 +25,151 @@ async def chat_completions(
     messages = body.get("messages", [])
     user_msg = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     
-    # Get active provider settings
-    from backend.services.config import settings
-    provider_config = settings.providers.get(settings.active_provider, {})
-    real_key = provider_config.get("api_key")
-    if not real_key:
-        raise HTTPException(status_code=500, detail=f"No API key configured for {settings.active_provider}")
-        
-    base_url = "https://api.openai.com"
-    if settings.active_provider == "aliyun":
-        base_url = "https://dashscope.aliyuncs.com/compatible-mode"
-    elif settings.active_provider == "zhipu":
-        base_url = "https://open.bigmodel.cn/api/paas/v4"
-    
-    # 1. Search memory for relevant context
-    memory_context = ""
-    t0 = time.time()
     from backend.api.routes import pg_repo, retrieval, registry
-    if user_msg and retrieval and registry:
-        try:
-            results = await retrieval.search(
-                query=user_msg, embedding_fn=registry.embed_single,
-                team_id=team_id, top_k=5, use_rerank=False
-            )
-            ctx_parts = [f"[{r['payload'].get('title', '')}] {r['payload'].get('text', '')[:200]}" for r in results[:3]]
-            if ctx_parts:
-                memory_context = "[MEMORY CONTEXT]\n" + "\n".join(ctx_parts) + "\n[/MEMORY CONTEXT]"
-        except Exception as e:
-            pass
-    t1 = time.time()
-    
-    # 2. Inject memory into system message
-    if memory_context:
-        sys_idx = next((i for i, m in enumerate(messages) if m["role"] == "system"), None)
-        if sys_idx is not None:
-            messages[sys_idx]["content"] = memory_context + "\n\n" + messages[sys_idx]["content"]
-        else:
-            messages.insert(0, {"role": "system", "content": memory_context})
-    
-    # 3. Forward to real API
-    headers = {"Authorization": f"Bearer {real_key}", "Content-Type": "application/json"}
-    payload = {**body, "messages": messages}
-    
-    is_stream = body.get("stream", False)
-    client = httpx.AsyncClient(timeout=120)
+    if not pg_repo:
+        raise HTTPException(status_code=503, detail="Database repository not initialized")
+
+    # 1. Fetch user's custom active provider keys (Commercial zero-墊资 model)
+    provider_config = await pg_repo.get_active_user_provider_config(team_id)
+    if not provider_config:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "no_provider_configured",
+                "message": "商用部署模式：请先在用户端个人设置【算力中心】配置并激活您的 AI Provider API Key，系统所有者不垫付任何费用。",
+                "setup_url": "/app/settings/providers"
+            }
+        )
+
+    api_key = provider_config["api_key"]
+    api_base_url = provider_config["api_base_url"]
+    model_name = provider_config["model_name"]
+    provider_name = provider_config["provider_name"]
+
+    # 2. Automatic Memory Retrieval (Context Injection)
+    history_to_inject = []
+    knowledge_context = ""
     
     try:
-        if is_stream:
-            # We use send to get the response stream, then stream it back
-            req = client.build_request("POST", f"{base_url}/v1/chat/completions", json=payload, headers=headers)
-            resp = await client.send(req, stream=True)
-            t2 = time.time()
-            # Store memory internally (fire and forget basically)
-            if user_msg and pg_repo:
-                await pg_repo.insert(
-                    id=str(uuid.uuid4()), team_id=team_id, workspace_id="default", agent_id=agent_id,
-                    category="agent-memory", subcategory=None, topic=None, memory_type="general",
-                    title=user_msg[:80], content=user_msg, embedding_model="text-embedding-v3",
-                    importance=0.6, confidence=0.8, source_type="agent", tags=[]
-                )
-            return StreamingResponse(resp.aiter_bytes(), media_type="text/event-stream", background=client.aclose)
-        else:
-            resp = await client.post(f"{base_url}/v1/chat/completions", json=payload, headers=headers)
-            t2 = time.time()
-            data = resp.json()
-            
-            # Record metrics
-            try:
-                from backend.services.cost_tracker import CostTracker
-                usage = data.get("usage", {})
-                in_tok = usage.get("prompt_tokens", 0)
-                out_tok = usage.get("completion_tokens", 0)
-                # Compute baseline token count difference roughly
-                base_in = sum(len(m["content"]) for m in body.get("messages", [])) // 2
-                saved = (base_in + len(memory_context) // 2) - in_tok if memory_context else 0
-                CostTracker.record(f"proxy-{settings.active_provider}", in_tok, out_tok, round((t2-t1)*1000, 1))
-            except Exception: pass
-            
-            # Auto-store the conversation including the assistant response
-            if user_msg and pg_repo:
-                assistant_msg = next((c["message"]["content"] for c in data.get("choices", []) if "message" in c), "")
-                content_to_save = f"User: {user_msg}\nAssistant: {assistant_msg}"
-                await pg_repo.insert(
-                    id=str(uuid.uuid4()), team_id=team_id, workspace_id="default", agent_id=agent_id,
-                    category="agent-memory", subcategory=None, topic=None, memory_type="dialogue",
-                    title=user_msg[:80], content=content_to_save, embedding_model="text-embedding-v3",
-                    importance=0.7, confidence=0.9, source_type="agent", tags=[]
-                )
-            
-            await client.aclose()
-            return data
+        # A. Fetch chronological history (Last 10 turns for continuity)
+        rows = await pg_repo.list_recent(team_id, limit=10, filter="agent")
+        for row in reversed(rows):
+            role = "assistant" if row["source_type"] == "agent" else "user"
+            history_to_inject.append({"role": role, "content": row["content"]})
+        
+        # B. Semantic Search (Knowledge Base)
+        if user_msg and retrieval and registry:
+            results = await retrieval.search(
+                query=user_msg, embedding_fn=registry.embed_single,
+                team_id=team_id, top_k=3
+            )
+            from backend.services.context_compiler import ContextCompiler
+            knowledge_context = ContextCompiler.compile_context(results, user_msg)
     except Exception as e:
-        await client.aclose()
-        raise HTTPException(500, f"Proxy request failed: {str(e)}")
+        print(f"[Memory OS] Background memory retrieval failed: {e}")
+
+    # 3. Message Deduplication and System Context Injection
+    existing_contents = {m["content"] for m in messages}
+    new_history = [m for m in history_to_inject if m["content"] not in existing_contents]
+    final_messages = new_history + messages
+    
+    if knowledge_context:
+        sys_msg = next((m for m in final_messages if m["role"] == "system"), None)
+        if sys_msg:
+            sys_msg["content"] = f"{knowledge_context}\n{sys_msg['content']}"
+        else:
+            final_messages.insert(0, {"role": "system", "content": knowledge_context})
+
+    # 4. Routing request to upstream provider
+    is_stream = body.pop("stream", False)
+    body.pop("messages", None)
+    body.pop("model", None) # override request model with user's configured model
+
+    upstream_endpoint = f"{api_base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model_name,
+        "messages": final_messages,
+        "stream": is_stream,
+        **body
+    }
+
+    # Recompute prompt tokens
+    prompt_tokens = count_tokens(json.dumps(final_messages))
+
+    if not is_stream:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(upstream_endpoint, json=payload, headers=headers)
+                if resp.status_code != 200:
+                    raise HTTPException(resp.status_code, f"Upstream error ({resp.status_code}): {resp.text}")
+                
+                resp_json = resp.json()
+                assistant_msg = resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+                
+                # Log usage & save message to memory
+                usage = resp_json.get("usage", {})
+                p_tok = usage.get("prompt_tokens", prompt_tokens)
+                c_tok = usage.get("completion_tokens", count_tokens(assistant_msg))
+                
+                if assistant_msg:
+                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "user", user_msg))
+                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "assistant", assistant_msg))
+                    asyncio.create_task(pg_repo.insert_user_token_usage(
+                        user_id=team_id,
+                        provider_name=provider_name,
+                        model_name=model_name,
+                        prompt_tokens=p_tok,
+                        completion_tokens=c_tok,
+                        total_tokens=p_tok + c_tok
+                    ))
+                return resp_json
+        except Exception as e:
+            raise HTTPException(500, f"Upstream connection failed: {str(e)}")
+
+    # Handle Stream Mode
+    else:
+        async def sse_stream_generator():
+            completion_text = ""
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    async with client.stream("POST", upstream_endpoint, json=payload, headers=headers) as stream:
+                        async for chunk in stream.aiter_bytes():
+                            yield chunk
+                            
+                            # Parse token deltas asynchronously from the SSE chunks
+                            try:
+                                chunk_str = chunk.decode(errors="ignore")
+                                for line in chunk_str.split("\n"):
+                                    line = line.strip()
+                                    if line.startswith("data: "):
+                                        data_str = line[6:]
+                                        if data_str == "[DONE]":
+                                            continue
+                                        data_json = json.loads(data_str)
+                                        delta_text = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                        completion_text += delta_text
+                            except Exception:
+                                pass
+                
+                # Asynchronously commit text to knowledge memories and user billing log
+                if completion_text:
+                    completion_tokens = count_tokens(completion_text)
+                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "user", user_msg))
+                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "assistant", completion_text))
+                    asyncio.create_task(pg_repo.insert_user_token_usage(
+                        user_id=team_id,
+                        provider_name=provider_name,
+                        model_name=model_name,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=prompt_tokens + completion_tokens
+                    ))
+            except Exception as stream_err:
+                print(f"[Memory OS] Upstream streaming failed: {stream_err}")
+
+        return StreamingResponse(sse_stream_generator(), media_type="text/event-stream")
+

@@ -78,5 +78,5 @@ class BaseProvider(ABC):
     ) -> list[dict[str, Any]]:
         raise NotImplementedError(f"{self.provider_name} does not support rerank")
 
-    async def chat(self, messages: list[dict], **kwargs) -> str:
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> Any:
         raise NotImplementedError(f"{self.provider_name} does not support chat")

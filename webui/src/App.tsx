@@ -10,6 +10,7 @@ import { LLMEnginePage } from "./pages/LLMEngine";
 import { TenantsPage } from "./pages/Tenants";
 import { UsersPage } from "./pages/Users";
 import { ReflectionPage } from "./pages/Reflection";
+import { GraphPage } from "./pages/Graph";
 import { ConfigPage } from "./pages/Config";
 export default function App(){
 return(<BrowserRouter><AuthProvider><ToastProvider><AppShell/></ToastProvider></AuthProvider></BrowserRouter>)}
@@ -26,5 +27,6 @@ return(<Layout><Routes>
 <Route path="/tenants" element={<TenantsPage/>}/>
 <Route path="/users" element={<UsersPage/>}/>
 <Route path="/reflection" element={<ReflectionPage/>}/>
+<Route path="/graph" element={<GraphPage/>}/>
 <Route path="/config" element={<ConfigPage/>}/>
 </Routes></Layout>)}

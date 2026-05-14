@@ -229,6 +229,19 @@
                 
                 if (!res.ok) throw new Error(await res.text());
 
+                // Auto-login with the new credentials to get the admin token
+                try {
+                    const loginRes = await fetch('/admin/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: 'admin', password: pwd })
+                    });
+                    if (loginRes.ok) {
+                        const loginData = await loginRes.json();
+                        localStorage.setItem('mos_admin_token', loginData.api_key);
+                    }
+                } catch(e) { /* non-fatal */ }
+
                 alert('系统初始化成功！点击确定进入控制台。');
                 window.location.href = '/manage/';
             } catch (e) {

@@ -109,5 +109,5 @@ export const PROVIDERS:ProviderInfo[]=[
 ]},
 ];
 
-export function getRecommendations(purpose:'classifier'|'reflection'|'embedding'|'rerank'){const r:any={classifier:[{p:'deepseek',m:'deepseek-chat'},{p:'openai',m:'gpt-4o-mini'},{p:'alibaba',m:'qwen3-turbo'}],reflection:[{p:'deepseek',m:'deepseek-reasoner'},{p:'openai',m:'gpt-4o'},{p:'anthropic',m:'claude-sonnet-4-20250514'}],embedding:[{p:'alibaba',m:'text-embedding-v3'},{p:'openai',m:'text-embedding-3-large'}],rerank:[{p:'alibaba',m:'gte-rerank'},{p:'cohere',m:'rerank-v3.5'}]};return r[purpose]||[]}
+export function getRecommendations(purpose:'classifier'|'reflection'|'embedding'|'rerank'){const r:Record<string,{p:string;m:string}[]>={classifier:[{p:'deepseek',m:'deepseek-chat'},{p:'openai',m:'gpt-4o-mini'},{p:'alibaba',m:'qwen3-turbo'}],reflection:[{p:'deepseek',m:'deepseek-reasoner'},{p:'openai',m:'gpt-4o'},{p:'anthropic',m:'claude-sonnet-4-20250514'}],embedding:[{p:'alibaba',m:'text-embedding-v3'},{p:'openai',m:'text-embedding-3-large'}],rerank:[{p:'alibaba',m:'gte-rerank'},{p:'cohere',m:'rerank-v3.5'}]};return r[purpose]||[]}
 export function getLocalProviders(){return PROVIDERS.filter(p=>p.region==='local')}

@@ -36,6 +36,8 @@ def validate_key(token: str) -> dict | None:
     accounts = _load_accounts()
     for username, info in accounts.items():
         if info.get("api_key") == token:
+            if info.get("suspended") or info.get("revoked"):
+                return None
             return {
                 "team_id": info.get("team_id", "default"),
                 "role": info.get("role", "user"),

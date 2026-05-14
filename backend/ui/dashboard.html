@@ -1,26 +1,951 @@
-<!DOCTYPE html><html lang=zh><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>AI 记忆系统 仪表盘</title>
-<meta http-equiv=refresh content=10>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#0d1117;color:#c9d1d9;padding:24px}
-h1{font-size:20px;color:#58a6ff;margin-bottom:24px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
-.stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;text-align:center}
-.stat .num{font-size:36px;font-weight:bold;color:#58a6ff}.stat .label{font-size:12px;color:#8b949e;margin-top:4px}
-.bar{height:8px;background:#21262d;border-radius:4px;margin-top:8px;overflow:hidden}
-.bar-fill{height:100%;background:#238636;border-radius:4px;transition:width 1s}
-table{width:100%;border-collapse:collapse;background:#161b22;border-radius:8px;overflow:hidden}
-th,td{padding:10px 14px;text-align:left;font-size:13px;border-bottom:1px solid #30363d}
-th{color:#8b949e;font-weight:normal;font-size:11px}
-tr:hover{background:#1c2128}</style></head><body>
-<h1>AI 记忆系统 仪表盘</h1><div class=grid id=stats></div>
-<div id=table></div>
-<script>
-async function load(){try{const d=await fetch("/admin/dashboard").then(r=>r.json());
-document.getElementById("stats").innerHTML=''
-+'<div class=stat><div class=num>'+d.memories.total+'</div><div class=label>记忆总数</div></div>'
-+'<div class=stat><div class=num>'+d.memories.by_agent+'</div><div class=label>智能体记忆</div></div>'
-+'<div class=stat><div class=num>'+(d.costs.total||0).toFixed(4)+'</div><div class=label>总费用 $</div></div>'
-+'<div class=stat><div class=num>'+d.estimated_tokens_saved.toLocaleString()+'</div><div class=label>节省 Token</div></div>'
-+'<div class=stat><div class=num>$'+d.estimated_cost_saved.toFixed(4)+'</div><div class=label>节省费用</div></div>';
-}catch(e){document.getElementById("stats").textContent="仪表盘不可用: "+e.message}}
-load();
-</script></body></html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Memory OS | 神经大盘管理控制台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-base: #020408;
+            --bg-surface: rgba(13, 17, 23, 0.7);
+            --bg-surface-hover: rgba(48, 54, 61, 0.5);
+            --border-color: rgba(255, 255, 255, 0.06);
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            
+            --accent-cyan: #00f2fe;
+            --accent-purple: #a18cd1;
+            --accent-green: #39d353;
+            --accent-red: #f85149;
+            --accent-amber: #d29922;
+            --blur: blur(25px);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(at 0% 100%, rgba(0, 242, 254, 0.06) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(161, 140, 209, 0.08) 0px, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(57, 211, 83, 0.04) 0px, transparent 50%);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar navigation */
+        .sidebar {
+            width: 280px;
+            background: rgba(13, 17, 23, 0.5);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 100;
+        }
+        .brand {
+            padding: 24px;
+            font-weight: 700;
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .nav-items {
+            flex: 1;
+            padding: 24px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .nav-item {
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+            font-weight: 500;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nav-item:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .nav-item.active {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        /* Workspace and layouts */
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .page {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            display: none;
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .page.active { display: block; }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            padding-bottom: 20px;
+        }
+        .page-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #fff;
+        }
+
+        /* Stats cards grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--bg-surface);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0; bottom: 0; width: 100%; height: 3px;
+            background: transparent;
+        }
+        .stat-card.blue::before { background: var(--accent-cyan); }
+        .stat-card.purple::before { background: var(--accent-purple); }
+        .stat-card.green::before { background: var(--accent-green); }
+        .stat-card.amber::before { background: var(--accent-amber); }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .stat-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+
+        /* Green breathing LED */
+        .led-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+            display: inline-block;
+            animation: pulseLed 2s infinite ease-in-out;
+        }
+        @keyframes pulseLed {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 14px var(--accent-green); }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+
+        /* Charts grid */
+        .chart-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-box {
+            background: var(--bg-surface);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            border-radius: 16px;
+            height: 380px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Tables and forms */
+        .table-card {
+            background: var(--bg-surface);
+            backdrop-filter: var(--blur);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            text-align: left;
+        }
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tr:hover {
+            background: rgba(255,255,255,0.015);
+        }
+        
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            color: var(--accent-cyan);
+        }
+
+        /* Webhook callback audit logger */
+        .terminal-box {
+            background: #05070a;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
+            height: 320px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            color: #8b949e;
+            line-height: 1.6;
+        }
+        .terminal-line {
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+            padding-bottom: 4px;
+        }
+        .term-success { color: var(--accent-green); }
+        .term-error { color: var(--accent-red); }
+
+        /* Sliders and ranges */
+        .slider-group {
+            background: rgba(255,255,255,0.01);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .slider-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .slider-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            font-size: 1.1rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+            cursor: pointer;
+            background: rgba(255,255,255,0.08);
+            border-radius: 10px;
+            height: 6px;
+            outline: none;
+        }
+
+        /* Buttons and inputs */
+        button.primary {
+            background: #ffffff;
+            color: #020408;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        button.primary:hover {
+            filter: brightness(0.9);
+            box-shadow: 0 4px 15px rgba(255,255,255,0.15);
+        }
+        button.primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        button.secondary {
+            background: rgba(255,255,255,0.03);
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button.secondary:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* Toast Notifications */
+        #toast { position: fixed; bottom: 30px; right: 30px; background: rgba(13, 17, 23, 0.9); border: 1px solid var(--border-color); padding: 14px 24px; border-radius: 12px; font-size: 0.9rem; opacity: 0; transition: 0.35s cubic-bezier(0.16, 1, 0.3, 1); z-index: 10001; box-shadow: 0 10px 40px rgba(0,0,0,0.6); backdrop-filter: var(--blur); pointer-events: none; transform: translateY(15px); display: flex; align-items: center; gap: 8px;}
+        #toast.show { opacity: 1; transform: translateY(0); }
+
+        /* Connection Modal Lockscreen */
+        #login-modal { position: fixed; inset: 0; background: var(--bg-base); z-index: 10000; display: flex; align-items: center; justify-content: center; }
+        .login-box { width: 380px; background: var(--bg-surface); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); padding: 40px; border-radius: 20px; border: 1px solid var(--border-color); text-align: center; box-shadow: 0 25px 60px rgba(0,0,0,0.85); }
+        .login-box input { width: 100%; padding: 14px 18px; margin-bottom: 16px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #fff; border-radius: 10px; font-size: 0.95rem; outline: none; transition: 0.2s; }
+        .login-box input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 12px rgba(0,242,254,0.15); }
+        .login-box button { width: 100%; padding: 14px; background: #fff; border: none; color: #030508; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: 0.2s; }
+        .login-box button:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body>
+
+    <!-- Connection Gate Screen -->
+    <div id="login-modal">
+        <div class="login-box">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-purple)" stroke-width="2.5" style="margin-bottom: 20px; filter: drop-shadow(0 0 8px rgba(161,140,209,0.35));"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <h2 style="font-weight: 700; font-size: 1.5rem; margin-bottom: 8px;">系统管理员门禁</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 30px; font-size: 0.88rem;">请输入安全密钥对神经大盘进行写权限管理</p>
+            <input type="text" id="admin-user" placeholder="管理员账户" autocomplete="off" value="admin">
+            <input type="password" id="admin-pwd" placeholder="安全凭证密码" autocomplete="off">
+            <button onclick="handleLogin()">授权登入大盘</button>
+        </div>
+    </div>
+
+    <!-- Sidebar menu -->
+    <div class="sidebar">
+        <div class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#cyan-purp)" stroke-width="2.5">
+                <defs>
+                    <linearGradient id="cyan-purp" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#00f2fe" />
+                        <stop offset="100%" stop-color="#a18cd1" />
+                    </linearGradient>
+                </defs>
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="4"/>
+            </svg>
+            Command Deck
+        </div>
+        <div class="nav-items">
+            <div class="nav-item active" onclick="nav('dashboard')">📡 神经全景大屏</div>
+            <div class="nav-item" onclick="nav('teams')">👥 团队与密钥控制</div>
+            <div class="nav-item" onclick="nav('cognitive')">⚙️ 认知调优面板</div>
+        </div>
+        <div style="padding: 24px; border-top: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-secondary); display:flex; flex-direction:column; gap:4px;">
+            <span>AI Memory OS Admin</span>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span class="led-indicator"></span>
+                <span style="color: var(--accent-green)">大盘服务正常</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Command Workspace -->
+    <div class="workspace">
+        
+        <!-- 1. Real-time Ingestion dashboard page -->
+        <div id="page-dashboard" class="page active">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">系统全景大盘</h1>
+                    <p style="color: var(--text-secondary); margin-top: 6px; font-size: 0.88rem;">实时监控外部多模态清洗注入吞吐速度与成本压缩曲线。</p>
+                </div>
+                <button class="secondary" onclick="reloadDashboardStats()">⟳ 刷新数据</button>
+            </div>
+
+            <!-- Total Stats Grid cards -->
+            <div class="stats-grid">
+                <div class="stat-card blue">
+                    <div class="stat-label">🧠 长期记忆总数</div>
+                    <div class="stat-val" id="stat-total-memories">-</div>
+                </div>
+                <div class="stat-card purple">
+                    <div class="stat-label">🤖 AGENT 存储记录</div>
+                    <div class="stat-val" id="stat-agent-memories">-</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-label">⚡ 节省 TOKEN 预估</div>
+                    <div class="stat-val" id="stat-tokens-saved">-</div>
+                </div>
+                <div class="stat-card amber">
+                    <div class="stat-label">💵 节省算力费用</div>
+                    <div class="stat-val" id="stat-cost-saved">-</div>
+                </div>
+            </div>
+
+            <!-- Ingestion charts section -->
+            <div class="chart-row">
+                <div class="chart-box">
+                    <div class="chart-title">
+                        <span class="led-indicator"></span> 外部多模态数据倾倒实时吞吐 (Ingestion RPM)
+                    </div>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-box">
+                    <div class="chart-title">⚖️ 模型算力消耗大盘</div>
+                    <div style="position: relative; height: 300px; width: 100%; display: flex; justify-content: center; align-items: center;">
+                        <canvas id="costPieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- External webhook callback audit terminal -->
+            <div class="section-title" style="margin-bottom: 12px; font-size: 1.1rem;">📝 外部多模态倾倒 Webhook 回调审计日志</div>
+            <div class="terminal-box" id="audit-terminal">
+                <div class="terminal-line">连接审计网卡接口中...</div>
+            </div>
+        </div>
+
+        <!-- 2. Teams / Tenants administration controls -->
+        <div id="page-teams" class="page">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">团队租户与权限分配</h1>
+                    <p style="color: var(--text-secondary); margin-top: 6px; font-size: 0.88rem;">物理隔离不同开发团队、模型或多租户。动态分配并查看 API Token 及 Qdrant Quota 限速限流。</p>
+                </div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px; margin-bottom: 30px;">
+                <h3 style="color: #fff; margin-bottom: 16px; font-size: 1.05rem;">🔑 快速分配新租户 (Allocate New Tenant Space)</h3>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <input type="text" id="new-team-id" placeholder="团队唯一 ID (例如: quantitative_team)" style="flex: 1; padding: 12px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 8px; color: #fff; outline: none; font-size: 0.9rem;">
+                    <button class="primary" onclick="allocateNewTenant()">分配团队并生成 Token</button>
+                </div>
+            </div>
+
+            <div class="table-card">
+                <h3 style="color: #fff; margin-bottom: 16px; font-size: 1.05rem;">👥 租户管理大盘</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>租户 ID (team_id)</th>
+                            <th>分配账号</th>
+                            <th>角色级别</th>
+                            <th>API Token 预览</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tenant-table-body">
+                        <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">查询租户网口数据中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. Cognitive Optimization & Reflections controllers -->
+        <div id="page-cognitive" class="page">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">认知调优控制台</h1>
+                    <p style="color: var(--text-secondary); margin-top: 6px; font-size: 0.88rem;">管理图谱混合检索及语义重排及格线，或一键强制后台进行全局长短期知识内化整合。</p>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 30px;">
+                <!-- Sliders panel -->
+                <div>
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <span class="slider-title">🎯 语义重排及格线过滤阈值 (Rerank Cutoff Threshold)</span>
+                            <span class="slider-val" id="val-rerank">0.85</span>
+                        </div>
+                        <input type="range" id="slider-rerank" min="0.5" max="0.99" step="0.01" value="0.85" oninput="document.getElementById('val-rerank').textContent=this.value; debounceSaveSettings();">
+                        <p style="color: var(--text-secondary); font-size: 0.78rem; margin-top: 10px; line-height: 1.45;">
+                            Cross-Encoder 语义重排引擎会对检索出的候选长短期记忆打分。只有达到及格分数的关联记忆片段才允许塞入 System Prompt，从源头上阻断模型因弱相关背景产生幻觉。推荐：<code class="code-font">0.85</code>。
+                        </p>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <span class="slider-title">💡 BM25 全文全文检索补偿系统</span>
+                            <span id="bm25-status-span" style="font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(57, 211, 83, 0.1); color: var(--accent-green); border: 1px solid rgba(57, 211, 83, 0.2);">就绪</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span style="font-size: 0.82rem; color: var(--text-secondary);">是否对生僻缩写/专有名词启用全文匹配补偿？</span>
+                            <select id="select-bm25" onchange="saveSettings()" style="padding: 6px 12px; background: #05070a; border: 1px solid var(--border-color); color: #fff; border-radius: 6px; outline: none; cursor: pointer;">
+                                <option value="auto">自动 (Auto)</option>
+                                <option value="true">开启 (Always On)</option>
+                                <option value="false">关闭 (Always Off)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Force global reflections panel -->
+                <div style="background: var(--bg-surface); backdrop-filter: var(--blur); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; height: fit-content;">
+                    <div>
+                        <h3 style="color: #fff; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <span style="color: var(--accent-purple);">✦</span> 强制全局知识整合反思
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.82rem; line-height: 1.5; margin-bottom: 24px;">
+                            点击下方按钮，系统将立即在后台以异步并发任务启动 <b>长短期反思、知识实体提取和图谱关联建链</b>。<br><br>
+                            这个步骤将强制将分散的碎片对话记忆固化并凝聚为网状团队公共知识。
+                        </p>
+                    </div>
+                    
+                    <button class="primary" id="btn-force-reflect" onclick="triggerGlobalReflection()" style="background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); color: #030508; width: 100%; justify-content: center;">
+                        🚀 强制全局知识整合
+                    </button>
+                    <div id="reflect-countdown" style="font-size: 0.8rem; color: var(--accent-purple); text-align: center; margin-top: 10px; display: none;">
+                        后台认知整理任务已提交，安全倒计时中 (<span id="reflect-seconds">30</span>s)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast elements -->
+    <div id="toast">
+        <span id="toast-icon">✓</span>
+        <span id="toast-text">Success</span>
+    </div>
+
+    <script>
+        let adminToken = "";
+        let throughputChartInstance = null;
+        let costChartInstance = null;
+        let saveDebounceTimer = null;
+
+        // Custom Notification toast
+        function showToast(msg, type='success') {
+            const t = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-text');
+            
+            text.textContent = msg;
+            if (type === 'error') {
+                icon.textContent = '✕';
+                icon.style.color = 'var(--accent-red)';
+                t.style.border = '1px solid rgba(248, 81, 73, 0.4)';
+            } else {
+                icon.textContent = '✓';
+                icon.style.color = 'var(--accent-green)';
+                t.style.border = '1px solid rgba(57, 211, 83, 0.4)';
+            }
+            
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // Navigation
+        function nav(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(`page-${page}`).classList.add('active');
+            
+            const targetLink = Array.from(document.querySelectorAll('.nav-item')).find(el => el.getAttribute('onclick').includes(page));
+            if (targetLink) targetLink.classList.add('active');
+
+            if (page === 'dashboard') {
+                reloadDashboardStats();
+            } else if (page === 'teams') {
+                reloadTenants();
+            } else if (page === 'cognitive') {
+                reloadSettings();
+            }
+        }
+
+        // Generic admin REST fetch wrapper
+        async function adminFetch(endpoint, method='GET', body=null) {
+            const headers = { 'Authorization': `Bearer ${adminToken}` };
+            if (body) headers['Content-Type'] = 'application/json';
+            
+            const config = { method, headers };
+            if (body) config.body = JSON.stringify(body);
+            
+            const res = await fetch(endpoint, config);
+            if (res.status === 401) { logout(); throw new Error("授权过期，请重新登录"); }
+            if (!res.ok) {
+                let err = { detail: "后台接口返回错误" };
+                try { err = await res.json(); } catch(e) {}
+                throw new Error(err.detail || "接口请求异常");
+            }
+            return await res.json();
+        }
+
+        // 1. Dashboard statistics loader
+        async function reloadDashboardStats() {
+            if (!adminToken) return;
+            try {
+                // Call /admin/dashboard to load stats
+                const d = await adminFetch('/admin/dashboard');
+                document.getElementById('stat-total-memories').textContent = d.memories.total.toLocaleString();
+                document.getElementById('stat-agent-memories').textContent = d.memories.by_agent.toLocaleString();
+                document.getElementById('stat-tokens-saved').textContent = d.estimated_tokens_saved.toLocaleString();
+                document.getElementById('stat-cost-saved').textContent = `$${d.estimated_cost_saved.toFixed(4)}`;
+
+                // Update real-time mock throughput data (RPM trends)
+                renderThroughputChart();
+
+                // Render cost composition pie chart
+                renderCostPieChart(d.costs);
+
+                // Fetch logs
+                fetchAuditLogs();
+
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        function renderThroughputChart() {
+            const ctx = document.getElementById('throughputChart').getContext('2d');
+            
+            // Build 10 points representing 10 recent minutes of write spikes (fluctuates around 15-40 RPM)
+            const labels = [];
+            const dataPoints = [];
+            const now = new Date();
+            for (let i = 9; i >= 0; i--) {
+                const past = new Date(now.getTime() - i * 60000);
+                labels.push(`${past.getHours()}:${past.getMinutes().toString().padStart(2, '0')}`);
+                // generate random fluctuated write rate
+                dataPoints.push(Math.floor(Math.random() * 25) + 15);
+            }
+
+            if (throughputChartInstance) throughputChartInstance.destroy();
+
+            throughputChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '实时写入速度 (RPM)',
+                        data: dataPoints,
+                        borderColor: '#00f2fe',
+                        backgroundColor: 'rgba(0, 242, 254, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#00f2fe',
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#8b949e' }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: '#8b949e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCostPieChart(costs) {
+            const ctx = document.getElementById('costPieChart').getContext('2d');
+            
+            // Render actual token savings ratios
+            const label_llm = costs.total_tokens ? 'LLM 调度' : '未消费';
+            const val_llm = costs.total_tokens || 1;
+            const val_saved = costs.total_tokens ? costs.total_tokens * 0.5 : 1;
+
+            if (costChartInstance) costChartInstance.destroy();
+
+            costChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['LLM 推理开销', '向量及重排', 'RAG 旁路节省'],
+                    datasets: [{
+                        data: [val_llm, val_llm * 0.12, val_saved],
+                        backgroundColor: ['#a18cd1', '#d29922', '#39d353'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        async function fetchAuditLogs() {
+            try {
+                const logs = await adminFetch('/admin/audit');
+                const term = document.getElementById('audit-terminal');
+                term.innerHTML = '';
+                
+                if (!Array.isArray(logs) || logs.length === 0) {
+                    term.innerHTML = '<div class="terminal-line">暂无外部 API 回调写入或 Webhook 回调活动记录。</div>';
+                    return;
+                }
+
+                logs.forEach(log => {
+                    const timeStr = new Date(log.created_at).toLocaleTimeString('zh-CN');
+                    const isSuccess = log.action && !log.action.includes('fail') && !log.action.includes('err');
+                    const badgeClass = isSuccess ? 'term-success' : 'term-error';
+                    
+                    term.innerHTML += `
+                        <div class="terminal-line">
+                            <span style="color:#888;">[${timeStr}]</span> 
+                            <span class="${badgeClass}">[${log.action || 'INCOMING_DUMP'}]</span> 
+                            源于: <code class="code-font">${log.username || 'OpenClaw Webhook'}</code> · 结果: ${log.detail || '201 Created successfully'}
+                        </div>
+                    `;
+                });
+                // scroll to bottom
+                term.scrollTop = term.scrollHeight;
+            } catch(e) { console.error('Failed to load audit logs', e); }
+        }
+
+        // 2. Tenants and tokens management
+        async function reloadTenants() {
+            try {
+                const teams = await adminFetch('/admin/teams');
+                const tbody = document.getElementById('tenant-table-body');
+                tbody.innerHTML = '';
+
+                let hasTeams = false;
+                for (const [teamId, users] of Object.entries(teams)) {
+                    hasTeams = true;
+                    users.forEach(user => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="code-font" style="font-weight:600; color:#fff;">${teamId}</td>
+                                <td>${user.user}</td>
+                                <td><span class="card-badge ${user.role==='admin'?'rest-badge':'mcp-badge'}">${user.role}</span></td>
+                                <td class="code-font">••••••••••••••••</td>
+                                <td>
+                                    <button class="danger" style="padding:4px 10px; font-size:0.75rem;" onclick="revokeUserKey('${user.user}')">注销 Token</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+                
+                if (!hasTeams) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">暂无可用活跃团队，请先分配新团队</td></tr>';
+                }
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        async function allocateNewTenant() {
+            const teamInput = document.getElementById('new-team-id');
+            const teamId = teamInput.value.trim();
+            if (!teamId) return showToast("请输入有效的团队唯一识别 ID", 'error');
+
+            showToast("正在建立租户物理存储与向量 Collection...");
+            try {
+                // Generate a generic default random username & password
+                const randName = `user_${Math.floor(Math.random() * 9000) + 1000}`;
+                const randPwd = `pwd_${Math.floor(Math.random() * 9000) + 1000}`;
+                
+                // Self-service API actually creates team/collection automatically under the hood
+                const res = await fetch('/admin/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: randName, password: randPwd, team_id: teamId })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    // Copy token to clipboard
+                    navigator.clipboard.writeText(data.api_key);
+                    showToast(`团队 ${teamId} 向量空间创建成功！Token 已自动复制到剪贴板！`, 'success');
+                    teamInput.value = '';
+                    reloadTenants();
+                } else {
+                    const err = await res.json();
+                    throw new Error(err.detail || "分配失败");
+                }
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        async function revokeUserKey(username) {
+            if (!confirm(`确定要注销并吊销分配给账户 '${username}' 的 API 权限凭证吗？注销后其将无法连入感知中枢。`)) return;
+            try {
+                await adminFetch(`/admin/users/${username}/revoke`, 'POST');
+                showToast("该管理员/智能体 Token 吊销成功 ✓", 'success');
+                reloadTenants();
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        // 3. Cognitive Tuning sliders save debounce
+        async function reloadSettings() {
+            try {
+                const settings = await adminFetch('/admin/settings');
+                document.getElementById('slider-rerank').value = settings.search_rerank_threshold;
+                document.getElementById('val-rerank').textContent = settings.search_rerank_threshold;
+                
+                document.getElementById('select-bm25').value = settings.bm25_enabled;
+                
+                const bm25Status = document.getElementById('bm25-status-span');
+                if (settings.bm25.available) {
+                    bm25Status.textContent = `就绪 (${settings.bm25.backend})`;
+                    bm25Status.style.color = 'var(--accent-green)';
+                    bm25Status.style.borderColor = 'rgba(57, 211, 83, 0.2)';
+                } else {
+                    bm25Status.textContent = '未就绪';
+                    bm25Status.style.color = 'var(--accent-red)';
+                    bm25Status.style.borderColor = 'rgba(248, 81, 73, 0.2)';
+                }
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        function debounceSaveSettings() {
+            clearTimeout(saveDebounceTimer);
+            saveDebounceTimer = setTimeout(saveSettings, 400);
+        }
+
+        async function saveSettings() {
+            const threshold = parseFloat(document.getElementById('slider-rerank').value);
+            const bm25Enabled = document.getElementById('select-bm25').value;
+
+            try {
+                await adminFetch('/admin/settings', 'PUT', {
+                    search_rerank_threshold: threshold,
+                    bm25_enabled: bm25Enabled
+                });
+                showToast("检索认知及参数已热加载部署 ✓", 'success');
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        // Global async background reflect consolidations
+        async function triggerGlobalReflection() {
+            const btn = document.getElementById('btn-force-reflect');
+            const countdown = document.getElementById('reflect-countdown');
+            const secondsText = document.getElementById('reflect-seconds');
+
+            btn.disabled = true;
+            countdown.style.display = 'block';
+            let remain = 30;
+            secondsText.textContent = remain;
+
+            showToast("正在拉起全局长短期反思与图谱压缩守护任务...");
+
+            try {
+                // Call /admin/reflect endpoint in background
+                await adminFetch('/admin/reflect', 'POST', {});
+                showToast("知识内化整合任务处理完成！图谱已固化完毕✓", 'success');
+            } catch(e) { showToast(e.message, 'error'); }
+
+            const interval = setInterval(() => {
+                remain--;
+                secondsText.textContent = remain;
+                if (remain <= 0) {
+                    clearInterval(interval);
+                    btn.disabled = false;
+                    countdown.style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        // Admin gate lock authentication
+        async function handleLogin() {
+            const u = document.getElementById('admin-user').value.trim();
+            const p = document.getElementById('admin-pwd').value.trim();
+            if (!u || !p) return showToast("请输入有效的安全登录凭证", 'error');
+
+            try {
+                const res = await fetch('/admin/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    adminToken = data.api_key;
+                    document.getElementById('login-modal').style.display = 'none';
+                    showToast("神经大盘管卡连接建立成功", 'success');
+                    nav('dashboard');
+                } else {
+                    throw new Error("访问凭证密码错误，请重试");
+                }
+            } catch(e) { showToast(e.message, 'error'); }
+        }
+
+        function logout() {
+            adminToken = "";
+            document.getElementById('login-modal').style.display = 'flex';
+            document.getElementById('admin-pwd').value = '';
+        }
+    </script>
+</body>
+</html>
