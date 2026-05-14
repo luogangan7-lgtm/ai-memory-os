@@ -89,6 +89,28 @@ export const PROVIDERS:ProviderInfo[]=[
 {id:'nomic-embed-text',name:'Nomic-Embed-Text',type:'embedding',size:'~274MB'},
 {id:'mxbai-embed-large',name:'MxBai-Embed-Large',type:'embedding',size:'~670MB'},
 ]},
+
+{id:'baidu',name:'Baidu',nameZh:'百度文心',region:'cn',baseUrl:'https://qianfan.baidubce.com/v2',features:['Chat','Embedding','Vision'],models:[
+{id:'ernie-5.0',name:'ERNIE-5.0',type:'chat',recommended:true,ctx:131072},
+{id:'ernie-4.5-turbo',name:'ERNIE-4.5-Turbo',type:'chat',ctx:131072},
+{id:'ernie-speed-pro',name:'ERNIE-Speed-Pro',type:'chat',ctx:131072},
+{id:'ernie-lite-pro',name:'ERNIE-Lite-Pro',type:'chat',ctx:8192},
+]},
+{id:'iflytek',name:'iFlytek',nameZh:'讯飞星火',region:'cn',baseUrl:'https://spark-api-open.xf-yun.com/v1',features:['Chat','Vision'],models:[
+{id:'spark-4.0-ultra',name:'Spark-4.0-Ultra',type:'chat',recommended:true,ctx:32768},
+{id:'spark-max',name:'Spark-Max',type:'chat',ctx:32768},
+{id:'spark-lite',name:'Spark-Lite',type:'chat',ctx:8192},
+]},
+{id:'groq',name:'Groq',nameZh:'Groq',region:'intl',baseUrl:'https://api.groq.com/openai/v1',features:['Chat'],models:[
+{id:'meta-llama/llama-4-scout-17b-16e-instruct',name:'Llama-4-Scout-17B',type:'chat',recommended:true,ctx:131072},
+{id:'meta-llama/llama-4-maverick-17b-128e-instruct',name:'Llama-4-Maverick-17B',type:'chat',ctx:131072},
+{id:'deepseek-r1-distill-llama-70b',name:'DeepSeek-R1-70B',type:'reasoning',ctx:131072},
+]},
+{id:'together',name:'Together AI',nameZh:'Together',region:'intl',baseUrl:'https://api.together.xyz/v1',features:['Chat','Embedding'],models:[
+{id:'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',name:'Llama-4-Maverick',type:'chat',recommended:true,ctx:131072},
+{id:'deepseek-ai/DeepSeek-V3',name:'DeepSeek-V3',type:'chat',ctx:131072},
+{id:'Qwen/Qwen2.5-72B-Instruct-Turbo',name:'Qwen2.5-72B',type:'chat',ctx:32768},
+]},
 ];
 export function getRecommendations(purpose:'classifier'|'reflection'|'embedding'|'rerank'){const r:Record<string,{p:string;m:string}[]>={
 classifier:[{p:'deepseek',m:'deepseek-v4-flash'},{p:'openai',m:'gpt-5.4-nano'},{p:'alibaba',m:'qwen3.5-flash'}],
