@@ -124,10 +124,17 @@ export const PROVIDERS:ProviderInfo[]=[
 {id:'nomic-embed-text',name:'Nomic-Embed',type:'embedding',size:'~274MB'},
 ]},
 ];
-export function getRecommendations(purpose:'classifier'|'reflection'|'embedding'|'rerank'){const r:Record<string,{p:string;m:string}[]>={
-classifier:[{p:'deepseek',m:'deepseek-v4-flash'},{p:'openai',m:'gpt-5.4-nano'},{p:'alibaba',m:'qwen3.5-flash'}],
-reflection:[{p:'deepseek',m:'deepseek-v4-pro'},{p:'openai',m:'gpt-5.4'},{p:'anthropic',m:'claude-sonnet-4-6'}],
-embedding:[{p:'alibaba',m:'text-embedding-v4'},{p:'openai',m:'text-embedding-3-large'},{p:'cohere',m:'embed-multilingual-v3'}],
-rerank:[{p:'alibaba',m:'gte-rerank-v2'},{p:'cohere',m:'rerank-v3.5'}],
-};return r[purpose]||[]}
-export function getLocalProviders(){return PROVIDERS.filter(p=>p.region==='local')}
+export function getRecommendations(purpose:'classifier'|'reflection'|'embedding'|'rerank'):{p:string;m:string;label:string;reason:string}[]{
+const result:{p:string;m:string;label:string;reason:string}[]=[];
+const allChat=PROVIDERS.filter(p=>p.features.includes("Chat")||p.features.includes("Reasoning")).flatMap(p=>p.models.filter(m=>m.type==="chat"||m.type==="reasoning").map(m=>({provider:p,m})));
+const allEmb=PROVIDERS.filter(p=>p.features.includes("Embedding")).flatMap(p=>p.models.filter(m=>m.type==="embedding").map(m=>({provider:p,m})));
+const allRerank=PROVIDERS.filter(p=>p.features.includes("Rerank")).flatMap(p=>p.models.filter(m=>m.type==="rerank").map(m=>({provider:p,m})));
+if(purpose==="classifier"){
+const cheapest=[...allChat].sort((a,b)=>(parseFloat(a.m.price?.split("/")[0]?.replace("$","")?.replace("¥","")||"99"))-(parseFloat(b.m.price?.split("/")[0]?.replace("$","")?.replace("¥","")||"99"))).slice(0,3);
+for(const x of cheapest)result.push({p:x.provider.id,m:x.m.id,label:"最低成本",reason:"输入价格: "+(x.m.price||"免费")})}
+if(purpose==="reflection"){
+const biggest=[...allChat].sort((a,b)=>(b.m.ctx||0)-(a.m.ctx||0)).slice(0,3);
+for(const x of biggest)result.push({p:x.provider.id,m:x.m.id,label:"最大上下文",reason:(x.m.ctx||0)/1000+"k token"})}
+if(purpose==="embedding"){for(const x of allEmb.slice(0,3))result.push({p:x.provider.id,m:x.m.id,label:"向量化推荐",reason:x.m.price||"推荐"})}
+if(purpose==="rerank"){for(const x of allRerank.slice(0,3))result.push({p:x.provider.id,m:x.m.id,label:"重排序推荐",reason:x.m.price||"推荐"})}
+return result}export function getLocalProviders(){return PROVIDERS.filter(p=>p.region==='local')}
