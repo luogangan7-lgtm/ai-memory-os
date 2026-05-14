@@ -1,24 +1,12 @@
 {
-  "name": "@ai-memory-os/mcp-bridge",
+  "name": "@ai-memory-os/mcp",
   "version": "1.0.0",
-  "description": "ATLAS MemoryCore MCP Bridge \u2014 Universal agent memory via MCP protocol",
+  "description": "AI Memory OS MCP Server — 为任意 AI Agent 提供长期记忆能力",
   "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "atlas-mcp-bridge": "dist/index.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "axios": "^1.7.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.5.0",
-    "tsx": "^4.0.0"
-  }
+  "bin": { "ai-memory-os-mcp": "./bin/cli.js" },
+  "scripts": { "start": "node bin/cli.js" },
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0" },
+  "engines": { "node": ">=18.0.0" },
+  "keywords": ["mcp", "memory", "ai", "agent", "rag"],
+  "license": "MIT"
 }
