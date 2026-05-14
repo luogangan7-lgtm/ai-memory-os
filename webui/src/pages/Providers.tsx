@@ -1,5 +1,5 @@
-import { PROVIDERS } from '../data/models';
-import { useState } from "react";
+import { useState } from 'react';
+import { PROVIDERS, type ProviderInfo } from '../data/models';
 
 interface PipeConfig { provider: string; apiKey: string; model: string; purpose: string; }
 const DEFAULTS: PipeConfig[] = [
@@ -15,8 +15,8 @@ const LABELS: Record<string,{name:string;desc:string;icon:string}> = {
   rerank:{name:'重排序模型',desc:'对检索结果进行精排，提升准确率',icon:'🎯'},
 };
 
-
 function filterProviders(purpose:string){return PROVIDERS.filter(p=>{if(purpose==='embedding'||purpose==='rerank')return p.features.includes('Embedding')||p.features.includes('Rerank');return p.features.includes('Chat')||p.features.includes('Reasoning')})}
+
 function PipeCard({cfg,onChange}:{cfg:PipeConfig;onChange:(c:PipeConfig)=>void}){
 const meta=LABELS[cfg.purpose]||{name:cfg.purpose,desc:'',icon:'⚙️'};
 const prov=PROVIDERS.find(p=>p.id===cfg.provider);
@@ -34,6 +34,28 @@ return(<div className='pipe-card'>
 <div className='pipe-row'><label>API Key</label><input type='password' value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder='sk-...'/></div>
 <div className='pipe-row' style={{justifyContent:'flex-end'}}><button className='btn btn-teal' onClick={test} disabled={testing||!cfg.apiKey}>{testing?'测试中...':'🔗 测试连接'}</button></div></div></div>)}
 
+export function ModelConfigPage(){
+const[cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
+const[saved,setSaved]=useState(false);
+async function saveAll(){
+try{await fetch('/admin/providers/configure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:cfgs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model}))})});
+setSaved(true);setTimeout(()=>setSaved(false),2000)}catch{setSaved(false)}}
+const cn=PROVIDERS.filter(p=>p.region==='cn');
+const intl=PROVIDERS.filter(p=>p.region==='intl');
+const local=PROVIDERS.filter(p=>p.region==='local');
+const ProviderListItem=({p}:{p:ProviderInfo})=>(<div className='card' style={{padding:16}}><div style={{fontWeight:600,marginBottom:8}}><span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)'}}>{p.nameZh}</span></div><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>{p.features.map(f=><span key={f} className='badge badge-violet' style={{fontSize:9}}>{f}</span>)}</div><div style={{fontSize:10,color:'var(--muted)',marginBottom:4,fontFamily:'var(--mono)'}}>{p.baseUrl}</div><div style={{fontSize:10,color:'var(--dim)'}}>{p.models.length} models</div></div>);
+return(<div>
+<div className='page-header'><div><div className='page-title'>模型配置中心</div><div className='page-sub'>配置 AI Memory OS 各管线的底层大模型——分类、反思、向量化、重排序</div></div>
+<button className={`btn ${saved?'btn-emerald':'btn-teal'}`} onClick={saveAll} style={{fontSize:14,padding:'10px 24px'}}>{saved?'✅ 已保存':'💾 保存全部配置'}</button></div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))',gap:20,marginBottom:30}}>
+{cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>{const n=[...cfgs];n[i]=c;setCfgs(n)}}/>)}
+</div>
+<div className='card' style={{marginTop:20}}><div className='card-title'>📋 可用模型清单</div>
+<div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🇨🇳 中国厂商 ({cn.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{cn.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>
+<div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🌐 海外厂商 ({intl.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{intl.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>
+{local.length>0&&<div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>💻 本地模型 ({local.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{local.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>}
+</div>
+<LocalDetect/></div>)}
 
 function LocalDetect(){
 const[scanning,setScanning]=useState(false);const[results,setResults]=useState<string[]>([]);
@@ -43,23 +65,3 @@ setResults(f);setScanning(false)}
 return(<div className='card' style={{marginTop:20}}><div className='card-head'><div className='card-title'>💻 本地模型检测</div><button className='btn btn-teal' onClick={scan} disabled={scanning}>{scanning?'扫描中...':'🔍 扫描'}</button></div>
 {results.length>0&&<div style={{fontFamily:'var(--mono)',fontSize:12,lineHeight:2}}>{results.map((r,i)=><div key={i}>{r}</div>)}</div>}
 <div style={{marginTop:8,fontSize:11,color:'var(--muted)'}}>Ollama(11434) · LM Studio(1234) · vLLM(4891)</div></div>)}
-<LocalDetect/>
-export function ModelConfigPage(){
-const [cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
-const [saved,setSaved]=useState(false);
-
-async function saveAll(){
-try{await fetch('/admin/providers/configure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:cfgs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model}))})});
-setSaved(true);setTimeout(()=>setSaved(false),2000)}catch{setSaved(false)}}
-return(<div>
-<div className='page-header'><div><div className='page-title'>模型配置中心</div><div className='page-sub'>配置 AI Memory OS 各管线的底层大模型——分类、反思、向量化、重排序</div></div>
-<button className={`btn ${saved?'btn-emerald':'btn-teal'}`} onClick={saveAll} style={{fontSize:14,padding:'10px 24px'}}>{saved?'✅ 已保存':'💾 保存全部配置'}</button></div>
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))',gap:20,marginBottom:30}}>
-{cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>{const n=[...cfgs];n[i]=c;setCfgs(n)}}/>)}
-</div>
-<div className='card'><div className='card-title'>💡 推荐配置组合</div>
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12}}>
-{[{p:'deepseek',m:'deepseek-v4-flash',label:'最快分类'},{p:'deepseek',m:'deepseek-v4-pro',label:'最强反思'},{p:'alibaba',m:'text-embedding-v4',label:'最佳向量化'},{p:'cohere',m:'rerank-v3.5',label:'英文重排序'}].map(r=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.m} className='card' style={{padding:16,cursor:'pointer',borderColor:'var(--border)'}}><div style={{fontSize:12,color:'var(--teal)',marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:'var(--muted)',fontFamily:'var(--mono)'}}>{r.m}</div></div>)})}
-</div></div>
-<div className='card' style={{marginTop:20}}><div className='card-title'>📋 可用模型清单</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
-{PROVIDERS.slice(0,12).map(p=><div key={p.id} className='card' style={{padding:16}}><div style={{fontWeight:600,marginBottom:8}}><span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)'}}>{p.nameZh}</span></div><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>{p.features.map(f=><span key={f} className='badge badge-violet' style={{fontSize:9}}>{f}</span>)}</div><div style={{fontSize:10,color:'var(--muted)',marginBottom:8,fontFamily:'var(--mono)'}}>{p.baseUrl}</div></div>)}</div></div></div>)}
