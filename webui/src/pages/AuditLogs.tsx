@@ -11,7 +11,7 @@ const load=useCallback(async()=>{try{const r=await getAuditLogs(action,user);set
 useEffect(()=>{load()},[load]);
 return(<div><div className="page-title">审计日志</div><div className="page-sub">审计日志</div><div className="card">
 <div style={{display:"flex",gap:10,marginBottom:16}}>
-<select value={action} onChange={e=>setAction(e.target.value)}><option value="">all</option><option value="store">store</option><option value="delete">delete</option><option value="login">login</option></select>
+<select value={action} onChange={e=>setAction(e.target.value)}><option value="">全部操作</option><option value="store">存储记忆</option><option value="delete">删除记忆</option><option value="login">用户登录</option></select>
 <input placeholder="搜索用户名..." style={{flex:1,background:"rgba(4,8,16,.85)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",color:"var(--text)",fontSize:12,outline:"none"}} value={user} onChange={e=>setUser(e.target.value)}/>
 <button className="btn btn-teal" onClick={load}>search</button></div>
 <table className="table"><thead><tr><th>时间</th><th>用户</th><th>租户</th><th>操作</th><th>目标</th><th>IP</th><th>结果</th></tr></thead>
