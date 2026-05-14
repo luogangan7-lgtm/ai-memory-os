@@ -78,7 +78,7 @@ app.include_router(mcp_router)
 
 # UI routes
 UI_DIR = Path(__file__).parent.parent / "webui-dist"
-APP_DIR = Path(__file__).parent / "app_ui"
+APP_DIR = Path(__file__).parent.parent / "webui-dist"
 
 if UI_DIR.exists():
     app.mount("/manage", StaticFiles(directory=str(UI_DIR), html=True), name="manage_ui")
