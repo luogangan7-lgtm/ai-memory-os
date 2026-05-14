@@ -28,6 +28,7 @@ const NAV_SECTIONS = [
     label: "认知调优",
     items: [
       { to: "/reflection", label: "知识整合", icon: "🔮" },
+      { to: "/graph", label: "知识图谱", icon: "🕸️", badge: "NEW" },
       { to: "/config", label: "系统参数", icon: "⚙️" },
     ],
   },
