@@ -6,10 +6,10 @@ import { DashboardPage } from "./pages/Dashboard";
 import { MonitoringPage } from "./pages/Monitoring";
 import { AuditLogsPage } from "./pages/AuditLogs";
 import { ModelConfigPage } from "./pages/Providers";
-import { LLMEnginePage } from "./pages/LLMEngine";
 import { TenantsPage } from "./pages/Tenants";
 import { UsersPage } from "./pages/Users";
 import { ReflectionPage } from "./pages/Reflection";
+import { UserAppPage } from './pages/UserApp';
 import { GraphPage } from "./pages/Graph";
 import { ConfigPage } from "./pages/Config";
 export default function App(){
@@ -19,11 +19,11 @@ const { isLoading } = useAuth();
 if (isLoading) return <div style={{color:'#00E5FF',fontFamily:'Syne',display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#030A15',fontSize:18}}>LOADING COMMAND DECK...</div>;
 // Dev mode: skip auth
 return(<Layout><Routes>
-<Route path="/" element={<DashboardPage/>}/>
+<Route path='/app' element={<UserAppPage/>}/>
+<Route path='/'  element={<DashboardPage/>}/>
 <Route path="/monitoring" element={<MonitoringPage/>}/>
 <Route path="/audit" element={<AuditLogsPage/>}/>
 <Route path="/providers" element={<ModelConfigPage/>}/>
-<Route path="/llm-engine" element={<LLMEnginePage/>}/>
 <Route path="/tenants" element={<TenantsPage/>}/>
 <Route path="/users" element={<UsersPage/>}/>
 <Route path="/reflection" element={<ReflectionPage/>}/>
