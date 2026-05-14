@@ -13,8 +13,7 @@ const NAV_SECTIONS = [
   {
     label: "配置",
     items: [
-      { to: "/providers", label: "系统算力", icon: "🔌" },
-      { to: "/llm-engine", label: "LLM 引擎", icon: "🤖", badge: "NEW" },
+      { to: "/models", label: "模型配置", icon: "🤖" },
     ],
   },
   {
