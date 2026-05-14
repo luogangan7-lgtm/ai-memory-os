@@ -20,7 +20,7 @@ export const PROVIDERS:ProviderInfo[]=[
 {id:'GLM-5.1',name:'GLM-5.1',type:'chat',recommended:true,ctx:203000,price:'¥7/¥25/M'},
 {id:'GLM-5-Turbo',name:'GLM-5-Turbo',type:'chat',ctx:131072,price:'¥2/¥8/M'},
 {id:'GLM-4.7',name:'GLM-4.7',type:'chat',ctx:128000,price:'¥2/¥8/M'},
-{id:'GLM-4.6',name:'GLM-4.6',type:'chat',ctx:128000,price:'¥1/¥4/M'},
+{id:'GLM-4.6',name:'GLM-4.6',type:'chat',ctx:128000,price:'$0.15/$0.60/M'},
 {id:'GLM-4V-Plus',name:'GLM-4V-Plus',type:'vision',ctx:32768},
 {id:'embedding-3',name:'Embedding-3',type:'embedding',recommended:true},
 ]},
@@ -88,7 +88,7 @@ export const PROVIDERS:ProviderInfo[]=[
 {id:'gemini-3.1-pro-preview',name:'Gemini-3.1-Pro',type:'chat',recommended:true,ctx:1048576,price:'$2/$10/M'},
 {id:'gemini-3-flash',name:'Gemini-3-Flash',type:'chat',ctx:1048576,price:'$0.50/$2/M'},
 {id:'gemini-2.5-pro',name:'Gemini-2.5-Pro',type:'chat',ctx:1048576,price:'$2.50/$15/M'},
-{id:'gemini-2.5-flash',name:'Gemini-2.5-Flash',type:'chat',ctx:1048576,price:'¥1/¥4/M'},
+{id:'gemini-2.5-flash',name:'Gemini-2.5-Flash',type:'chat',ctx:1048576,price:'$0.15/$0.60/M'},
 ]},
 {id:'mistral',name:'Mistral AI',nameZh:'Mistral',region:'intl',baseUrl:'https://api.mistral.ai/v1',features:['Chat','Embedding'],models:[
 {id:'mistral-large-latest',name:'Mistral-Large',type:'chat',recommended:true,ctx:131000,price:'$2/$6/M'},
