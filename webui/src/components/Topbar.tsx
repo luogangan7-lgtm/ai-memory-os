@@ -24,7 +24,7 @@ export function Topbar() {
       } catch {
         if (!mounted) return;
         setHealthy(false);
-        setStatusText("服务离线");
+        setStatusText("后端未连接");
       }
     }
 
