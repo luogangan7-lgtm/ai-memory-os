@@ -20,7 +20,7 @@ export const PROVIDERS:ProviderInfo[]=[
 {id:'GLM-5.1',name:'GLM-5.1',type:'chat',recommended:true,ctx:203000,price:'¥7/¥25/M'},
 {id:'GLM-5-Turbo',name:'GLM-5-Turbo',type:'chat',ctx:131072,price:'¥2/¥8/M'},
 {id:'GLM-4.7',name:'GLM-4.7',type:'chat',ctx:128000,price:'¥2/¥8/M'},
-{id:'GLM-4.6',name:'GLM-4.6',type:'chat',ctx:128000,price:'$0.15/$0.60/M'},
+{id:'GLM-4.6',name:'GLM-4.6',type:'chat',ctx:128000,price:'¥1/¥4/M'},
 {id:'GLM-4V-Plus',name:'GLM-4V-Plus',type:'vision',ctx:32768},
 {id:'embedding-3',name:'Embedding-3',type:'embedding',recommended:true},
 ]},
