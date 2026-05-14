@@ -1,70 +1,53 @@
-import { useState } from 'react';
-import { PROVIDERS, getRecommendations } from '../data/models';
+import { PROVIDERS } from '../data/models';
+import { useState } from "react";
 
-interface ActiveConfig { provider: string; apiKey: string; model: string; purpose: string; }
-const DEFAULT_CONFIGS: ActiveConfig[] = [
+interface PipeConfig { provider: string; apiKey: string; model: string; purpose: string; }
+const DEFAULTS: PipeConfig[] = [
   { provider:'deepseek', apiKey:'', model:'deepseek-v4-flash', purpose:'classifier' },
   { provider:'deepseek', apiKey:'', model:'deepseek-v4-pro', purpose:'reflection' },
   { provider:'alibaba', apiKey:'', model:'text-embedding-v4', purpose:'embedding' },
   { provider:'alibaba', apiKey:'', model:'gte-rerank-v2', purpose:'rerank' },
 ];
+const LABELS: Record<string,{name:string;desc:string;icon:string}> = {
+  classifier:{name:'内容分类器',desc:'自动将记忆分为常识/人物/代码/任务等类型',icon:'🏷️'},
+  reflection:{name:'知识整合引擎',desc:'定期分析全量记忆，合并重复、发现关联',icon:'🔮'},
+  embedding:{name:'向量化模型',desc:'将文本转为高维向量用于语义检索',icon:'🔢'},
+  rerank:{name:'重排序模型',desc:'对检索结果进行精排，提升准确率',icon:'🎯'},
+};
 
-function ConfigRow({cfg,onChange}:{cfg:ActiveConfig;onChange:(c:ActiveConfig)=>void}){
-const currentProvider = PROVIDERS.find(p=>p.id===cfg.provider);
-return(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 2fr auto',gap:10,alignItems:'center',padding:'10px 14px',marginBottom:8,background:'rgba(0,240,212,.04)',borderRadius:10,border:'1px solid var(--border)'}}>
-<div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{cfg.purpose.toUpperCase()}</div>
-<select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})} style={{fontSize:12}}>
-{PROVIDERS.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-</select>
-<div style={{display:'flex',gap:8}}>
-<select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})} style={{flex:1,fontSize:12}}>
-{currentProvider?.models.map(m=><option key={m.id} value={m.id}>{m.name}{m.recommended?' ★':''}</option>)}
-</select>
-<input type="password" value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder="API Key" style={{flex:1,fontSize:11}}/>
-</div>
-<button className='btn btn-ghost' onClick={async()=>{
+function PipeCard({cfg,onChange}:{cfg:PipeConfig;onChange:(c:PipeConfig)=>void}){
+const meta=LABELS[cfg.purpose]||{name:cfg.purpose,desc:'',icon:'⚙️'};
 const prov=PROVIDERS.find(p=>p.id===cfg.provider);
-if(!cfg.apiKey||!prov){alert('Enter API key');return}
-try{const res=await fetch(prov.baseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},body:JSON.stringify({model:cfg.model,messages:[{role:'user',content:'hi'}],max_tokens:5})});
-const d=await res.json().catch(()=>({}));
-alert(res.ok?'CONNECTED - '+cfg.model:'FAILED: '+(d.error?.message||res.status))
-}catch(e: unknown){alert("Connection error: " + (e instanceof Error ? e.message : String(e)))}
-}} style={{fontSize:11,padding:'4px 10px'}}>TEST</button>
-</div>)}
-export function ProvidersPage(){
-const [configs,setConfigs]=useState<ActiveConfig[]>(DEFAULT_CONFIGS);
-const [activeTab,setActiveTab]=useState<'config'|'browse'>('config');
-const recs=getRecommendations('classifier');
+const [testing,setTesting]=useState(false);
+const [status,setStatus]=useState<'idle'|'ok'|'err'>('idle');
+async function test(){
+setTesting(true);setStatus('idle');
+try{const r=await fetch((prov?.baseUrl||'').replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},body:JSON.stringify({model:cfg.model,messages:[{role:'user',content:'hi'}],max_tokens:5})});
+setStatus(r.ok?'ok':'err');}catch{setStatus('err')}finally{setTesting(false)}}
+return(<div className='pipe-card'>
+<div className='pipe-header'><span className='pipe-icon'>{meta.icon}</span><div><div className='pipe-name'>{meta.name}</div><div className='pipe-desc'>{meta.desc}</div></div><div className={`pipe-status ${status}`}>{status==='ok'?'✅ 已连接':status==='err'?'❌ 连接失败':''}</div></div>
+<div className='pipe-body'><div className='pipe-row'>
+<label>模型厂商</label><select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})}>{PROVIDERS.map(p=><option key={p.id} value={p.id}>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'} {p.name} {p.nameZh}</option>)}</select></div>
+<div className='pipe-row'><label>模型</label><select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})}>{prov?.models.map(m=><option key={m.id} value={m.id}>{m.name}{m.recommended?' ★':''}{m.ctx?' · '+(m.ctx/1000).toFixed(0)+'k':''}</option>)}</select></div>
+<div className='pipe-row'><label>API Key</label><input type='password' value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder='sk-...'/></div>
+<div className='pipe-row' style={{justifyContent:'flex-end'}}><button className='btn btn-teal' onClick={test} disabled={testing||!cfg.apiKey}>{testing?'测试中...':'🔗 测试连接'}</button></div></div></div>)}
+
+export function ModelConfigPage(){
+const [cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
 const [saved,setSaved]=useState(false);
+
 async function saveAll(){
-try{
-const payload=configs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model}));
-await fetch('/admin/providers/configure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:payload})});
-setSaved(true);setTimeout(()=>setSaved(false),2000);
-}catch{alert('Save failed - backend offline')}
-}
+try{await fetch('/admin/providers/configure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:cfgs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model}))})});
+setSaved(true);setTimeout(()=>setSaved(false),2000)}catch{setSaved(false)}}
 return(<div>
-<div className='page-header'><div><div className='page-title'>System Compute</div><div className='page-sub'>Configure LLMs for each pipeline function</div></div>
-<div style={{display:'flex',gap:8}}>
-<button className={`btn ${activeTab==='config'?'btn-teal':'btn-ghost'}`} onClick={()=>setActiveTab('config')}>Configuration</button>
-<button className={`btn ${activeTab==='browse'?'btn-teal':'btn-ghost'}`} onClick={()=>setActiveTab('browse')}>Browse Models</button>
-</div></div>
-{activeTab==='config'&&<>
-<div className='card' style={{borderColor:'rgba(0,240,212,.2)'}}>
-<div className='card-head'><div className='card-title'>Pipeline Configuration</div>
-<button className='btn btn-teal' onClick={saveAll}>{saved?'✅ Saved':'💾 Save Config'}</button></div>
-{configs.map((cfg,i)=><ConfigRow key={i} cfg={cfg} onChange={(c)=>{const n=[...configs];n[i]=c;setConfigs(n)}} />)}
+<div className='page-header'><div><div className='page-title'>模型配置中心</div><div className='page-sub'>配置 AI Memory OS 各管线的底层大模型——分类、反思、向量化、重排序</div></div>
+<button className={`btn ${saved?'btn-emerald':'btn-teal'}`} onClick={saveAll} style={{fontSize:14,padding:'10px 24px'}}>{saved?'✅ 已保存':'💾 保存全部配置'}</button></div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))',gap:20,marginBottom:30}}>
+{cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>{const n=[...cfgs];n[i]=c;setCfgs(n)}}/>)}
 </div>
-<div className='card' style={{background:'linear-gradient(135deg,rgba(10,18,36,.95),rgba(0,240,212,.02))'}}>
-<div className='card-title'>Recommended Configurations</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
-{recs.map(r=>{const p=PROVIDERS.find(pp=>pp.id===r.p);return p?<div key={r.p} className='card' style={{padding:14,cursor:'pointer'}} onClick={()=>{const n=[...configs];n[0]={provider:r.p,model:r.m,apiKey:'',purpose:'classifier'};setConfigs(n)}}><div style={{fontSize:13,fontWeight:600}}>{p.name}</div><div style={{fontSize:11,color:'var(--muted)',fontFamily:'var(--mono)'}}>{r.m}</div></div>:null})}
-</div></div></>}
-{activeTab==='browse'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:16}}>
-{PROVIDERS.map(p=><div key={p.id} className='card' style={{padding:18}}>
-<div style={{fontSize:14,fontWeight:700,marginBottom:10}}><span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)',fontWeight:400}}>{p.nameZh}</span></div>
-<div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:10}}>{p.features.map(f=><span key={f} className='badge badge-violet' style={{fontSize:9}}>{f}</span>)}</div>
-<div style={{fontSize:10,color:'var(--muted)',marginBottom:10}}>Base: <code style={{color:'var(--teal)',fontSize:10}}>{p.baseUrl}</code></div>
-{p.models.slice(0,5).map(m=><div key={m.id} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:11,borderBottom:'1px solid rgba(40,65,110,.1)'}}><span style={{fontFamily:'var(--mono)',color:'var(--text)'}}>{m.name}</span><span style={{color:'var(--muted)'}}>{m.type}{m.ctx?' · '+Math.round(m.ctx/1000)+'k':''}{m.recommended?' ★':''}</span></div>)}
-{p.models.length>5&&<div style={{fontSize:10,color:'var(--muted)',marginTop:6}}>+{p.models.length-5} more models</div>}
-</div>)}</div>}
-</div>)}
+<div className='card'><div className='card-title'>💡 推荐配置组合</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12}}>
+{[{p:'deepseek',m:'deepseek-v4-flash',label:'最快分类'},{p:'deepseek',m:'deepseek-v4-pro',label:'最强反思'},{p:'alibaba',m:'text-embedding-v4',label:'最佳向量化'},{p:'cohere',m:'rerank-v3.5',label:'英文重排序'}].map(r=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.m} className='card' style={{padding:16,cursor:'pointer',borderColor:'var(--border)'}}><div style={{fontSize:12,color:'var(--teal)',marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:'var(--muted)',fontFamily:'var(--mono)'}}>{r.m}</div></div>)})}
+</div></div>
+<div className='card' style={{marginTop:20}}><div className='card-title'>📋 可用模型清单</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
+{PROVIDERS.slice(0,12).map(p=><div key={p.id} className='card' style={{padding:16}}><div style={{fontWeight:600,marginBottom:8}}><span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)'}}>{p.nameZh}</span></div><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>{p.features.map(f=><span key={f} className='badge badge-violet' style={{fontSize:9}}>{f}</span>)}</div><div style={{fontSize:10,color:'var(--muted)',marginBottom:8,fontFamily:'var(--mono)'}}>{p.baseUrl}</div></div>)}</div></div></div>)}
