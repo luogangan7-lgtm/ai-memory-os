@@ -24,7 +24,7 @@ export function UsersPage() {
       <div className='page-sub'>用户管理</div>
       <div className='card'>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <input placeholder='搜索' value={q} onChange={e => setQ(e.target.value)} />
+          <input placeholder='搜索用户' style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:12,outline:'none'}} value={q} onChange={e => setQ(e.target.value)} />
           <button className='btn btn-teal' onClick={load}>search</button>
         </div>
         <table className='table'>
