@@ -34,6 +34,8 @@ return(<div className='pipe-card'>
 <div className='pipe-row'><label>API Key</label><input type='password' value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder='sk-...'/></div>
 <div className='pipe-row' style={{justifyContent:'flex-end'}}><button className='btn btn-teal' onClick={test} disabled={testing||!cfg.apiKey}>{testing?'测试中...':'🔗 测试连接'}</button></div></div></div>)}
 
+
+const FEATURE_ZH:Record<string,string>={'Chat':'对话','Vision':'视觉','Embedding':'向量化','Rerank':'重排序','Audio':'语音','Reasoning':'推理','Voice':'语音'};
 export function ModelConfigPage(){
 const[cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
 const[saved,setSaved]=useState(false);
@@ -43,7 +45,7 @@ setSaved(true);setTimeout(()=>setSaved(false),2000)}catch{setSaved(false)}}
 const cn=PROVIDERS.filter(p=>p.region==='cn');
 const intl=PROVIDERS.filter(p=>p.region==='intl');
 const local=PROVIDERS.filter(p=>p.region==='local');
-const ProviderListItem=({p}:{p:ProviderInfo})=>(<div className='card' style={{padding:16}}><div style={{fontWeight:600,marginBottom:8}}><span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)'}}>{p.nameZh}</span></div><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>{p.features.map(f=><span key={f} className='badge badge-violet' style={{fontSize:9}}>{f}</span>)}</div><div style={{fontSize:10,color:'var(--muted)',marginBottom:4,fontFamily:'var(--mono)'}}>{p.baseUrl}</div><div style={{fontSize:10,color:'var(--dim)'}}>{p.models.length} models</div></div>);
+const ProviderListItem=({p}:{p:ProviderInfo})=>(<div className='card' style={{padding:16}}><div style={{fontWeight:600,marginBottom:8}}><span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)'}}>{p.nameZh}</span></div><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>{p.features.map(f=><span key={f} className='badge badge-violet' style={{fontSize:9}}>{FEATURE_ZH[f]||f}</span>)}</div><div style={{fontSize:10,color:'var(--muted)',marginBottom:4,fontFamily:'var(--mono)'}}>{p.baseUrl}</div><div style={{fontSize:10,color:'var(--dim)'}}>{p.models.length} models</div></div>);
 return(<div>
 <div className='page-header'><div><div className='page-title'>模型配置中心</div><div className='page-sub'>配置 AI Memory OS 各管线的底层大模型——分类、反思、向量化、重排序</div></div>
 <button className={`btn ${saved?'btn-emerald':'btn-teal'}`} onClick={saveAll} style={{fontSize:14,padding:'10px 24px'}}>{saved?'✅ 已保存':'💾 保存全部配置'}</button></div>
