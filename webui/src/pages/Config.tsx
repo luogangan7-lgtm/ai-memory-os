@@ -14,35 +14,44 @@ export function ConfigPage() {
   const [jwtExpire, setJwtExpire] = useState(43200);
 
   async function saveRAG() {
-    try { await saveRAGConfig({ top_k: topk, min_similarity: sim, max_context_tokens: ctxTokens, history_count: history }); toast('RAG saved'); }
-    catch { toast('err', 'err'); }
+    try { await saveRAGConfig({ top_k: topk, min_similarity: sim, max_context_tokens: ctxTokens, history_count: history }); toast('保存成功'); }
+    catch { toast('保存失败', 'err'); }
+  }
+  async function saveSec() {
+    try { await saveSecurityConfig({ rate_write: rateWrite, rate_read: rateRead, max_mem_len: maxMemLen, jwt_expire: jwtExpire }); toast('保存成功'); }
+    catch { toast('保存失败', 'err'); }
   }
 
-  async function saveSec() {
-    try { await saveSecurityConfig({ rate_write: rateWrite, rate_read: rateRead, max_mem_len: maxMemLen, jwt_expire: jwtExpire }); toast('Security saved'); }
-    catch { toast('err', 'err'); }
-  }
+  const field = (label:string, desc:string, value:number, set:(v:number)=>void, unit:string='', type:string='number') => (
+    <div className='form-group'>
+      <label>{label} {unit&&<span style={{color:'var(--teal)',fontWeight:400}}>— {unit}</span>}</label>
+      <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>{desc}</div>
+      {type==='range'
+        ? <input type='range' min={0} max={1} step={0.05} value={value} onChange={e=>set(+e.target.value)} />
+        : <input type='text' value={value} onChange={e=>set(+e.target.value)} />}
+    </div>
+  );
 
   return (
     <div>
       <div className='page-title'>系统配置</div>
-      <div className='page-sub'>RAG 参数与安全设置</div>
+      <div className='page-sub'>RAG 检索参数 · 安全策略 · 限速规则</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
         <div className='card'>
-          <div className='card-head'><div className='card-title'><div className='card-icon ci-teal'>R</div>RAG 参数</div></div>
-          <div className='form-group'><label>Top-K</label><input type='text' value={topk} onChange={e => setTopk(+e.target.value)} /></div>
-          <div className='form-group'><label>Min Similarity: {sim.toFixed(2)}</label><input type='range' min={0} max={1} step={0.05} value={sim} onChange={e => setSim(+e.target.value)} /></div>
-          <div className='form-group'><label>Max Context Tokens</label><input type='text' value={ctxTokens} onChange={e => setCtxTokens(+e.target.value)} /></div>
-          <div className='form-group'><label>History Messages</label><input type='text' value={history} onChange={e => setHistory(+e.target.value)} /></div>
-          <button className='btn btn-teal w-full' onClick={saveRAG}>保存 RAG</button>
+          <div className='card-head'><div className='card-title'><div className='card-icon ci-teal'>🔍</div>RAG 检索参数</div></div>
+          {field('Top-K', '向量检索时返回的最相似记忆条数，越大召回越多但可能引入噪声', topk, setTopk, '条')}
+          {field('最小相似度阈值', '只返回相似度高于此值的记忆，过滤低质量结果', sim, setSim, sim.toFixed(2), 'range')}
+          {field('上下文最大 Token', '注入到 LLM 对话上下文中的最大 Token 数量', ctxTokens, setCtxTokens, 'tokens')}
+          {field('历史消息条数', '注入到 LLM 对话中的最近历史消息数量', history, setHistory, '条')}
+          <button className='btn btn-teal w-full' onClick={saveRAG} style={{marginTop:8}}>💾 保存 RAG 参数</button>
         </div>
         <div className='card'>
-          <div className='card-head'><div className='card-title'><div className='card-icon ci-red'>S</div>安全与限速</div></div>
-          <div className='form-group'><label>Write Rate (per min)</label><input type='text' value={rateWrite} onChange={e => setRateWrite(+e.target.value)} /></div>
-          <div className='form-group'><label>Read Rate (per min)</label><input type='text' value={rateRead} onChange={e => setRateRead(+e.target.value)} /></div>
-          <div className='form-group'><label>Max Memory Length (chars)</label><input type='text' value={maxMemLen} onChange={e => setMaxMemLen(+e.target.value)} /></div>
-          <div className='form-group'><label>JWT Expire (minutes)</label><input type='text' value={jwtExpire} onChange={e => setJwtExpire(+e.target.value)} /></div>
-          <button className='btn btn-teal w-full' onClick={saveSec}>保存安全</button>
+          <div className='card-head'><div className='card-title'><div className='card-icon ci-violet'>🛡️</div>安全与限速</div></div>
+          {field('每分钟写入限制', '单个用户每分钟最多可写入的记忆条数，防止滥用', rateWrite, setRateWrite, '次/分钟')}
+          {field('每分钟读取限制', '单个用户每分钟最多可检索的次数', rateRead, setRateRead, '次/分钟')}
+          {field('单条记忆最大长度', '单条记忆内容的字符上限，超过将被截断', maxMemLen, setMaxMemLen, '字符')}
+          {field('JWT 过期时间', '登录凭证的有效时长，超时后需重新登录', jwtExpire, setJwtExpire, '分钟')}
+          <button className='btn btn-teal w-full' onClick={saveSec} style={{marginTop:8}}>💾 保存安全参数</button>
         </div>
       </div>
     </div>
