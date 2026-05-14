@@ -30,7 +30,7 @@ return(<div className='pipe-card'>
 <div className='pipe-header'><span className='pipe-icon'>{meta.icon}</span><div><div className='pipe-name'>{meta.name}</div><div className='pipe-desc'>{meta.desc}</div></div><div className={`pipe-status ${status}`}>{status==='ok'?'✅ 已连接':status==='err'?'❌ 连接失败':''}</div></div>
 <div className='pipe-body'><div className='pipe-row'>
 <label>模型厂商</label><select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})}>{filterProviders(cfg.purpose).map(p=><option key={p.id} value={p.id}>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'} {p.name}</option>)}</select></div>
-<div className='pipe-row'><label>模型</label><select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})}>{prov?.models.map(m=><option key={m.id} value={m.id}>{m.name}{m.recommended?' ★':''}{m.ctx?' · '+(m.ctx/1000).toFixed(0)+'k':''}</option>)}</select></div>
+<div className='pipe-row'><label>模型</label><select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})}>{prov?.models.filter(m=>{if(cfg.purpose==='embedding')return m.type==='embedding';if(cfg.purpose==='rerank')return m.type==='rerank';return m.type==='chat'||m.type==='reasoning'}).map(m=><option key={m.id} value={m.id}>{m.name}{m.recommended?' ★':''}{m.price?' · '+m.price:''}{m.ctx?' · '+(m.ctx/1000).toFixed(0)+'k':''}</option>)}</select></div>
 <div className='pipe-row'><label>API Key</label><input type='password' value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder='sk-...'/></div>
 <div className='pipe-row' style={{justifyContent:'flex-end'}}><button className='btn btn-teal' onClick={test} disabled={testing||!cfg.apiKey}>{testing?'测试中...':'🔗 测试连接'}</button></div></div></div>)}
 
