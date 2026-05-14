@@ -5,7 +5,7 @@ import { Layout } from "./components/Layout";
 import { DashboardPage } from "./pages/Dashboard";
 import { MonitoringPage } from "./pages/Monitoring";
 import { AuditLogsPage } from "./pages/AuditLogs";
-import { ProvidersPage } from "./pages/Providers";
+import { ModelConfigPage } from "./pages/Providers";
 import { LLMEnginePage } from "./pages/LLMEngine";
 import { TenantsPage } from "./pages/Tenants";
 import { UsersPage } from "./pages/Users";
@@ -22,7 +22,7 @@ return(<Layout><Routes>
 <Route path="/" element={<DashboardPage/>}/>
 <Route path="/monitoring" element={<MonitoringPage/>}/>
 <Route path="/audit" element={<AuditLogsPage/>}/>
-<Route path="/providers" element={<ProvidersPage/>}/>
+<Route path="/providers" element={<ModelConfigPage/>}/>
 <Route path="/llm-engine" element={<LLMEnginePage/>}/>
 <Route path="/tenants" element={<TenantsPage/>}/>
 <Route path="/users" element={<UsersPage/>}/>
