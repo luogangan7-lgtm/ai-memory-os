@@ -5,8 +5,9 @@ from backend.services.internalizer import InternalizationService
 from backend.memory.lifecycle import compute_freshness, compute_next_stage
 
 class ReflectionEngine:
-    def __init__(self, pg_repo, graph_store):
+    def __init__(self, pg_repo, graph_store, registry=None):
         self.pg, self.graph = pg_repo, graph_store
+        self.registry = registry
 
     async def reflect_all(self, team_id="default"):
         rpt = {"stage_transitions":0,"freshness_updated":0,"duplicates_found":0,"summaries":0,"relations_found":0}
@@ -55,17 +56,30 @@ class ReflectionEngine:
                 "SELECT id,content FROM memories WHERE team_id=$1 AND summary IS NULL AND length(content)>2000 LIMIT 3",team_id)
             for r in rows:
                 try:
-                    async with httpx.AsyncClient(timeout=30) as cl:
-                        resp = await cl.post(
-                            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-                            json={"model":"qwen-turbo","messages":[
+                    s = None
+                    if self.registry:
+                        try:
+                            s = await self.registry.chat_for_engine("reflection", [
                                 {"role":"system","content":"Summarize in 2-3 short sentences."},
                                 {"role":"user","content":r["content"][:3000]}
-                            ],"max_tokens":150},
-                            headers={"Authorization":"Bearer " + os.environ.get("DASHSCOPE_API_KEY", "") + ""})
-                        if resp.status_code==200:
-                            s=resp.json()["choices"][0]["message"]["content"]
-                            await conn.execute("UPDATE memories SET summary=$1,updated_at=$2 WHERE id=$3",s,datetime.now(timezone.utc),r["id"]); n+=1
+                            ], max_tokens=150)
+                        except Exception as e:
+                            print(f"DEBUG: Registry chat_for_engine ('reflection') failed: {e}, falling back to Dashscope.", flush=True)
+
+                    if not s:
+                        async with httpx.AsyncClient(timeout=30) as cl:
+                            resp = await cl.post(
+                                "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                                json={"model":"qwen-turbo","messages":[
+                                    {"role":"system","content":"Summarize in 2-3 short sentences."},
+                                    {"role":"user","content":r["content"][:3000]}
+                                ],"max_tokens":150},
+                                headers={"Authorization":"Bearer " + os.environ.get("DASHSCOPE_API_KEY", "") + ""})
+                            if resp.status_code==200:
+                                s=resp.json()["choices"][0]["message"]["content"]
+
+                    if s:
+                        await conn.execute("UPDATE memories SET summary=$1,updated_at=$2 WHERE id=$3",s,datetime.now(timezone.utc),r["id"]); n+=1
                 except: pass
         return n
 
@@ -122,3 +136,24 @@ class ReflectionEngine:
                 for d in dupes[:-1]:
                     await conn.execute("UPDATE memories SET importance=importance*0.5,updated_at=$1 WHERE id=$2",datetime.now(timezone.utc),d["id"]); n+=1
         return n
+
+    async def _detect_gaps(self, team_id: str) -> list[dict]:
+        """Detect knowledge gaps (categories or topics with low/no coverage or low confidence)."""
+        async with self.pg.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT category, COUNT(*) as count, AVG(confidence) as avg_confidence "
+                "FROM memories "
+                "WHERE team_id=$1 "
+                "GROUP BY category",
+                team_id
+            )
+            gaps = []
+            for r in rows:
+                if r["count"] < 3 or (r["avg_confidence"] and r["avg_confidence"] < 0.6):
+                    gaps.append({
+                        "category": r["category"],
+                        "count": r["count"],
+                        "avg_confidence": float(r["avg_confidence"]) if r["avg_confidence"] is not None else 0.0,
+                        "reason": "Low memory density" if r["count"] < 3 else "Low average confidence"
+                    })
+            return gaps

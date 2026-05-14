@@ -1,5 +1,5 @@
-# AI Memory OS — Zhipu AI GLM Provider
 import httpx
+from typing import Any
 from backend.providers.base import BaseProvider, ModelCapability, ModelInfo
 
 class ZhipuProvider(BaseProvider):
@@ -41,10 +41,41 @@ class ZhipuProvider(BaseProvider):
             )
             resp.raise_for_status()
             data = resp.json()
-            # Record actual token usage from API response
             usage = data.get("usage", {})
             tokens = usage.get("total_tokens", sum(len(t) for t in texts) // 2)
             from backend.services.cost_tracker import CostTracker
             CostTracker.record(model, tokens, provider="zhipu")
             return [i["embedding"] for i in data["data"]]
+
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> Any:
+        model = self.config.enabled_models.get("llm", "glm-4-flash")
+        client = httpx.AsyncClient(timeout=60)
+        try:
+            payload = {"model": model, "messages": messages, "stream": stream, **kwargs}
+            if stream:
+                async def stream_generator():
+                    try:
+                        async with client.stream("POST", "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                                               json=payload,
+                                               headers={"Authorization": f"Bearer {self.config.api_key}"}) as resp:
+                            resp.raise_for_status()
+                            async for line in resp.aiter_lines():
+                                if line.strip():
+                                    yield line + "\n\n"
+                    finally:
+                        await client.aclose()
+                return stream_generator()
+            else:
+                resp = await client.post(
+                    "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.config.api_key}"}
+                )
+                resp.raise_for_status()
+                await client.aclose()
+                return resp.json()
+        except Exception:
+            await client.aclose()
+            raise
+
 

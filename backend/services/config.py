@@ -53,3 +53,27 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# --- System-Wide Tuning Config Persistence (V5.1 Spec) ---
+import json
+from pathlib import Path
+import os
+
+SYS_CONFIG_FILE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "memory-os" / "sys_config.json"
+
+def load_system_config() -> dict:
+    if SYS_CONFIG_FILE.exists():
+        try:
+            return json.loads(SYS_CONFIG_FILE.read_text())
+        except Exception:
+            pass
+    return {
+        "rag": { "top_k": 5, "min_similarity": 0.60, "max_context_tokens": 2000, "history_count": 10 },
+        "security": { "rate_write": 60, "rate_read": 120, "max_mem_len": 10000, "jwt_expire": 43200 },
+        "reflection": { "decay_rate": 0.05, "quality_threshold": 0.80, "interval_hours": 24 }
+    }
+
+def save_system_config(config: dict) -> None:
+    SYS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SYS_CONFIG_FILE.write_text(json.dumps(config, indent=2))
+

@@ -11,25 +11,25 @@ from qdrant_client import QdrantClient, models
 from backend.providers.local import get_bm25, encode_sparse
 
 
-COLLECTION_NAME = "memory"
+DEFAULT_COLLECTION_NAME = "memory_team_default"
 VECTOR_SIZE = 1024
 DISTANCE_METRIC = models.Distance.COSINE
 
 
 class QdrantStore:
-    """Vector store with dense + optional sparse hybrid index."""
+    """Vector store with dense + optional sparse hybrid index with per-team physical isolation."""
 
     def __init__(self, host: str = "localhost", port: int = 6333):
         self.client = QdrantClient(host=host, port=port)
         self._bm25 = get_bm25()
-        self._ensure_collection()
+        self._ensure_collection(DEFAULT_COLLECTION_NAME)
 
-    def _ensure_collection(self) -> None:
+    def _ensure_collection(self, collection_name: str) -> None:
         try:
-            self.client.get_collection(COLLECTION_NAME)
+            self.client.get_collection(collection_name)
         except Exception:
             kwargs: dict = {
-                "collection_name": COLLECTION_NAME,
+                "collection_name": collection_name,
                 "vectors_config": {
                     "": models.VectorParams(
                         size=VECTOR_SIZE,
@@ -48,20 +48,24 @@ class QdrantStore:
     async def async_upsert(
         self, point_id: str, vector: list[float],
         payload: dict[str, Any], text: str = "",
+        team_id: str = "default",
     ) -> None:
-        return await asyncio.to_thread(self.upsert, point_id, vector, payload, text)
+        return await asyncio.to_thread(self.upsert, point_id, vector, payload, text, team_id)
 
     def upsert(
         self, point_id: str, vector: list[float],
         payload: dict[str, Any], text: str = "",
+        team_id: str = "default",
     ) -> None:
+        collection_name = f"memory_team_{team_id}"
+        self._ensure_collection(collection_name)
         vectors: dict = {"": vector}
         if self._bm25 is not None and text:
             sparse = encode_sparse([text])
             if sparse and sparse[0]:
                 vectors["bm25"] = models.SparseVector(**sparse[0])
         self.client.upsert(
-            collection_name=COLLECTION_NAME,
+            collection_name=collection_name,
             points=[models.PointStruct(id=point_id, vector=vectors, payload=payload)],
         )
 
@@ -77,18 +81,18 @@ class QdrantStore:
         team_id: str = "default", workspace_id: str = "default",
         top_k: int = 10, source_type: str = None
     ) -> list[dict[str, Any]]:
-        must = [
-            models.FieldCondition(
-                key="team_id", match=models.MatchValue(value=team_id)),
-        ]
+        collection_name = f"memory_team_{team_id}"
+        self._ensure_collection(collection_name)
+
+        must = []
         if workspace_id:
             must.append(models.FieldCondition(
                 key="workspace_id", match=models.MatchValue(value=workspace_id)))
         if source_type:
             must.append(models.FieldCondition(
                 key="source_type", match=models.MatchValue(value=source_type)))
-        qdrant_filter = models.Filter(must=must)
-
+        
+        qdrant_filter = models.Filter(must=must) if must else None
 
         prefetch = [
             models.Prefetch(query=query_vector, using="", limit=top_k * 2),
@@ -103,7 +107,7 @@ class QdrantStore:
                 ))
 
         results = self.client.query_points(
-            collection_name=COLLECTION_NAME,
+            collection_name=collection_name,
             prefetch=prefetch,
             query=models.FusionQuery(fusion=models.Fusion.RRF),
             query_filter=qdrant_filter,
@@ -112,8 +116,9 @@ class QdrantStore:
 
         return [{"id": h.id, "score": h.score, "payload": h.payload or {}} for h in results.points]
 
-    def delete(self, point_id: str) -> None:
+    def delete(self, point_id: str, team_id: str = "default") -> None:
+        collection_name = f"memory_team_{team_id}"
         self.client.delete(
-            collection_name=COLLECTION_NAME,
+            collection_name=collection_name,
             points_selector=models.PointIdsList(points=[point_id]),
         )

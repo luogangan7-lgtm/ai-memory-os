@@ -1,16 +1,33 @@
 # AI Memory OS - Ollama Local Model Wizard
 from __future__ import annotations
-import subprocess, platform, os, sys
+import subprocess, platform, os, sys, urllib.request, json
 
 def detect_ollama() -> dict:
+    # Try querying the Ollama HTTP API on host.docker.internal or localhost
+    for host in ["host.docker.internal", "localhost", "127.0.0.1"]:
+        try:
+            url = f"http://{host}:11434/api/tags"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=3) as res:
+                data = json.loads(res.read().decode("utf-8"))
+                models = [m["name"] for m in data.get("models", [])]
+                return {"installed": True, "models": models}
+        except Exception as e:
+            pass
+            
+    # Fallback to local subprocess run (e.g. if running in standalone mode on host Mac)
     try:
-        r = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
-        models = []
-        for line in r.stdout.strip().split(chr(10))[1:]:
-            parts = line.split()
-            if parts: models.append(parts[0])
-        return {"installed": True, "models": models}
-    except: return {"installed": False, "models": [], "install_hint": install_hint()}
+        r = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            models = []
+            for line in r.stdout.strip().split(chr(10))[1:]:
+                parts = line.split()
+                if parts: models.append(parts[0])
+            return {"installed": True, "models": models}
+    except:
+        pass
+        
+    return {"installed": False, "models": [], "install_hint": "Please download and start Ollama from https://ollama.com"}
 
 def install_hint() -> str:
     p = platform.system()
@@ -35,4 +52,28 @@ RECOMMENDED_MODELS = {
 }
 
 def pull_model(model_name: str):
+    # Pull model via Ollama API
+    for host in ["host.docker.internal", "localhost", "127.0.0.1"]:
+        try:
+            url = f"http://{host}:11434/api/pull"
+            payload = json.dumps({"name": model_name, "stream": False}).encode("utf-8")
+            req = urllib.request.Request(url, data=payload, method="POST", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=120) as res:
+                return
+        except:
+            pass
+    # Fallback to local subprocess
     subprocess.run(["ollama", "pull", model_name], check=True)
+
+def detect_omlx() -> dict:
+    for host in ["host.docker.internal", "localhost", "127.0.0.1"]:
+        try:
+            url = f"http://{host}:7749/v1/models"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=3) as res:
+                data = json.loads(res.read().decode("utf-8"))
+                models = [m["id"] for m in data.get("data", [])]
+                return {"installed": True, "models": models}
+        except Exception:
+            pass
+    return {"installed": False, "models": []}

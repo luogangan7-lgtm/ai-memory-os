@@ -1,7 +1,18 @@
-import json, asyncpg
+import json, asyncpg, uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 from backend.services.resilience import retry, CircuitBreaker
+from backend.utils.crypto import encrypt_key, decrypt_key
+
+def safe_uuid(id_str: str) -> uuid.UUID:
+    """Safely convert any arbitrary string into a stable UUID v5 based on namespace."""
+    if not id_str:
+        return uuid.uuid4()
+    try:
+        return uuid.UUID(id_str)
+    except ValueError:
+        # Map non-UUID strings like "default" or usernames deterministically to UUIDs
+        return uuid.uuid5(uuid.NAMESPACE_DNS, id_str)
 
 class MemoryRepo:
     def __init__(self, pool):
@@ -42,6 +53,47 @@ class MemoryRepo:
                 ALTER TABLE memories ADD COLUMN IF NOT EXISTS topic TEXT;
                 ALTER TABLE memories ADD COLUMN IF NOT EXISTS source_type TEXT;
                 ALTER TABLE memories ADD COLUMN IF NOT EXISTS metadata JSONB;
+                ALTER TABLE memories ADD COLUMN IF NOT EXISTS agent_id TEXT DEFAULT '';
+                ALTER TABLE memories ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT DEFAULT 'recent';
+
+                -- Ensure audit_log table exists
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    memory_id TEXT,
+                    agent_id TEXT,
+                    action TEXT NOT NULL,
+                    details JSONB DEFAULT '{}',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
+
+                -- Ensure user_provider_configs table exists
+                CREATE TABLE IF NOT EXISTS user_provider_configs (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    provider_name VARCHAR(64) NOT NULL,
+                    api_key TEXT NOT NULL,
+                    api_base_url TEXT,
+                    model_name VARCHAR(128),
+                    is_active BOOLEAN DEFAULT false,
+                    validated_at TIMESTAMP WITH TIME ZONE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    UNIQUE(user_id, provider_name)
+                );
+
+                -- Ensure user_token_usage table exists
+                CREATE TABLE IF NOT EXISTS user_token_usage (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    provider_name VARCHAR(64) NOT NULL,
+                    model_name VARCHAR(128),
+                    prompt_tokens INTEGER DEFAULT 0,
+                    completion_tokens INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    cost_usd DECIMAL(10,6) DEFAULT 0.0,
+                    memory_tokens_injected INTEGER DEFAULT 0,
+                    tokens_saved_estimate INTEGER DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
             """)
         return cls(pool)
 
@@ -112,6 +164,80 @@ class MemoryRepo:
                 "INSERT INTO memory_versions (memory_id, version, title, content, editor_id) VALUES ($1,$2,$3,$4,$5)",
                 memory_id, ver, title, content, editor_id
             )
+
+    async def add_message(self, team_id: str, agent_id: str, role: str, content: str):
+        """High-level helper to archive a chat message into memory."""
+        import uuid
+        mid = str(uuid.uuid4())
+        return await self.insert(
+            id=mid,
+            team_id=team_id,
+            agent_id=agent_id,
+            category="conversation",
+            memory_type="chat",
+            title=f"{role.capitalize()} Message",
+            content=content,
+            source_type="agent" if role == "assistant" else "human",
+            importance=0.5
+        )
+
+    # --- User-Pay API Keys & Token Usage Methods (V5.0 Spec) ---
+    async def get_user_provider_config(self, user_id: str, provider_name: str) -> Optional[dict]:
+        async with self.pool.acquire() as conn:
+            r = await conn.fetchrow(
+                "SELECT * FROM user_provider_configs WHERE user_id=$1 AND provider_name=$2",
+                safe_uuid(user_id), provider_name
+            )
+            if not r: return None
+            d = dict(r)
+            d["api_key"] = decrypt_key(d["api_key"])
+            return d
+
+    async def get_active_user_provider_config(self, user_id: str) -> Optional[dict]:
+        async with self.pool.acquire() as conn:
+            r = await conn.fetchrow(
+                "SELECT * FROM user_provider_configs WHERE user_id=$1 AND is_active=true LIMIT 1",
+                safe_uuid(user_id)
+            )
+            if not r: return None
+            d = dict(r)
+            d["api_key"] = decrypt_key(d["api_key"])
+            return d
+
+    async def save_user_provider_config(self, user_id: str, provider_name: str, api_key: str, api_base_url: str = None, model_name: str = None, is_active: bool = False):
+        encrypted = encrypt_key(api_key)
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                if is_active:
+                    await conn.execute("UPDATE user_provider_configs SET is_active=false WHERE user_id=$1", safe_uuid(user_id))
+                
+                await conn.execute("""
+                    INSERT INTO user_provider_configs (id, user_id, provider_name, api_key, api_base_url, model_name, is_active, validated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+                    ON CONFLICT(user_id, provider_name) DO UPDATE SET
+                        api_key=excluded.api_key,
+                        api_base_url=excluded.api_base_url,
+                        model_name=excluded.model_name,
+                        is_active=excluded.is_active,
+                        validated_at=now()
+                """, uuid.uuid4(), safe_uuid(user_id), provider_name, encrypted, api_base_url, model_name, is_active)
+
+    async def list_user_provider_configs(self, user_id: str) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM user_provider_configs WHERE user_id=$1", safe_uuid(user_id))
+            res = []
+            for r in rows:
+                d = dict(r)
+                d["api_key"] = decrypt_key(d["api_key"])
+                res.append(d)
+            return res
+
+    async def insert_user_token_usage(self, user_id: str, provider_name: str, model_name: str, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float = 0.0, memory_tokens_injected: int = 0, tokens_saved_estimate: int = 0):
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO user_token_usage (id, user_id, provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+            """, uuid.uuid4(), safe_uuid(user_id), provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate)
 
     async def close(self):
         await self.pool.close()

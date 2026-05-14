@@ -1,692 +1,950 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>AI Memory OS | 个人认知终端</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
-    <!-- Marked.js and DOMPurify for secure Markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
-    
-    <style>
-        :root {
-            --bg-base: #05070a;
-            --bg-surface: rgba(22, 27, 34, 0.6);
-            --bg-surface-hover: rgba(48, 54, 61, 0.8);
-            --border-color: rgba(48, 54, 61, 0.8);
-            --text-primary: #e6edf3;
-            --text-secondary: #8b949e;
-            --accent-blue: #2f81f7;
-            --accent-green: #238636;
-            --blur: blur(20px);
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Memory OS — 我的记忆空间</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #040C1A;
+      --surface: rgba(8, 18, 35, 0.92);
+      --surface2:rgba(12, 24, 46, 0.78);
+      --border:  rgba(0, 229, 255, 0.1);
+      --border2: rgba(0, 229, 255, 0.25);
+      --cyan:    #00E5FF;
+      --violet:  #7C3AED;
+      --emerald: #00C897;
+      --amber:   #F59E0B;
+      --red:     #FF4560;
+      --text:    #E8F0FE;
+      --muted:   #4A6080;
+      --dim:     #1A2840;
+      --font:    'Sora', sans-serif;
+      --display: 'Orbitron', sans-serif;
+      --mono:    'JetBrains Mono', monospace;
+    }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-base);
-            color: var(--text-primary);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+    /* ── Canvas 背景 ── */
+    #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-        /* Topbar */
-        .topbar {
-            height: 60px;
-            background: var(--bg-surface);
-            backdrop-filter: var(--blur);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            padding: 0 40px;
-            justify-content: space-between;
-            z-index: 100;
-        }
-        .brand { font-weight: 600; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
-        .nav-links { display: flex; gap: 10px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color);}
-        .nav-link { 
-            color: var(--text-secondary); cursor: pointer; padding: 6px 16px; border-radius: 6px; transition: 0.2s; font-size: 0.9rem; font-weight: 500;
-        }
-        .nav-link:hover { color: var(--text-primary); }
-        .nav-link.active { color: var(--text-primary); background: var(--accent-blue); box-shadow: 0 2px 10px rgba(47,129,247,0.3); }
-        .user-chip { font-size: 0.85rem; color: var(--text-secondary); background: rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s;}
-        .user-chip:hover { border-color: var(--accent-red); color: var(--accent-red); }
-        
-        /* Layout */
-        .container { flex: 1; display: flex; overflow: hidden; position: relative; }
-        .page { flex: 1; padding: 40px; overflow-y: auto; display: none; max-width: 1000px; margin: 0 auto; width: 100%; animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-        .page.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    /* ══════════════════════════════════════════
+       登录界面
+    ══════════════════════════════════════════ */
+    .auth-screen {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(4, 12, 26, 0.7);
+      backdrop-filter: blur(6px);
+    }
+    .auth-screen.hidden { display: none; }
 
-        /* Search & Input */
-        .omni-search {
-            position: relative; margin-bottom: 40px;
-        }
-        .omni-search input {
-            width: 100%; padding: 20px 24px; font-size: 1.1rem; border-radius: 16px;
-            background: rgba(22, 27, 34, 0.8); border: 1px solid var(--border-color); color: var(--text-primary);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.6); outline: none; transition: 0.3s;
-            backdrop-filter: var(--blur);
-        }
-        .omni-search input:focus { border-color: var(--accent-blue); box-shadow: 0 8px 40px rgba(47, 129, 247, 0.25); transform: translateY(-2px); }
-        .omni-search .hint { position: absolute; right: 24px; top: 22px; color: var(--text-secondary); font-size: 0.9rem; pointer-events: none; }
+    .auth-panel {
+      width: 440px;
+      background: rgba(6, 14, 28, 0.97);
+      border: 1px solid var(--border2);
+      border-radius: 24px;
+      padding: 44px 40px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,229,255,0.08), 0 0 60px rgba(124,58,237,0.08);
+      position: relative;
+      overflow: hidden;
+      animation: panelIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .auth-panel::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--violet), var(--cyan), transparent);
+    }
+    .auth-panel::after {
+      content: '';
+      position: absolute; bottom: -80px; right: -60px;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+    }
 
-        /* Timeline Feed */
-        .timeline { position: relative; padding-left: 30px; }
-        .timeline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--border-color); }
-        
-        .memory-card {
-            background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px;
-            padding: 24px; cursor: pointer; transition: 0.2s; position: relative; margin-bottom: 24px;
-        }
-        .memory-card::before {
-            content: ''; position: absolute; left: -35px; top: 30px; width: 10px; height: 10px; border-radius: 50%;
-            background: var(--text-secondary); border: 2px solid var(--bg-base); z-index: 2; transition: 0.2s;
-        }
-        .memory-card:hover { border-color: var(--accent-blue); transform: translateX(4px); }
-        .memory-card:hover::before { background: var(--accent-blue); box-shadow: 0 0 10px var(--accent-blue); }
-        
-        .card-meta { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; }
-        .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
-        .badge.core { background: rgba(35, 134, 54, 0.2); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.4); }
-        .badge.recent { background: rgba(47, 129, 247, 0.2); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.4); }
-        
-        .card-title { font-weight: 600; font-size: 1.2rem; margin-bottom: 10px; line-height: 1.4; }
-        .card-preview { font-size: 0.95rem; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.6; }
+    .auth-logo {
+      text-align: center; margin-bottom: 36px;
+      position: relative; z-index: 1;
+    }
+    .auth-orb {
+      width: 68px; height: 68px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #00E5FF 0%, #7C3AED 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; margin: 0 auto 14px;
+      box-shadow: 0 8px 30px rgba(0,229,255,0.35), 0 0 60px rgba(124,58,237,0.2);
+      animation: orbFloat 4s ease-in-out infinite;
+    }
+    @keyframes orbFloat {
+      0%,100% { transform: translateY(0) rotate(0deg); box-shadow: 0 8px 30px rgba(0,229,255,0.35), 0 0 60px rgba(124,58,237,0.2); }
+      50%      { transform: translateY(-6px) rotate(2deg); box-shadow: 0 16px 40px rgba(0,229,255,0.45), 0 0 80px rgba(124,58,237,0.3); }
+    }
+    .auth-title { font-family: var(--display); font-size: 20px; letter-spacing: 3px; color: var(--cyan); font-weight: 700; text-shadow: 0 0 20px rgba(0,229,255,0.4); }
+    .auth-subtitle { font-size: 12px; color: var(--muted); margin-top: 5px; }
 
-        /* Drawer / Fullscreen Reader */
-        #reader-drawer {
-            position: fixed; top: 0; right: -100%; width: 50vw; min-width: 600px; height: 100vh;
-            background: var(--bg-base); border-left: 1px solid var(--border-color);
-            box-shadow: -10px 0 30px rgba(0,0,0,0.8); z-index: 1000; transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            display: flex; flex-direction: column;
-        }
-        #reader-drawer.open { right: 0; }
-        #reader-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 999; display: none; opacity: 0; transition: 0.3s; }
-        #reader-overlay.open { display: block; opacity: 1; }
-        
-        .reader-header { padding: 24px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-        .reader-content { padding: 40px; overflow-y: auto; flex: 1; }
-        
-        .markdown-body { line-height: 1.7; color: var(--text-primary); font-size: 1.05rem; }
-        .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 32px 0 16px; font-weight: 600; color: #fff; }
-        .markdown-body pre { background: #0d1117; padding: 20px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--border-color); margin: 20px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;}
-        .markdown-body code { font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-        .markdown-body p { margin-bottom: 16px; }
-        .markdown-body blockquote { border-left: 4px solid var(--accent-blue); padding-left: 16px; color: var(--text-secondary); margin: 20px 0; }
-        .markdown-body ul, .markdown-body ol { margin-bottom: 16px; padding-left: 24px; }
+    .auth-hint {
+      background: rgba(0,229,255,0.05); border: 1px solid rgba(0,229,255,0.15);
+      border-radius: 10px; padding: 10px 14px; font-size: 11px;
+      color: rgba(0,229,255,0.75); margin-bottom: 22px; line-height: 1.7;
+      position: relative; z-index: 1;
+    }
 
-        /* Dropzone */
-        .dropzone {
-            border: 2px dashed var(--border-color); border-radius: 16px; padding: 60px 40px; text-align: center;
-            background: rgba(255,255,255,0.02); transition: 0.3s; cursor: pointer; margin-bottom: 40px; position: relative; overflow: hidden;
-        }
-        .dropzone.dragover { border-color: var(--accent-blue); background: rgba(47, 129, 247, 0.05); transform: scale(1.02); }
-        .dz-icon { color: var(--text-secondary); transition: 0.3s; }
-        .dropzone:hover .dz-icon { color: var(--accent-blue); transform: translateY(-5px); }
+    .form-group { margin-bottom: 16px; position: relative; z-index: 1; }
+    .form-label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.8px; margin-bottom: 6px; text-transform: uppercase; }
+    .form-input {
+      width: 100%; background: rgba(4,12,26,0.9); border: 1px solid var(--border);
+      border-radius: 11px; padding: 11px 14px; color: var(--text);
+      font-family: var(--font); font-size: 14px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,229,255,0.1), inset 0 0 20px rgba(0,229,255,0.03); }
 
-        /* Quick Idea */
-        .idea-box { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
-        .idea-box textarea { width: 100%; height: 100px; background: transparent; border: none; color: #fff; font-size: 1.1rem; resize: none; outline: none; font-family: inherit; }
-        .idea-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px; }
+    .auth-submit {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, rgba(0,229,255,0.9) 0%, rgba(124,58,237,0.9) 100%);
+      border: none; border-radius: 11px;
+      color: #fff; font-family: var(--font); font-size: 15px; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.5px;
+      transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+      margin-top: 4px; position: relative; z-index: 1;
+      box-shadow: 0 4px 20px rgba(0,229,255,0.25);
+    }
+    .auth-submit:hover { opacity: 0.92; transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,229,255,0.35); }
+    .auth-submit:disabled { opacity: 0.4; transform: none; cursor: not-allowed; }
+    .auth-error { color: var(--red); font-size: 12px; margin-top: 10px; text-align: center; min-height: 18px; }
 
-        /* Integration Hub */
-        .hub-tabs { display: flex; gap: 2px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; margin-bottom: 24px; }
-        .hub-tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 6px; font-size: 0.9rem; color: var(--text-secondary); transition: 0.2s; }
-        .hub-tab:hover { color: #fff; }
-        .hub-tab.active { background: var(--bg-surface-hover); color: #fff; font-weight: 500; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        .hub-pane { display: none; animation: fadeIn 0.3s; }
-        .hub-pane.active { display: block; }
+    /* ══════════════════════════════════════════
+       主应用
+    ══════════════════════════════════════════ */
+    .app { display: none; position: relative; z-index: 1; }
+    .app.active { display: flex; flex-direction: column; min-height: 100vh; }
 
-        .code-block {
-            background: #0d1117; padding: 24px; border-radius: 12px; border: 1px solid var(--border-color);
-            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: #c9d1d9; overflow-x: auto;
-            position: relative; line-height: 1.6;
-        }
-        .copy-btn { position: absolute; right: 16px; top: 16px; background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 0.8rem;}
-        .copy-btn:hover { background: rgba(255,255,255,0.2); }
+    /* 顶栏 */
+    .topbar {
+      height: 54px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 22px; background: rgba(4,12,26,0.96);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .logo { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--cyan); }
+    .logo-icon { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--cyan), var(--violet)); display: flex; align-items: center; justify-content: center; font-size: 13px; box-shadow: 0 0 16px rgba(0,229,255,0.35); }
+    .topbar-user { display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--violet)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; box-shadow: 0 0 12px rgba(0,229,255,0.3); }
+    .user-name { font-size: 13px; font-weight: 600; }
+    .user-team { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+    .btn-logout { font-size: 11px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: all 0.2s; }
+    .btn-logout:hover { color: var(--red); border-color: rgba(255,69,96,0.3); }
 
-        /* Simple Auth Modal */
-        #auth-modal { position: fixed; inset: 0; background: rgba(5, 7, 10, 0.95); backdrop-filter: var(--blur); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-        .auth-box { width: 380px; background: var(--bg-surface); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
-        .auth-box input { width: 100%; padding: 14px 16px; margin-bottom: 16px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: #fff; border-radius: 8px; font-size: 1rem; outline: none; transition: 0.2s; }
-        .auth-box input:focus { border-color: var(--accent-blue); }
-        .auth-box button { width: 100%; padding: 14px; background: var(--accent-blue); border: none; color: #fff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: 0.2s; }
-        .auth-box button:hover { background: #1f6feb; box-shadow: 0 4px 15px rgba(47,129,247,0.4); }
-        
-        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--bg-surface); border: 1px solid var(--border-color); padding: 14px 28px; border-radius: 30px; font-size: 0.95rem; opacity: 0; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 10001; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: var(--blur); }
-        #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    /* 布局 */
+    .app-body { display: flex; flex: 1; }
 
-        button.primary { background: var(--accent-blue); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: 0.2s; }
-        button.primary:hover { filter: brightness(1.1); }
-    </style>
+    /* 侧边导航 */
+    .sidebar {
+      width: 190px; flex-shrink: 0;
+      background: rgba(4,12,26,0.96); border-right: 1px solid var(--border);
+      padding: 16px 10px; overflow-y: auto;
+      position: sticky; top: 54px; height: calc(100vh - 54px);
+    }
+    .nav-sec { font-size: 9px; font-family: var(--display); letter-spacing: 2px; color: var(--muted); padding: 0 8px; margin: 16px 0 6px; }
+    .nav-sec:first-child { margin-top: 0; }
+    .nav-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 10px; border-radius: 9px;
+      cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--muted);
+      transition: all 0.2s; margin-bottom: 2px; position: relative; border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-btn:hover { background: rgba(0,229,255,0.05); color: var(--text); }
+    .nav-btn.active { background: rgba(0,229,255,0.08); color: var(--cyan); border: 1px solid rgba(0,229,255,0.15); }
+    .nav-btn.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 55%; background: var(--cyan); border-radius: 0 3px 3px 0; box-shadow: 0 0 8px var(--cyan); }
+
+    /* 主内容 */
+    .main-content { flex: 1; padding: 26px 28px; overflow-y: auto; }
+    .tab-panel { display: none; animation: fadeUp 0.3s ease; }
+    .tab-panel.active { display: block; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .section-title { font-family: var(--display); font-size: 14px; font-weight: 700; letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; text-shadow: 0 0 20px rgba(0,229,255,0.25); }
+    .section-sub   { font-size: 12px; color: var(--muted); margin-bottom: 22px; }
+
+    /* ── 统计卡片 ── */
+    .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 22px; }
+    .mini-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 16px 18px;
+      cursor: default; transform-style: preserve-3d;
+      transition: transform 0.35s, box-shadow 0.35s;
+    }
+    .mini-card:hover { transform: perspective(600px) rotateX(-4deg) rotateY(5deg) translateZ(10px); box-shadow: 0 16px 35px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,229,255,0.15); }
+    .mini-label { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .mini-value { font-family: var(--display); font-size: 22px; font-weight: 900; }
+    .mini-card.c .mini-value { color: var(--cyan); text-shadow: 0 0 15px rgba(0,229,255,0.35); }
+    .mini-card.v .mini-value { color: #A78BFA; text-shadow: 0 0 15px rgba(124,58,237,0.35); }
+    .mini-card.e .mini-value { color: var(--emerald); text-shadow: 0 0 15px rgba(0,200,151,0.35); }
+
+    /* ── 快速写入 ── */
+    .quick-write {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 22px;
+    }
+    .quick-write-head { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .quick-write-area { display: flex; gap: 10px; }
+    .quick-write-area textarea {
+      flex: 1; background: rgba(4,12,26,0.85); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 14px; color: var(--text); font-family: var(--font); font-size: 13px; outline: none;
+      resize: none; height: 70px; transition: border-color 0.2s;
+    }
+    .quick-write-area textarea:focus { border-color: var(--cyan); }
+    .btn-store {
+      padding: 0 20px; background: linear-gradient(135deg, rgba(0,229,255,0.2), rgba(124,58,237,0.15));
+      border: 1px solid var(--border2); border-radius: 10px; color: var(--cyan);
+      font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-store:hover { background: linear-gradient(135deg, rgba(0,229,255,0.3), rgba(124,58,237,0.25)); box-shadow: 0 0 20px rgba(0,229,255,0.2); }
+
+    /* ── 记忆卡片 ── */
+    .memory-toolbar { display: flex; gap: 10px; margin-bottom: 16px; }
+    .search-box {
+      flex: 1; display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    }
+    .search-box input {
+      flex: 1; background: none; border: none; padding: 9px 14px; color: var(--text); font-family: var(--font); font-size: 13px; outline: none;
+    }
+    .search-box button { background: none; border: none; padding: 9px 12px; cursor: pointer; color: var(--muted); font-size: 14px; transition: color 0.2s; }
+    .search-box button:hover { color: var(--cyan); }
+    .filter-select { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; color: var(--text); font-family: var(--font); font-size: 12px; outline: none; cursor: pointer; }
+    .filter-select option { background: #070F1E; }
+
+    .memory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .mem-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      cursor: pointer; position: relative; overflow: hidden;
+      transform-style: preserve-3d;
+      transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+    }
+    .mem-card:hover {
+      transform: perspective(700px) rotateX(-3deg) rotateY(4deg) translateZ(10px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,229,255,0.18);
+      border-color: rgba(0,229,255,0.2);
+    }
+    .mem-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0; transition: opacity 0.3s; }
+    .mem-card:hover::before { opacity: 1; }
+    .mem-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+    .mem-title { font-size: 13px; font-weight: 600; line-height: 1.4; flex: 1; margin-right: 10px; }
+    .mem-delete { opacity: 0; width: 24px; height: 24px; border-radius: 6px; background: rgba(255,69,96,0.12); border: 1px solid rgba(255,69,96,0.2); color: var(--red); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.2s; flex-shrink: 0; }
+    .mem-card:hover .mem-delete { opacity: 1; }
+    .mem-preview { font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .mem-footer { display: flex; align-items: center; justify-content: space-between; }
+    .mem-tag {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px;
+      border-radius: 4px; font-family: var(--display);
+    }
+    .tag-common  { background: rgba(0,229,255,0.1);  color: var(--cyan);    border: 1px solid rgba(0,229,255,0.2); }
+    .tag-person  { background: rgba(124,58,237,0.12); color: #A78BFA;        border: 1px solid rgba(124,58,237,0.2); }
+    .tag-code    { background: rgba(0,200,151,0.1);   color: var(--emerald); border: 1px solid rgba(0,200,151,0.2); }
+    .tag-task    { background: rgba(245,158,11,0.1);  color: var(--amber);   border: 1px solid rgba(245,158,11,0.2); }
+    .tag-emotion { background: rgba(255,69,96,0.1);   color: var(--red);     border: 1px solid rgba(255,69,96,0.2); }
+    .mem-time { font-size: 9px; color: var(--muted); font-family: var(--mono); }
+
+    /* ── 连接面板 ── */
+    .conn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 20px; }
+    .conn-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 15px; padding: 22px;
+      transform-style: preserve-3d; transition: transform 0.3s, box-shadow 0.3s;
+      position: relative; overflow: hidden;
+    }
+    .conn-card:hover { transform: perspective(800px) rotateX(-2deg) rotateY(3deg) translateZ(8px); box-shadow: 0 14px 35px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,229,255,0.12); }
+    .conn-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .conn-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .ci-mcp    { background: rgba(124,58,237,0.15); }
+    .ci-rest   { background: rgba(0,229,255,0.1); }
+    .ci-proxy  { background: rgba(0,200,151,0.1); }
+    .ci-claude { background: rgba(245,158,11,0.1); }
+    .conn-name { font-size: 14px; font-weight: 700; }
+    .conn-desc { font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+    .url-row { display: flex; gap: 0; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+    .url-text { flex: 1; padding: 7px 10px; font-family: var(--mono); font-size: 10px; color: var(--cyan); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .url-copy { background: none; border: none; border-left: 1px solid var(--border); padding: 7px 12px; color: var(--muted); cursor: pointer; font-size: 12px; transition: color 0.2s; }
+    .url-copy:hover { color: var(--cyan); }
+    .code-block {
+      background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 9px;
+      padding: 10px 14px; font-family: var(--mono); font-size: 10px;
+      color: rgba(0,229,255,0.8); white-space: pre; overflow-x: auto; margin-bottom: 8px; line-height: 1.7;
+    }
+
+    /* ── API Token 面板 ── */
+    .token-panel {
+      background: var(--surface); border: 1px solid rgba(124,58,237,0.25); border-radius: 15px; padding: 22px; margin-bottom: 20px;
+    }
+    .token-panel-head { font-size: 13px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .token-row { display: flex; gap: 0; background: rgba(0,0,0,0.45); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .token-val { flex: 1; padding: 10px 14px; font-family: var(--mono); font-size: 12px; color: var(--cyan); letter-spacing: 1px; cursor: pointer; user-select: none; }
+    .token-btn { background: none; border: none; border-left: 1px solid var(--border); padding: 10px 14px; color: var(--muted); cursor: pointer; font-size: 12px; transition: color 0.2s; white-space: nowrap; }
+    .token-btn:hover { color: var(--cyan); }
+
+    /* ── Provider 面板 ── */
+    .provider-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .prov-card {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+      transform-style: preserve-3d; transition: transform 0.3s, border-color 0.3s;
+    }
+    .prov-card:hover { transform: perspective(600px) rotateX(-2deg) translateZ(6px); border-color: var(--border2); }
+    .prov-card.configured { border-color: rgba(0,200,151,0.25); }
+    .prov-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .prov-logo { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; background: rgba(0,229,255,0.08); }
+    .prov-name { font-size: 13px; font-weight: 700; }
+    .prov-status { width: 6px; height: 6px; border-radius: 50%; margin-left: auto; }
+    .prov-ok { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+    .prov-idle { background: var(--muted); }
+
+    /* ── AI 聊天测试 ── */
+    .chat-container { background: var(--surface); border: 1px solid var(--border); border-radius: 15px; overflow: hidden; display: flex; flex-direction: column; height: 500px; }
+    .chat-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; scrollbar-color: var(--dim) transparent; }
+    .chat-bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 12.5px; line-height: 1.6; }
+    .chat-bubble.user { background: linear-gradient(135deg, rgba(0,229,255,0.15), rgba(124,58,237,0.1)); border: 1px solid rgba(0,229,255,0.2); align-self: flex-end; border-bottom-right-radius: 4px; }
+    .chat-bubble.assistant { background: rgba(255,255,255,0.04); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .chat-bubble.system { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); color: var(--amber); font-size: 11px; align-self: center; max-width: 90%; text-align: center; }
+    .chat-input-area { padding: 14px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+    .chat-input { flex: 1; background: rgba(4,12,26,0.9); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px; color: var(--text); font-family: var(--font); font-size: 13px; outline: none; transition: border-color 0.2s; }
+    .chat-input:focus { border-color: var(--cyan); }
+    .chat-send { padding: 9px 18px; background: linear-gradient(135deg, rgba(0,229,255,0.2), rgba(124,58,237,0.15)); border: 1px solid var(--border2); border-radius: 10px; color: var(--cyan); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .chat-send:hover { background: linear-gradient(135deg, rgba(0,229,255,0.3), rgba(124,58,237,0.25)); box-shadow: 0 0 15px rgba(0,229,255,0.2); }
+    .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Toast ── */
+    .toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; font-size: 12px; backdrop-filter: blur(20px); animation: slideIn 0.3s ease; display: flex; align-items: center; gap: 8px; max-width: 300px; box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+    @keyframes slideIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .toast.ok  { border-color: rgba(0,200,151,0.3); }
+    .toast.err { border-color: rgba(255,69,96,0.3); }
+
+    @media (max-width: 900px) {
+      .conn-grid { grid-template-columns: 1fr; }
+      .mini-stats { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
 </head>
 <body>
 
-    <div id="auth-modal">
-        <div class="auth-box">
-            <h2 style="font-weight: 600; font-size: 1.8rem; margin-bottom: 10px;">连接神经元</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 30px; font-size: 0.9rem;">只需用户名即可为您分配专属思维空间</p>
-            <input type="text" id="auth-user" placeholder="Username (任意名称)" autocomplete="off">
-            <input type="password" id="auth-pwd" placeholder="Password (用于保护您的记忆)" autocomplete="off">
-            <button onclick="handleAuth()">建立神经连接</button>
-        </div>
+<canvas id="bg-canvas"></canvas>
+
+<!-- ══ 登录界面 ══ -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-panel">
+    <div class="auth-logo">
+      <div class="auth-orb">🧠</div>
+      <div class="auth-title">MEMORY OS</div>
+      <div class="auth-subtitle">私有记忆网关 · 个人空间</div>
     </div>
-
-    <div class="topbar">
-        <div class="brand">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12 2.1 7.1"/><path d="M12 12l9.9 4.9"/></svg>
-            Memory OS
-        </div>
-        <div class="nav-links">
-            <div class="nav-link active" onclick="nav('feed')">思维流 (Feed)</div>
-            <div class="nav-link" onclick="nav('ingest')">记忆摄入 (Ingest)</div>
-            <div class="nav-link" onclick="nav('hub')">Agent 枢纽 (Hub)</div>
-        </div>
-        <div class="user-chip" id="user-display" onclick="logout()">未连接</div>
+    <div class="auth-hint">
+      💡 首次使用将自动注册账户并分配专属记忆空间。
+      已有账户直接输入相同信息即可登录。
     </div>
+    <div class="form-group">
+      <label class="form-label">用户名</label>
+      <input class="form-input" type="text" id="auth-username" placeholder="your_username" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label class="form-label">密码</label>
+      <input class="form-input" type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Team ID（可选，默认 default）</label>
+      <input class="form-input" type="text" id="auth-team" placeholder="default">
+    </div>
+    <button class="auth-submit" id="auth-btn" onclick="doAuth()">进入记忆空间 →</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
 
-    <div class="container">
-        
-        <!-- Feed / Search Page -->
-        <div id="page-feed" class="page active">
-            <div class="omni-search">
-                <input type="text" id="search-input" placeholder="全域检索: 你上周在思考什么框架？..." onkeypress="if(event.key==='Enter') doSearch()">
-                <div class="hint">按 Enter 触发深度检索</div>
-            </div>
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h3 style="font-weight: 500; font-size: 1.1rem;">您的意识流 (Timeline)</h3>
-                <span style="font-size: 0.85rem; color: var(--text-secondary);" id="feed-status"></span>
-            </div>
-            
-            <div class="timeline" id="feed-container">
-                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">加载记忆碎片中...</div>
-            </div>
+<!-- ══ 主应用 ══ -->
+<div class="app" id="app">
+
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-icon">🧠</div>
+      MEMORY OS
+    </div>
+    <div class="topbar-user">
+      <div>
+        <div class="user-name" id="username-display">—</div>
+        <div class="user-team" id="team-display">—</div>
+      </div>
+      <div class="user-avatar" id="user-avatar">?</div>
+      <button class="btn-logout" onclick="logout()">退出</button>
+    </div>
+  </div>
+
+  <!-- 主体 -->
+  <div class="app-body">
+
+    <!-- 侧边栏 -->
+    <nav class="sidebar">
+      <div class="nav-sec">主功能</div>
+      <button class="nav-btn active" onclick="switchTab('memories', this)">🧠 我的记忆</button>
+      <button class="nav-btn" onclick="switchTab('chat', this)">💬 AI 代理测试</button>
+
+      <div class="nav-sec">接入配置</div>
+      <button class="nav-btn" onclick="switchTab('connect', this)">🔌 接入配置</button>
+      <button class="nav-btn" onclick="switchTab('providers', this)">⚡ 算力中心</button>
+
+      <div class="nav-sec">账户</div>
+      <button class="nav-btn" onclick="switchTab('stats', this)">📊 用量统计</button>
+    </nav>
+
+    <!-- 内容区 -->
+    <main class="main-content">
+
+      <!-- ── 我的记忆 ── -->
+      <div class="tab-panel active" id="panel-memories">
+        <div class="section-title">MY MEMORIES</div>
+        <div class="section-sub">你的私有记忆库 — 语义检索，跨 Agent 共享</div>
+
+        <div class="mini-stats">
+          <div class="mini-card c"><div class="mini-label">总记忆数</div><div class="mini-value" id="stat-total">—</div></div>
+          <div class="mini-card v"><div class="mini-label">本周写入</div><div class="mini-value" id="stat-week">—</div></div>
+          <div class="mini-card e"><div class="mini-label">RAG 触发</div><div class="mini-value" id="stat-rag">—</div></div>
         </div>
 
-        <!-- Ingestion Page -->
-        <div id="page-ingest" class="page">
-            <div class="idea-box" style="margin-bottom: 40px;">
-                <textarea id="quick-idea" placeholder="脑海中闪过什么念头？立即记录下来..."></textarea>
-                <div class="idea-footer">
-                    <span style="color: var(--text-secondary); font-size: 0.85rem;">支持 Markdown 语法</span>
-                    <button class="primary" onclick="saveIdea()">存入大脑</button>
-                </div>
-            </div>
-            
-            <div class="dropzone" id="dropzone" onclick="document.getElementById('file-upload').click()">
-                <svg class="dz-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:20px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-                <h2 style="margin-bottom: 12px; font-weight: 500;">文件引力波黑洞</h2>
-                <input type="file" id="file-upload" style="display:none" onchange="handleFileUpload(event)">
-                <p style="color: var(--text-secondary);">将 PDF, MD, TXT 文件拖拽至此区域即可上传，系统会自动分片并建立知识关联点。</p>
-            </div>
+        <div class="quick-write">
+          <div class="quick-write-head">⚡ 快速写入记忆</div>
+          <div class="quick-write-area">
+            <textarea id="quick-store-input" placeholder="输入要记住的内容，例如：我的 API Key 存放在 ~/secrets.env 文件中..."></textarea>
+            <button class="btn-store" onclick="quickStore()">写入 →</button>
+          </div>
         </div>
 
-        <!-- Integration Hub -->
-        <div id="page-hub" class="page">
-            <h2 style="margin-bottom: 12px; font-weight: 600;">大模型接入枢纽 (Integration Hub)</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6;">将您的第二大脑连接到任意 Agent、IDE 或代码工程。核心原理：<strong style="color: var(--accent-blue)">所有请求过代理后，系统自动完成记忆检索注入和新知识存储，无需任何额外代码。</strong></p>
+        <div class="memory-toolbar">
+          <div class="search-box">
+            <input type="text" id="search-input" placeholder="语义搜索记忆..." onkeydown="if(event.key==='Enter') searchMemories()">
+            <button onclick="searchMemories()">🔍</button>
+            <button onclick="loadMemories()">✕</button>
+          </div>
+          <select class="filter-select" id="filter-type" onchange="loadMemories()">
+            <option value="">全部类型</option>
+            <option value="common">常识</option>
+            <option value="person">人物</option>
+            <option value="code">代码</option>
+            <option value="task">任务</option>
+            <option value="emotion">情绪</option>
+          </select>
+        </div>
 
-            <!-- Architecture Flow Banner -->
-            <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px 32px; margin-bottom: 32px; display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; font-size:0.9rem;">
-                <div style="text-align:center; padding: 10px 16px; border: 1px solid var(--accent-blue); border-radius: 8px; color: var(--accent-blue);">您的 Agent / SDK</div>
-                <div style="color: var(--text-secondary);">→ POST /v1/chat/completions →</div>
-                <div style="text-align:center; padding: 10px 16px; border: 1px solid var(--accent-green); border-radius: 8px; background: rgba(35,134,54,0.1);">
-                    <div style="color: var(--accent-green); font-weight:600;">Memory OS 代理层</div>
-                    <div style="font-size:0.78rem; color: var(--text-secondary); margin-top:4px;">① 检索 Top-K 相关记忆<br>② 注入到 System Prompt<br>③ 存储本次对话</div>
-                </div>
-                <div style="color: var(--text-secondary);">→ 携带记忆上下文 →</div>
-                <div style="text-align:center; padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 8px;">真实大模型 API</div>
-                <div style="color: var(--text-secondary); font-size:0.8rem; margin-top:4px; width:100%; text-align:center; padding-top:8px; border-top: 1px solid var(--border-color);">💡 节省 Token: 系统只注入语义最相关的 3~5 条记忆片段（约 500 tokens），而非全量历史（可能数万 tokens）</div>
+        <div class="memory-grid" id="memory-grid">
+          <div style="grid-column:1/-1; text-align:center; color:var(--muted); padding:60px; font-size:13px;">⏳ 加载中...</div>
+        </div>
+      </div>
+
+      <!-- ── AI 代理测试 ── -->
+      <div class="tab-panel" id="panel-chat">
+        <div class="section-title">AI PROXY TEST</div>
+        <div class="section-sub">通过内置聊天窗口直接测试 OpenAI 代理网关，验证记忆注入是否正常工作</div>
+
+        <div style="background: rgba(0,200,151,0.07); border: 1px solid rgba(0,200,151,0.2); border-radius: 11px; padding: 12px 16px; margin-bottom: 18px; font-size: 11px; color: var(--emerald); line-height: 1.7;">
+          ✅ 此对话通过 <code style="font-family:var(--mono);">/v1/chat/completions</code> 代理发送。AI 回复前会自动检索你的记忆并注入上下文。
+          如果你刚才在「我的记忆」中写入了内容，可以在这里问相关问题来验证记忆是否生效。
+        </div>
+
+        <div class="chat-container">
+          <div class="chat-header">
+            <span style="font-size: 18px;">💬</span> Memory-Augmented Chat
+            <span style="margin-left: auto; font-size: 11px; color: var(--muted);">通过 /v1 代理 · 记忆自动注入</span>
+            <button onclick="clearChat()" style="background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 9px; color: var(--muted); cursor: pointer; font-size: 11px;">清空</button>
+          </div>
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-bubble system">👋 开始对话以测试记忆注入效果。AI 会自动搜索你的记忆库并将相关上下文注入 System Prompt。</div>
+          </div>
+          <div class="chat-input-area">
+            <input class="chat-input" type="text" id="chat-input" placeholder="发送消息..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
+            <button class="chat-send" id="chat-send-btn" onclick="sendChat()">发送 ↑</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 接入配置 ── -->
+      <div class="tab-panel" id="panel-connect">
+        <div class="section-title">CONNECT</div>
+        <div class="section-sub">将你的 AI 工具连接到记忆网关</div>
+
+        <div class="token-panel">
+          <div class="token-panel-head">🔑 你的 API Token</div>
+          <div class="token-row">
+            <div class="token-val" id="token-display" onclick="revealToken()">点击显示 / 隐藏</div>
+            <button class="token-btn" onclick="copyToken()">📋 复制</button>
+            <button class="token-btn" onclick="revealToken()">👁 显示</button>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 8px;">此 Token 用于所有 API 调用的身份认证，请妥善保管</div>
+        </div>
+
+        <div class="conn-grid">
+          <!-- Cursor MCP -->
+          <div class="conn-card">
+            <div class="conn-top">
+              <div class="conn-icon ci-mcp">⚡</div>
+              <div><div class="conn-name">Cursor MCP</div><div style="font-size:10px; color:var(--muted);">Model Context Protocol</div></div>
             </div>
-            
-            <div style="background: rgba(47, 129, 247, 0.1); border: 1px solid var(--accent-blue); padding: 24px; border-radius: 12px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">您的专属系统令牌 (Bearer Token)</div>
-                    <code id="api-key-display" style="font-size: 1.4rem; font-weight: 600; font-family: 'JetBrains Mono', monospace;">••••••••••••••••</code>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="primary" style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); color: #fff;" onclick="testPing()">连通性自测 (Ping)</button>
-                    <button class="primary" onclick="copyKey()">复制 Token</button>
-                </div>
+            <div class="conn-desc">将以下配置写入 Cursor 的 MCP 设置，Cursor 将自动拥有语义记忆搜索能力。</div>
+            <div class="code-block" id="cursor-config">加载中...</div>
+            <button onclick="copyElem('cursor-config')" style="font-size:11px; background:none; border:1px solid var(--border); border-radius:7px; padding:5px 12px; color:var(--muted); cursor:pointer;">📋 复制配置</button>
+          </div>
+
+          <!-- Claude Desktop -->
+          <div class="conn-card">
+            <div class="conn-top">
+              <div class="conn-icon ci-claude">🧠</div>
+              <div><div class="conn-name">Claude Desktop</div><div style="font-size:10px; color:var(--muted);">SSE + MCP</div></div>
             </div>
+            <div class="conn-desc">在 Claude Desktop 的 MCP 配置文件中添加以下内容。</div>
+            <div class="code-block" id="claude-config">加载中...</div>
+            <button onclick="copyElem('claude-config')" style="font-size:11px; background:none; border:1px solid var(--border); border-radius:7px; padding:5px 12px; color:var(--muted); cursor:pointer;">📋 复制配置</button>
+          </div>
 
-            <div class="hub-tabs">
-                <div class="hub-tab active" onclick="switchTab('tab-terminal', this)">终端 Agent (OpenClaw)</div>
-                <div class="hub-tab" onclick="switchTab('tab-desktop', this)">桌面智能体 (Claude/Hermes)</div>
-                <div class="hub-tab" onclick="switchTab('tab-ide', this)">IDE 编程助手 (Cursor/Codex)</div>
-                <div class="hub-tab" onclick="switchTab('tab-sdk', this)">Python 代理 SDK</div>
+          <!-- OpenAI 代理 -->
+          <div class="conn-card">
+            <div class="conn-top">
+              <div class="conn-icon ci-rest">🔀</div>
+              <div><div class="conn-name">OpenAI 兼容代理</div><div style="font-size:10px; color:var(--muted);">Hermes / Codex / 任意 OpenAI 客户端</div></div>
             </div>
+            <div class="conn-desc">将 OpenAI 客户端的 API Base 指向此地址，自动注入长短期记忆上下文。</div>
+            <div class="url-row"><div class="url-text" id="proxy-url">加载中...</div><button class="url-copy" onclick="copyUrlText('proxy-url')">📋</button></div>
+            <div style="font-size: 11px; color: var(--muted); line-height: 1.6;">Authorization: Bearer 你的 Token<br>无需修改其他参数，完全透明代理</div>
+          </div>
 
-            <!-- Tab 1: Terminal -->
-            <div id="tab-terminal" class="hub-pane active">
-                <h3 style="margin-bottom: 8px; font-weight: 500;">配置 OpenClaw 或 CLI 助手</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">设置环境变量后，<strong>所有发出的对话请求</strong>都会自动经过记忆代理层，对话内容被自动记录，相关历史被自动注入。</p>
-                <div class="code-block" style="margin-bottom:16px;">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-# 设置代理地址（所有对话会自动记忆化）
-export OPENAI_BASE_URL="http://<span id="t1-host">localhost:8003</span>/v1"
-export OPENAI_API_KEY="<span class="hub-key">mos_xxxx</span>"
-
-# 启动 OpenClaw — 无需任何其他配置
-openclaw
-
-# 原理: 当 OpenClaw 发出任意 /v1/chat/completions 请求时：
-# 1. Memory OS 自动检索您过去相关的操作记录和知识
-# 2. 将其压缩注入到 system prompt（节省 Token）
-# 3. 对话结束后自动将新内容存入记忆库
-                </div>
+          <!-- Webhook -->
+          <div class="conn-card">
+            <div class="conn-top">
+              <div class="conn-icon ci-proxy">🪝</div>
+              <div><div class="conn-name">OpenClaw Webhook</div><div style="font-size:10px; color:var(--muted);">对话结束后自动沉淀记忆</div></div>
             </div>
+            <div class="conn-desc">在 OpenClaw 对话结束 Webhook 中发送以下 Payload，自动将对话精华写入记忆。</div>
+            <div class="url-row"><div class="url-text" id="rest-url">加载中...</div><button class="url-copy" onclick="copyUrlText('rest-url')">📋</button></div>
+            <div class="code-block" id="webhook-payload">加载中...</div>
+          </div>
+        </div>
+      </div>
 
-            <!-- Tab 2: Desktop -->
-            <div id="tab-desktop" class="hub-pane">
-                <h3 style="margin-bottom: 8px; font-weight: 500;">配置桌面智能体 (Claude Desktop / Hermes / 爱马仕)</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">在客户端"高级设置 → 自定义 API 提供商"中填写以下配置，让桌面端应用共享同一个记忆网络。</p>
-                <div class="code-block" style="margin-bottom:16px;">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-# Claude Desktop / Hermes 配置填写位置：
-# 设置 → 高级 → 自定义 Model Provider
+      <!-- ── 算力中心 ── -->
+      <div class="tab-panel" id="panel-providers">
+        <div class="section-title">COMPUTE CENTER</div>
+        <div class="section-sub">配置你的 AI Provider API Key — 系统所有者不承担任何费用</div>
 
-Base URL (API Endpoint):
-http://<span id="t2-host">localhost:8003</span>/v1
+        <div class="provider-grid" id="provider-grid">
+          <!-- JS 动态渲染 -->
+        </div>
+      </div>
 
-API Key:
-<span class="hub-key">mos_xxxx</span>
+      <!-- ── 用量统计 ── -->
+      <div class="tab-panel" id="panel-stats">
+        <div class="section-title">USAGE STATS</div>
+        <div class="section-sub">你的 Token 消耗与 RAG 节省统计</div>
 
-# 重要: 模型名称填任意值（如 gpt-4o），
-# Memory OS 会路由到您在管理端配置的真实模型。
-# 所有对话自动双向记忆化（检索 + 存储）。
-                </div>
-            </div>
+        <div class="mini-stats" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="mini-card c"><div class="mini-label">累计 Token</div><div class="mini-value" id="stats-total-tokens">—</div></div>
+          <div class="mini-card v"><div class="mini-label">本周 Token</div><div class="mini-value" id="stats-month-tokens">—</div></div>
+          <div class="mini-card e"><div class="mini-label">RAG 节省 Token</div><div class="mini-value" id="stats-saved-tokens">—</div></div>
+          <div class="mini-card c" style="--cyan: var(--amber);"><div class="mini-label">节省金额 (USD)</div><div class="mini-value" id="stats-saved-usd" style="color:var(--amber)">—</div></div>
+        </div>
 
-            <!-- Tab 3: IDE -->
-            <div id="tab-ide" class="hub-pane">
-                <h3 style="margin-bottom: 8px; font-weight: 500;">配置 AI 编程助手 (Cursor / Codex / Antigravity)</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">IDE 插件接入后，助手能自动联想您过去的架构规范、报错处理记录，无需重复说明项目背景。</p>
-                <div class="code-block" style="margin-bottom:16px;">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-// Cursor / Codex settings.json 配置
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-top: 4px;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 16px; display:flex; align-items:center; gap:8px;"><span>📊</span>用量明细</div>
+          <table style="width:100%; border-collapse:collapse; font-size:12px;" id="usage-table">
+            <thead><tr style="border-bottom: 1px solid var(--border);">
+              <th style="text-align:left; padding:8px 12px; color:var(--muted); font-size:10px; letter-spacing:0.5px;">Provider</th>
+              <th style="text-align:left; padding:8px 12px; color:var(--muted); font-size:10px;">模型</th>
+              <th style="text-align:right; padding:8px 12px; color:var(--muted); font-size:10px;">Prompt</th>
+              <th style="text-align:right; padding:8px 12px; color:var(--muted); font-size:10px;">Completion</th>
+              <th style="text-align:right; padding:8px 12px; color:var(--muted); font-size:10px;">Total</th>
+            </tr></thead>
+            <tbody id="usage-tbody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
 
-{
-  "openai.apiKey": "<span class="hub-key">mos_xxxx</span>",
-  "openai.baseUrl": "http://<span id="t3-host">localhost:8003</span>/v1",
+    </main>
+  </div>
+</div>
 
-  // Antigravity (Gemini) 插件配置示例:
-  "antigravity.provider": "custom",
-  "antigravity.endpoint": "http://<span id="t3b-host">localhost:8003</span>/v1",
-  "antigravity.apiKey": "<span class="hub-key">mos_xxxx</span>"
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ── 神经网络背景 ──────────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('bg-canvas');
+  const ctx = c.getContext('2d');
+  let W, H, pts = [], af;
+  function resize() { W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
+  function init() {
+    pts = [];
+    for (let i = 0; i < 55; i++) pts.push({ x: Math.random()*W, y: Math.random()*H, vx: (Math.random()-.5)*.22, vy: (Math.random()-.5)*.22 });
+  }
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,229,255,0.4)'; ctx.fill();
+    });
+    for (let i = 0; i < pts.length; i++) for (let j = i+1; j < pts.length; j++) {
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      const d = Math.sqrt(dx*dx+dy*dy);
+      if (d < 120) { ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.strokeStyle = `rgba(0,229,255,${(1-d/120)*0.14})`; ctx.lineWidth = .5; ctx.stroke(); }
+    }
+    af = requestAnimationFrame(draw);
+  }
+  resize(); init(); draw();
+  window.addEventListener('resize', () => { resize(); init(); });
+})();
+
+// ── 状态 ─────────────────────────────────────────────────────────
+let AUTH_TOKEN = '', USERNAME = '', TEAM_ID = '', realToken = '';
+
+// ── 工具 ─────────────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${type==='ok'?'✅':'❌'}</span> ${msg}`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
 }
 
-// 效果: 每次 AI 补全请求都经过代理层：
-// 1. 自动检索您上传的文档/规范/历史报错
-// 2. 将相关内容注入 context（按需，不超 500 tokens）
-// 3. 本次代码问答自动记录为新记忆
-                </div>
-            </div>
+function copyText(text) { navigator.clipboard.writeText(text).then(() => toast('已复制')); }
+function copyElem(id)   { copyText(document.getElementById(id).textContent); }
+function copyUrlText(id){ copyText(document.getElementById(id).textContent); }
 
-            <!-- Tab 4: Python SDK -->
-            <div id="tab-sdk" class="hub-pane">
-                <h3 style="margin-bottom: 8px; font-weight: 500;">Python 代理接入 (自动记忆化)</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">直接使用 <code>openai</code> 库，只需改两行，即可让所有对话自动经过记忆库（检索 + 存储），无需任何额外逻辑。</p>
-                
-                <div style="background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.4); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size:0.88rem; color: #3fb950;">
-                    ✅ 使用代理模式：系统自动完成「记忆检索注入」和「对话存储」，Token 消耗大幅降低
-                </div>
-                
-                <div class="code-block" style="margin-bottom:24px;">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-from openai import OpenAI
+// ── 登录 ─────────────────────────────────────────────────────────
+async function doAuth() {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const team_id  = document.getElementById('auth-team').value.trim() || 'default';
+  const errEl    = document.getElementById('auth-error');
+  const btn      = document.getElementById('auth-btn');
+  if (!username || !password) { errEl.textContent = '请输入用户名和密码'; return; }
+  btn.disabled = true; errEl.textContent = '';
+  try {
+    const regR = await fetch('/admin/auth/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username, password, team_id}) });
+    const regD = await regR.json();
+    if (regR.ok) { AUTH_TOKEN = regD.api_key; USERNAME = username; TEAM_ID = team_id; initApp(); return; }
+    if (regR.status === 409) {
+      const logR = await fetch('/admin/auth/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username, password}) });
+      const logD = await logR.json();
+      if (logR.ok) { AUTH_TOKEN = logD.api_key; USERNAME = username; TEAM_ID = logD.team_id||team_id; initApp(); }
+      else errEl.textContent = logD.detail || '密码错误，请重试';
+    } else errEl.textContent = regD.detail || '注册失败';
+  } catch { errEl.textContent = '无法连接服务器'; }
+  btn.disabled = false;
+}
 
-# 只需修改这两行，其余代码不动
-client = OpenAI(
-    base_url="http://<span id="t4-host">localhost:8003</span>/v1",  # 指向 Memory OS 代理
-    api_key="<span class="hub-key">mos_xxxx</span>"                  # 您的专属 Token
-)
+function initApp() {
+  localStorage.setItem('mos_token', AUTH_TOKEN);
+  localStorage.setItem('mos_username', USERNAME);
+  localStorage.setItem('mos_team', TEAM_ID);
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app').classList.add('active');
+  document.getElementById('username-display').textContent = USERNAME;
+  document.getElementById('team-display').textContent = `team: ${TEAM_ID}`;
+  document.getElementById('user-avatar').textContent = (USERNAME[0]||'U').toUpperCase();
+  realToken = AUTH_TOKEN;
+  loadConnectionUrls();
+  loadMemories();
+  renderProviders();
+  loadUserStats();
+}
 
-# 像普通 OpenAI SDK 一样使用 —— 记忆自动运作
-response = client.chat.completions.create(
-    model="qwen-turbo",   # 任意模型名，由后台路由
-    messages=[
-        {"role": "user", "content": "帮我回顾一下上周关于 PostgreSQL 优化的讨论"}
-    ]
-)
+function logout() { localStorage.clear(); window.location.reload(); }
 
-# Memory OS 在背后做的事：
-# 1. 接收到您的 "PostgreSQL 优化" 请求
-# 2. 语义检索知识库，找到相关记忆片段（Top-3）
-# 3. 自动注入 system_prompt（仅 ~300-500 tokens）
-# 4. 将完整 messages 转发给真实大模型
-# 5. 将本次对话自动存为新记忆
-print(response.choices[0].message.content)
-                </div>
+// ── 自动登录 ─────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const t = localStorage.getItem('mos_token');
+  const u = localStorage.getItem('mos_username');
+  const ti = localStorage.getItem('mos_team');
+  if (t && u) { AUTH_TOKEN = t; USERNAME = u; TEAM_ID = ti || 'default'; initApp(); }
+});
 
-                <h3 style="margin-bottom: 8px; font-weight: 500; margin-top:8px;">直接调用记忆 API（高级用法）</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">如需手动控制检索逻辑，可直接调用原生 Memory API。</p>
-                <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-import httpx
+// ── Tab 切换 ─────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  if (name === 'stats') loadUserStats();
+}
 
-BASE = "http://<span id="t5-host">localhost:8003</span>"
-HEADERS = {"Authorization": "Bearer <span class="hub-key">mos_xxxx</span>"}
+// ── 连接 URL ─────────────────────────────────────────────────────
+function loadConnectionUrls() {
+  const proto = window.location.protocol;
+  const host  = window.location.host;
+  const mcpUrl = `${proto}//${host}/mcp?token=${AUTH_TOKEN}`;
+  const proxyUrl = `${proto}//${host}/v1`;
+  const restUrl  = `${proto}//${host}/memory/store`;
 
-# 手动存入记忆
-httpx.post(f"{BASE}/memory/store", headers=HEADERS, json={
-    "title": "PostgreSQL 分区表优化方案",
-    "content": "使用 BRIN 索引替代 B-tree 可降低 90% 的索引体积...",
-    "source_type": "human"
-})
+  document.getElementById('proxy-url').textContent = proxyUrl;
+  document.getElementById('rest-url').textContent  = restUrl;
+  document.getElementById('cursor-config').textContent =
+`{
+  "mcpServers": {
+    "memory-os": {
+      "url": "${mcpUrl}",
+      "transport": "sse"
+    }
+  }
+}`;
+  document.getElementById('claude-config').textContent =
+`{
+  "mcpServers": {
+    "memory-os": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sse-client",
+               "--url", "${mcpUrl}"]
+    }
+  }
+}`;
+  document.getElementById('webhook-payload').textContent =
+`POST ${restUrl}
+Authorization: Bearer ${AUTH_TOKEN.substring(0,12)}...
+{
+  "title": "{{conversation_title}}",
+  "content": "{{full_transcript}}",
+  "source_type": "human"
+}`;
+}
 
-# 手动语义检索（返回最相关 Top-5）
-results = httpx.post(f"{BASE}/memory/search", headers=HEADERS, json={
-    "query": "数据库索引优化方法", "top_k": 5
-}).json()
+// ── API Token 显示 ────────────────────────────────────────────────
+let tokenShown = false;
+function revealToken() {
+  tokenShown = !tokenShown;
+  document.getElementById('token-display').textContent = tokenShown ? realToken : '••••••••••••••••••••••••••••••••';
+}
+function copyToken() { navigator.clipboard.writeText(realToken).then(() => toast('Token 已复制')); }
 
-for r in results:
-    m = r.get("memory", r)
-    print(f"[{m['lifecycle_stage']}] {m['title']}: {m['content'][:100]}...")
-                </div>
+// ── 记忆 ─────────────────────────────────────────────────────────
+const TAG_MAP = { common:'常识', person:'人物', code:'代码', task:'任务', emotion:'情绪', human:'手动', agent:'AI' };
+const TAG_CLASS = { common:'tag-common', person:'tag-person', code:'tag-code', task:'tag-task', emotion:'tag-emotion', human:'tag-common', agent:'tag-code' };
 
+function renderMemoryCards(list) {
+  const grid = document.getElementById('memory-grid');
+  if (!list || list.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:var(--muted); padding:60px; font-size:13px;">📭 暂无记忆，快去写入第一条吧！</div>';
+    return;
+  }
+  grid.innerHTML = list.map(m => {
+    const type = m.memory_type || m.source_type || 'common';
+    const date = m.created_at ? m.created_at.substring(0,10) : '';
+    return `
+      <div class="mem-card" onclick="">
+        <div class="mem-card-top">
+          <div class="mem-title">${m.title || m.content?.substring(0,40) || '无标题'}</div>
+          <button class="mem-delete" onclick="event.stopPropagation();deleteMemory('${m.id||m.memory_id}')">✕</button>
         </div>
+        <div class="mem-preview">${m.content || ''}</div>
+        <div class="mem-footer">
+          <span class="mem-tag ${TAG_CLASS[type]||'tag-common'}">${TAG_MAP[type]||type}</span>
+          <span class="mem-time">${date}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
 
+async function loadMemories() {
+  const type = document.getElementById('filter-type').value;
+  document.getElementById('memory-grid').innerHTML = '<div style="grid-column:1/-1; text-align:center; color:var(--muted); padding:60px;">⏳ 加载中...</div>';
+  try {
+    const url = type ? `/memory/recent?limit=24&type=${type}` : '/memory/recent?limit=24';
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } });
+    const d = await r.json();
+    renderMemoryCards(d.memories || d.results || d || []);
+    const total = (d.memories || d.results || d || []).length;
+    document.getElementById('stat-total').textContent = total;
+  } catch { document.getElementById('memory-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--red);padding:60px;">❌ 加载失败</div>'; }
+}
 
+async function searchMemories() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) { loadMemories(); return; }
+  document.getElementById('memory-grid').innerHTML = '<div style="grid-column:1/-1; text-align:center; color:var(--muted); padding:60px;">🔍 搜索中...</div>';
+  try {
+    const r = await fetch('/memory/search', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` }, body: JSON.stringify({ query: q, limit: 24 }) });
+    const d = await r.json();
+    renderMemoryCards(d.memories || d.results || []);
+  } catch { document.getElementById('memory-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--red);padding:60px;">❌ 搜索失败</div>'; }
+}
+
+async function quickStore() {
+  const content = document.getElementById('quick-store-input').value.trim();
+  if (!content) return;
+  try {
+    const r = await fetch('/memory/store', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` }, body: JSON.stringify({ title: content.substring(0,40), content, source_type: 'human' }) });
+    if (r.ok) { toast('✨ 记忆写入成功'); document.getElementById('quick-store-input').value = ''; loadMemories(); }
+    else toast('写入失败', 'err');
+  } catch { toast('网络错误', 'err'); }
+}
+
+async function deleteMemory(id) {
+  if (!confirm('确认删除这条记忆？')) return;
+  try {
+    const r = await fetch(`/memory/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } });
+    if (r.ok) { toast('已删除'); loadMemories(); }
+    else toast('删除失败', 'err');
+  } catch { toast('网络错误', 'err'); }
+}
+
+// ── AI 代理聊天 ───────────────────────────────────────────────────
+let chatHistory = [];
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const sendBtn = document.getElementById('chat-send-btn');
+  sendBtn.disabled = true;
+  input.value = '';
+  addChatBubble('user', msg);
+  chatHistory.push({ role: 'user', content: msg });
+  try {
+    const r = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` },
+      body: JSON.stringify({ messages: chatHistory, stream: false })
+    });
+    const d = await r.json();
+    if (d.choices && d.choices[0]) {
+      const reply = d.choices[0].message.content;
+      addChatBubble('assistant', reply);
+      chatHistory.push({ role: 'assistant', content: reply });
+    } else if (d.detail || d.error) {
+      const errMsg = typeof d.detail === 'object' ? (d.detail.message || JSON.stringify(d.detail)) : (d.detail || d.error);
+      addChatBubble('system', `❌ 错误: ${errMsg}`);
+    }
+  } catch(e) { addChatBubble('system', `❌ 请求失败: ${e.message}`); }
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+function addChatBubble(role, content) {
+  const msgs = document.getElementById('chat-messages');
+  const el = document.createElement('div');
+  el.className = `chat-bubble ${role}`;
+  el.textContent = content;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function clearChat() { chatHistory = []; document.getElementById('chat-messages').innerHTML = '<div class="chat-bubble system">🔄 对话已清空</div>'; }
+
+// ── Provider 渲染 ──────────────────────────────────────────────────
+const PROVIDERS = [
+  { id: 'openai',    name: 'OpenAI',       icon: '🤖', models: ['gpt-4o','gpt-4o-mini','gpt-3.5-turbo'] },
+  { id: 'anthropic', name: 'Anthropic',    icon: '🧡', models: ['claude-sonnet-4-6','claude-haiku-4-5-20251001'] },
+  { id: 'deepseek',  name: 'DeepSeek',     icon: '🔍', models: ['deepseek-chat','deepseek-reasoner'] },
+  { id: 'alibaba',   name: '阿里云百炼',   icon: '☁️', models: ['qwen-max','qwen-plus'] },
+  { id: 'zhipu',     name: '智谱 AI',      icon: '🎯', models: ['glm-4','glm-3-turbo'] },
+  { id: 'custom',    name: '自定义端点',   icon: '🔧', models: ['custom-model'] },
+];
+
+async function renderProviders() {
+  document.getElementById('provider-grid').innerHTML = PROVIDERS.map(p => `
+    <div class="prov-card" id="prov-${p.id}">
+      <div class="prov-head">
+        <div class="prov-logo">${p.icon}</div>
+        <div class="prov-name">${p.name}</div>
+        <div class="prov-status prov-idle" id="prov-dot-${p.id}"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label style="font-size:10px; color:var(--muted); margin-bottom:4px; display:block; text-transform:uppercase; letter-spacing:.5px;">API Key</label>
+        <input type="password" id="key-${p.id}" placeholder="sk-..." style="width:100%; background:rgba(4,12,26,0.85); border:1px solid var(--border); border-radius:9px; padding:8px 12px; color:var(--text); font-family:var(--mono); font-size:11px; outline:none; transition:border-color .2s;" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='var(--border)'">
+      </div>
+      ${p.id === 'custom' ? `<div class="form-group" style="margin-bottom:10px;"><label style="font-size:10px;color:var(--muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.5px;">Base URL</label><input type="text" id="base-${p.id}" placeholder="https://your-endpoint/v1" style="width:100%;background:rgba(4,12,26,0.85);border:1px solid var(--border);border-radius:9px;padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;"></div>` : ''}
+      <div class="form-group" style="margin-bottom:10px;">
+        <label style="font-size:10px; color:var(--muted); margin-bottom:4px; display:block; text-transform:uppercase; letter-spacing:.5px;">默认模型</label>
+        <select id="model-${p.id}" style="width:100%; background:rgba(4,12,26,0.85); border:1px solid var(--border); border-radius:9px; padding:8px 12px; color:var(--text); font-family:var(--mono); font-size:11px; outline:none;">
+          ${p.models.map(m=>`<option value="${m}">${m}</option>`).join('')}
+        </select>
+      </div>
+      <button onclick="saveProvider('${p.id}')" style="width:100%; padding:8px; border-radius:8px; background:linear-gradient(135deg,rgba(0,229,255,.12),rgba(124,58,237,.08)); border:1px solid var(--border); color:var(--cyan); font-family:var(--font); font-size:12px; font-weight:600; cursor:pointer; transition:all .2s;" onmouseover="this.style.boxShadow='0 0 15px rgba(0,229,255,.2)'" onmouseout="this.style.boxShadow=''">
+        💾 保存激活
+      </button>
     </div>
+  `).join('');
 
-    <!-- Drawer Reader Overlay & Content -->
-    <div id="reader-overlay" onclick="closeReader()"></div>
-    <div id="reader-drawer">
-        <div class="reader-header">
-            <div>
-                <span class="badge" id="rd-badge" style="margin-right: 10px;">STAGE</span>
-                <span style="color: var(--text-secondary); font-size: 0.9rem;" id="rd-meta">Category • Date</span>
-            </div>
-            <button onclick="closeReader()" style="background: none; border: none; color: var(--text-secondary); font-size: 2rem; cursor: pointer; line-height: 1;">&times;</button>
-        </div>
-        <div class="reader-content">
-            <h1 id="rd-title" style="margin-bottom: 30px; font-weight: 600; font-size: 2rem; color: #fff;">Title</h1>
-            <div id="rd-body" class="markdown-body"></div>
-        </div>
-    </div>
-
-    <!-- Toast Notification -->
-    <div id="toast"></div>
-
-    <script>
-        let userToken = localStorage.getItem('mos_user_token');
-        let currentKey = "mos_xxxx";
-
-        function showToast(msg, type='info') {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.style.border = `1px solid ${type==='error'?'var(--accent-red)':'var(--accent-blue)'}`;
-            t.classList.add('show');
-            setTimeout(()=>t.classList.remove('show'), 3500);
+  try {
+    const r = await fetch('/user/providers', { headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } });
+    if (r.ok) {
+      const d = await r.json();
+      (d.providers || []).forEach(c => {
+        const id = c.provider_name;
+        const keyInput = document.getElementById(`key-${id}`);
+        const modelSelect = document.getElementById(`model-${id}`);
+        const baseInput = document.getElementById(`base-${id}`);
+        if (keyInput && c.key_preview) {
+          keyInput.placeholder = c.key_preview;
+          keyInput.value = "EXISTING";
         }
-
-        function nav(page, callerEl) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-            document.getElementById(`page-${page}`).classList.add('active');
-            
-            // Support both direct click (event) and programmatic calls
-            const activeEl = callerEl || (typeof event !== 'undefined' && event && event.currentTarget) || null;
-            if (activeEl) activeEl.classList.add('active');
-            
-            if (page === 'feed') doSearch();
-            if (page === 'hub') updateHubUI();
+        if (modelSelect && c.model_name) {
+          modelSelect.value = c.model_name;
         }
-
-        function switchTab(tabId, el) {
-            document.querySelectorAll('.hub-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.hub-pane').forEach(p => p.classList.remove('active'));
-            
-            const activeTab = el || (typeof event !== 'undefined' && event && event.currentTarget) || null;
-            if (activeTab) activeTab.classList.add('active');
-            
-            const pane = document.getElementById(tabId);
-            if (pane) pane.classList.add('active');
+        if (baseInput && c.api_base_url) {
+          baseInput.value = c.api_base_url;
         }
-
-        async function apiCall(endpoint, method='GET', body=null) {
-            const headers = {};
-            if (userToken) headers['Authorization'] = `Bearer ${userToken}`;
-            if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
-            
-            const res = await fetch(endpoint, {
-                method, headers, body: body instanceof FormData ? body : (body ? JSON.stringify(body) : null)
-            });
-            if (res.status === 401) { logout(); throw new Error("神经连接断开，请重新认证"); }
-            if (!res.ok) { let err; try { err = await res.json(); } catch(e) { err = {detail: "请求失败"}; } throw new Error(err.detail || "请求失败"); }
-            return await res.json();
+        if (c.is_active) {
+          const dot = document.getElementById(`prov-dot-${id}`);
+          if (dot) dot.className = 'prov-status prov-ok';
+          const card = document.getElementById(`prov-${id}`);
+          if (card) card.classList.add('configured');
         }
+      });
+    }
+  } catch(e) { console.error("Failed to load active user provider states", e); }
+}
 
-        async function handleAuth() {
-            const u = document.getElementById('auth-user').value.trim();
-            const p = document.getElementById('auth-pwd').value.trim();
-            if(!u || !p) return showToast("请输入有效的终端标识和密码", 'error');
-            
-            try {
-                let token;
-                const regRes = await fetch('/admin/auth/register', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: u, password: p, team_id: "default"})
-                });
-                if (regRes.ok) {
-                    const data = await regRes.json();
-                    token = data.api_key;
-                } else if (regRes.status === 409) {
-                    const logRes = await fetch('/admin/auth/login', {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({username: u, password: p})
-                    });
-                    if (!logRes.ok) throw new Error("密码错误");
-                    const data = await logRes.json();
-                    token = data.api_key;
-                } else { throw new Error("认证异常"); }
-                
-                userToken = token;
-                localStorage.setItem('mos_user_token', token);
-                currentKey = token;
-                document.getElementById('auth-modal').style.display = 'none';
-                document.getElementById('user-display').innerHTML = `<span style="color:var(--accent-green)">●</span> ${u}`;
-                showToast("神经连接建立成功", 'success');
-                updateHubUI();
-                // Show feed page
-                nav('feed', document.querySelector('.nav-link'));
-            } catch(e) { showToast(e.message, 'error'); }
-        }
+async function saveProvider(id) {
+  const key   = document.getElementById(`key-${id}`).value.trim();
+  const model = document.getElementById(`model-${id}`)?.value;
+  const base  = document.getElementById(`base-${id}`)?.value.trim() || '';
+  if (!key) { toast('请输入 API Key', 'err'); return; }
+  const body = { provider_name: id, api_key: key, model_name: model, is_active: true };
+  if (base) body.api_base_url = base;
+  try {
+    const r = await fetch('/user/providers', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` }, body: JSON.stringify(body) });
+    if (r.ok) {
+      toast(`✅ ${id} 配置已保存并激活`);
+      document.getElementById(`prov-dot-${id}`).className = 'prov-status prov-ok';
+      document.getElementById(`prov-${id}`).classList.add('configured');
+    } else { const e = await r.json(); toast(e.detail || '保存失败', 'err'); }
+  } catch { toast('网络错误', 'err'); }
+}
 
-        function logout() {
-            localStorage.removeItem('mos_user_token');
-            userToken = null;
-            document.getElementById('auth-modal').style.display = 'flex';
-        }
-
-        function updateHubUI() {
-            const host = window.location.host || 'localhost:8003';
-            // Update all host spans
-            ['t1-host', 't2-host', 't3-host', 't3b-host', 't4-host', 't5-host'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = host;
-            });
-
-            if (userToken) {
-                currentKey = userToken;
-                document.getElementById('api-key-display').textContent = currentKey;
-                document.querySelectorAll('.hub-key').forEach(el => el.textContent = currentKey);
-            } else {
-                document.getElementById('api-key-display').textContent = '••••••••••••••••';
-                document.querySelectorAll('.hub-key').forEach(el => el.textContent = 'mos_xxxx');
-            }
-        }
-
-        function copyKey() {
-            if (!userToken) return showToast("请先登录以获取 Token", 'error');
-            navigator.clipboard.writeText(currentKey);
-            showToast("System Token 已复制到剪贴板", 'success');
-        }
-
-        function copyCode(btn) {
-            const code = btn.parentElement.innerText.replace('Copy\n', '');
-            navigator.clipboard.writeText(code);
-            showToast("配置代码已复制", 'success');
-        }
-
-        async function testPing() {
-            try {
-                const res = await apiCall('/memory/search', 'POST', {query: "test", top_k: 1});
-                showToast("⚡ 外部神经链路探测正常 (200 OK)", 'success');
-            } catch(e) { showToast("链路探测失败: " + e.message, 'error'); }
-        }
-
-        // Feed & Search Logic
-        async function doSearch() {
-            if (!userToken) return; // Don't search without auth
-            const query = document.getElementById('search-input')?.value || '';
-            const container = document.getElementById('feed-container');
-            const statusEl = document.getElementById('feed-status');
-            if (!container) return;
-            container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-secondary)">正在同步思维流...</div>';
-            if (statusEl) statusEl.textContent = query ? '全局深度搜索中' : '近期记忆流';
-            
-            try {
-                let results;
-                if (query) {
-                    results = await apiCall('/memory/search', 'POST', {query: query, top_k: 20});
-                } else {
-                    // Fetch recent memories via backup/list endpoint that doesn't need vector search
-                    results = await apiCall('/memory/search', 'POST', {query: " ", top_k: 20});
-                }
-                
-                if (!Array.isArray(results)) results = [];
-                
-                let html = '';
-                results.forEach(r => {
-                    const m = r.memory || r; // handle both wrapped and raw formats
-                    if (!m || !m.title) return;
-                    const isCore = (m.lifecycle_stage || '').toLowerCase() === 'core';
-                    const dateStr = new Date(m.created_at || Date.now()).toLocaleDateString('zh-CN');
-                    const preview = (m.content || '').substring(0, 200).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    // Decode URL-encoded filenames that might appear as titles
-                    let displayTitle = m.title;
-                    try { displayTitle = decodeURIComponent(m.title); } catch(e) {}
-                    displayTitle = displayTitle.replace(/</g, '&lt;');
-                    // Encode the memory object safely
-                    const memoryJson = encodeURIComponent(JSON.stringify(m));
-                    html += `
-                        <div class="memory-card" onclick="openReaderEncoded('${memoryJson}')">
-                            <div class="card-meta">
-                                <span class="badge ${isCore ? 'core' : 'recent'}">${m.lifecycle_stage || 'RECENT'}</span>
-                                <span>${m.category || '未分类'} · ${dateStr}</span>
-                            </div>
-                            <div class="card-title">${displayTitle}</div>
-                            <div class="card-preview">${preview}</div>
-                        </div>
-                    `;
-                });
-                container.innerHTML = html || '<div style="text-align:center; padding:60px; color:var(--text-secondary)"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:16px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><br>暂无相关认知，添加第一条记忆吧！</div>';
-                if (statusEl) statusEl.textContent = `共 ${results.length} 条记忆映射`;
-            } catch(e) {
-                container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--accent-red)">链路异常: ${e.message}</div>`;
-                console.error('doSearch error:', e);
-            }
-        }
-
-        async function saveIdea() {
-            const el = document.getElementById('quick-idea');
-            const content = el.value.trim();
-            if(!content) return;
-            try {
-                await apiCall('/memory/store', 'POST', {
-                    title: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
-                    content: content,
-                    source_type: "human"
-                });
-                showToast("胶囊已存入长期记忆网络 ✓", 'success');
-                el.value = '';
-                // Switch to feed
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-                document.getElementById('page-feed').classList.add('active');
-                document.querySelector('.nav-link').classList.add('active');
-                setTimeout(doSearch, 300);
-            } catch(e) { showToast(e.message, 'error'); }
-        }
-
-        // Drag and drop handlers
-        const dropzone = document.getElementById('dropzone');
-        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault(); dropzone.classList.remove('dragover');
-            if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        });
-
-        async function handleFileUpload(e) { if(e.target.files.length) handleFile(e.target.files[0]); }
-        
-        async function handleFile(file) {
-            showToast(`正在吸收文档数据: ${file.name}...`);
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('source_type', 'human');
-            try {
-                await apiCall('/memory/upload', 'POST', formData);
-                showToast("文档解析与图谱融合完毕 ✓", 'success');
-                // Switch to feed  
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-                document.getElementById('page-feed').classList.add('active');
-                document.querySelector('.nav-link').classList.add('active');
-                setTimeout(doSearch, 800); // give backend time to index
-            } catch(err) { showToast("解析异常: " + err.message, 'error'); }
-        }
-
-        // Drawer Reader - use encoded data to avoid HTML attribute injection
-        function openReaderEncoded(encodedMemory) {
-            try {
-                const memory = JSON.parse(decodeURIComponent(encodedMemory));
-                openReader(memory);
-            } catch(e) { console.error('Failed to decode memory', e); }
-        }
-
-        function openReader(memory) {
-            const isCore = (memory.lifecycle_stage || '').toLowerCase() === 'core';
-            const badge = document.getElementById('rd-badge');
-            badge.textContent = memory.lifecycle_stage || 'RECENT';
-            badge.className = `badge ${isCore ? 'core' : 'recent'}`;
-            
-            document.getElementById('rd-meta').textContent = `${memory.category || '未分类'} • ${new Date(memory.created_at || Date.now()).toLocaleString()}`;
-            document.getElementById('rd-title').textContent = memory.title;
-            
-            // DOMPurify + Marked
-            const rawHTML = marked.parse(memory.content || '');
-            document.getElementById('rd-body').innerHTML = DOMPurify.sanitize(rawHTML);
-            
-            document.getElementById('reader-overlay').classList.add('open');
-            document.getElementById('reader-drawer').classList.add('open');
-        }
-
-        function closeReader() {
-            document.getElementById('reader-overlay').classList.remove('open');
-            document.getElementById('reader-drawer').classList.remove('open');
-        }
-
-        // Init - check for existing token
-        document.addEventListener('DOMContentLoaded', () => {
-            updateHubUI();
-            if (userToken) {
-                document.getElementById('auth-modal').style.display = 'none';
-                document.getElementById('user-display').innerHTML = `<span style="color:var(--accent-green)">●</span> Online`;
-                // Programmatic feed load
-                nav('feed', document.querySelector('.nav-link'));
-            } else {
-                // Show landing or keep auth modal
-                document.getElementById('auth-modal').style.display = 'flex';
-            }
-        });
-    </script>
+// ── 用量统计 ──────────────────────────────────────────────────────
+async function loadUserStats() {
+  try {
+    const r = await fetch('/user/stats', { headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } });
+    const d = await r.json();
+    document.getElementById('stats-total-tokens').textContent = (d.total_tokens||0).toLocaleString();
+    document.getElementById('stats-month-tokens').textContent = (d.month_tokens||0).toLocaleString();
+    document.getElementById('stats-saved-tokens').textContent = (d.saved_tokens||0).toLocaleString();
+    document.getElementById('stats-saved-usd').textContent   = `$${(d.saved_usd||0).toFixed(4)}`;
+    document.getElementById('stat-week').textContent = (d.week_writes||0).toLocaleString();
+    document.getElementById('stat-rag').textContent  = (d.rag_hits||0).toLocaleString();
+    const tbody = document.getElementById('usage-tbody');
+    tbody.innerHTML = (d.usage_by_model||[]).map(u => `
+      <tr>
+        <td style="padding:8px 12px;">${u.provider_name}</td>
+        <td style="padding:8px 12px; font-family:var(--mono); font-size:11px; color:var(--cyan);">${u.model_name}</td>
+        <td style="padding:8px 12px; text-align:right; color:var(--muted);">${(u.prompt_tokens||0).toLocaleString()}</td>
+        <td style="padding:8px 12px; text-align:right; color:var(--muted);">${(u.completion_tokens||0).toLocaleString()}</td>
+        <td style="padding:8px 12px; text-align:right; font-weight:600;">${(u.total_tokens||0).toLocaleString()}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">暂无用量记录</td></tr>';
+  } catch {}
+}
+</script>
 </body>
 </html>

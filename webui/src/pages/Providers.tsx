@@ -1,33 +1,40 @@
-import { useState } from "react";
-import { saveEmbedConfig, saveRerankConfig, detectLocalModels } from "../api/endpoints";
-import { useToast } from "../contexts/ToastContext";
+import { useState } from 'react';
+import { PROVIDERS, getRecommendations, getLocalProviders, type ProviderInfo, type ModelInfo } from '../data/models';
+
+function ProviderCard({p,selected,onToggle}:{p:ProviderInfo;selected:boolean;onToggle:()=>void}){
+return(<div className={`card ${selected?'card-selected':''}`} style={{cursor:'pointer'}} onClick={onToggle}>
+<div className='card-head'><div className='card-title'>
+<span>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'}</span> {p.name} <span style={{fontSize:11,color:'var(--muted)',fontWeight:400}}>{p.nameZh}</span>
+{selected&&<span className='badge badge-teal' style={{marginLeft:8}}>ACTIVE</span>}
+</div></div>
+{p.features&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>{p.features.map(f=><span key={f} className='badge badge-violet'>{f}</span>)}</div>}
+{selected&&<div style={{marginTop:12}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8,fontFamily:'var(--mono)'}}>Models:</div>
+{p.models.map(m=><ModelBadge key={m.id} model={m}/>)}</div>}
+</div>)}
+function ModelBadge({model}:{model:ModelInfo}){
+return(<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 10px',marginBottom:4,background:'rgba(0,240,212,.04)',borderRadius:8,fontSize:12}}>
+<div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:'var(--text)',fontFamily:'var(--mono)'}}>{model.name}</span>{model.recommended&&<span className='badge badge-amber'>REC</span>}{model.ctx&&<span style={{color:'var(--dim)',fontSize:10}}>{Math.round(model.ctx/1000)}k</span>}{model.size&&<span style={{color:'var(--dim)',fontSize:10}}>{model.size}</span>}</div>
+<span style={{color:'var(--muted)',fontSize:10}}>{model.type}</span></div>)}
+
 export function ProvidersPage(){
-const{toast}=useToast();
-const[ep,setEp]=useState("alibaba");
-const[ek,setEk]=useState("");
-const[em,setEm]=useState("text-embedding-v3");
-const[eb,setEb]=useState("");
-const[rp,setRp]=useState("alibaba");
-const[rk,setRk]=useState("");
-const[rm,setRm]=useState("gte-rerank");
-const[rt,setRt]=useState(0.3);
-const[lr,setLr]=useState("");
-async function se(){try{await saveEmbedConfig({provider:ep,api_key:ek,model:em,base_url:eb});toast("saved")}catch{toast("err","err")}}
-async function sr(){try{await saveRerankConfig({provider:rp,api_key:rk,model:rm,threshold:rt});toast("saved")}catch{toast("err","err")}}
-async function dl(){setLr("scanning");try{const r=await detectLocalModels();setLr(r.detected?.length?r.detected.map(m=>m.name).join(", "):"none")}catch{setLr("failed")}}
-return(<div><div className="page-title">SYSTEM COMPUTE</div><div className="page-sub">Embedding + Rerank</div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
-<div className="card"><div className="card-head"><div className="card-title">Embedding</div></div>
-<select value={ep} onChange={e=>setEp(e.target.value)}><option>alibaba</option><option>openai</option></select>
-<input type="password" value={ek} onChange={e=>setEk(e.target.value)} placeholder="API Key"/>
-<input value={em} onChange={e=>setEm(e.target.value)} placeholder="Model"/>
-<input value={eb} onChange={e=>setEb(e.target.value)} placeholder="Base URL"/>
-<button className="btn btn-teal" onClick={se}>Save</button></div>
-<div className="card"><div className="card-head"><div className="card-title">Rerank</div></div>
-<select value={rp} onChange={e=>setRp(e.target.value)}><option>alibaba</option><option>cohere</option></select>
-<input type="password" value={rk} onChange={e=>setRk(e.target.value)} placeholder="API Key"/>
-<input value={rm} onChange={e=>setRm(e.target.value)} placeholder="Model"/>
-<label>Threshold: {rt}</label>
-<input type="range" min={0} max={1} step={0.05} value={rt} onChange={e=>setRt(+e.target.value)}/>
-<button className="btn btn-teal" onClick={sr}>Save</button></div></div>
-<div className="card"><div className="card-head"><div className="card-title">Local Models</div><button className="btn btn-ghost" onClick={dl}>Scan</button></div><p>{lr}</p></div></div>)}
+const[sel,setSel]=useState<string|null>(null);
+const[tab,setTab]=useState<'all'|'cn'|'intl'|'local'>('all');
+const recs=getRecommendations('classifier');
+const local=getLocalProviders();
+const filtered=PROVIDERS.filter(p=>tab==='all'||p.region===tab);
+return(<div>
+<div className='page-header'><div><div className='page-title'>System Compute</div><div className='page-sub'>LLM Provider Configuration — select models for classifier, reflection, embedding and rerank</div></div></div>
+<div style={{display:'flex',gap:10,marginBottom:24}}>
+{['all','cn','intl','local'].map(t=><button key={t} className={`btn ${tab===t?'btn-teal':'btn-ghost'}`} onClick={()=>setTab(t as "all"|"cn"|"intl"|"local")}>{t==='all'?'All':t==='cn'?'China':'International'}{t==='local'?' Local':''}</button>)}
+</div>
+<div className='card' style={{borderColor:'rgba(0,240,212,.25)',background:'linear-gradient(135deg,rgba(10,18,36,.95),rgba(0,240,212,.03))'}}>
+<div className='card-title'><span>Recommended for Classifier</span></div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:10}}>
+{recs.map((r)=>{const prov=PROVIDERS.find(p=>p.id===r.p);return prov?<div key={r.p} className='card' style={{padding:14,cursor:'pointer',borderColor:sel===r.p?'var(--teal)':'var(--border)'}} onClick={()=>setSel(sel===r.p?null:r.p)}><div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{prov.name}</div><div style={{fontSize:11,color:'var(--muted)',fontFamily:'var(--mono)',marginTop:4}}>{r.m}</div></div>:null})}
+</div></div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:16,marginTop:24}}>
+{filtered.map(p=><ProviderCard key={p.id} p={p} selected={sel===p.id} onToggle={()=>setSel(sel===p.id?null:p.id)}/>)}
+</div>
+{local.length>0&&<div className='card' style={{marginTop:24}}><div className='card-title'>Local Models Detected</div>
+{local.map(p=><div key={p.id}><ProviderCard p={p} selected={sel===p.id} onToggle={()=>setSel(sel===p.id?null:p.id)}/></div>)}</div>}
+</div>)}

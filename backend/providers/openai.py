@@ -45,10 +45,28 @@ class OpenAIProvider(BaseProvider):
             )
             resp.raise_for_status()
             data = resp.json()
-            # Record actual token usage from API response
             usage = data.get("usage", {})
             tokens = usage.get("total_tokens", sum(len(t) for t in texts) // 4)
             from backend.services.cost_tracker import CostTracker
             CostTracker.record(model, tokens, provider="openai")
             return [i["embedding"] for i in data["data"]]
+
+    async def chat(self, messages: list[dict], **kwargs) -> str:
+        base = self.config.api_base or "https://api.openai.com/v1"
+        model = self.config.enabled_models.get("llm", "gpt-4o-mini")
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{base}/chat/completions",
+                json={"model": model, "messages": messages, **kwargs},
+                headers={"Authorization": f"Bearer {self.config.api_key}"}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            usage = data.get("usage", {})
+            tokens = usage.get("total_tokens", 0)
+            if tokens:
+                from backend.services.cost_tracker import CostTracker
+                CostTracker.record(model, tokens, provider="openai")
+            return data["choices"][0]["message"]["content"]
+
 
