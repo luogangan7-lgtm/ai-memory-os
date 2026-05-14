@@ -15,6 +15,8 @@ const LABELS: Record<string,{name:string;desc:string;icon:string}> = {
   rerank:{name:'重排序模型',desc:'对检索结果进行精排，提升准确率',icon:'🎯'},
 };
 
+
+function filterProviders(purpose:string){return PROVIDERS.filter(p=>{if(purpose==='embedding'||purpose==='rerank')return p.features.includes('Embedding')||p.features.includes('Rerank');return p.features.includes('Chat')||p.features.includes('Reasoning')})}
 function PipeCard({cfg,onChange}:{cfg:PipeConfig;onChange:(c:PipeConfig)=>void}){
 const meta=LABELS[cfg.purpose]||{name:cfg.purpose,desc:'',icon:'⚙️'};
 const prov=PROVIDERS.find(p=>p.id===cfg.provider);
@@ -27,11 +29,21 @@ setStatus(r.ok?'ok':'err');}catch{setStatus('err')}finally{setTesting(false)}}
 return(<div className='pipe-card'>
 <div className='pipe-header'><span className='pipe-icon'>{meta.icon}</span><div><div className='pipe-name'>{meta.name}</div><div className='pipe-desc'>{meta.desc}</div></div><div className={`pipe-status ${status}`}>{status==='ok'?'✅ 已连接':status==='err'?'❌ 连接失败':''}</div></div>
 <div className='pipe-body'><div className='pipe-row'>
-<label>模型厂商</label><select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})}>{PROVIDERS.map(p=><option key={p.id} value={p.id}>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'} {p.name} {p.nameZh}</option>)}</select></div>
+<label>模型厂商</label><select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})}>{filterProviders(cfg.purpose).map(p=><option key={p.id} value={p.id}>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'} {p.name}</option>)}</select></div>
 <div className='pipe-row'><label>模型</label><select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})}>{prov?.models.map(m=><option key={m.id} value={m.id}>{m.name}{m.recommended?' ★':''}{m.ctx?' · '+(m.ctx/1000).toFixed(0)+'k':''}</option>)}</select></div>
 <div className='pipe-row'><label>API Key</label><input type='password' value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder='sk-...'/></div>
 <div className='pipe-row' style={{justifyContent:'flex-end'}}><button className='btn btn-teal' onClick={test} disabled={testing||!cfg.apiKey}>{testing?'测试中...':'🔗 测试连接'}</button></div></div></div>)}
 
+
+function LocalDetect(){
+const[scanning,setScanning]=useState(false);const[results,setResults]=useState<string[]>([]);
+async function scan(){setScanning(true);setResults([]);const f:string[]=[];
+for(const u of['http://localhost:11434/v1','http://localhost:1234/v1','http://localhost:4891/v1']){try{const r=await fetch(u+'/models',{signal:AbortSignal.timeout(3000)});const d=await r.json();const m=d.data||d.models||[];f.push(u+' OK ('+m.length+' models)')}catch{f.push(u+' offline')}}
+setResults(f);setScanning(false)}
+return(<div className='card' style={{marginTop:20}}><div className='card-head'><div className='card-title'>💻 本地模型检测</div><button className='btn btn-teal' onClick={scan} disabled={scanning}>{scanning?'扫描中...':'🔍 扫描'}</button></div>
+{results.length>0&&<div style={{fontFamily:'var(--mono)',fontSize:12,lineHeight:2}}>{results.map((r,i)=><div key={i}>{r}</div>)}</div>}
+<div style={{marginTop:8,fontSize:11,color:'var(--muted)'}}>Ollama(11434) · LM Studio(1234) · vLLM(4891)</div></div>)}
+<LocalDetect/>
 export function ModelConfigPage(){
 const [cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
 const [saved,setSaved]=useState(false);
