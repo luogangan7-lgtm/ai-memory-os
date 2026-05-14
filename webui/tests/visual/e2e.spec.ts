@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const PAGES = [
-  { name: 'Dashboard', path: '/', checks: ['COMMAND DECK', 'GLOBAL MEMORIES', 'ACTIVE TENANTS'] },
+  { name: 'Dashboard', path: '/', checks: ['控制台', 'GLOBAL MEMORIES', 'ACTIVE TENANTS'] },
   { name: 'Monitoring', path: '/monitoring', checks: ['TELEMETRY'] },
   { name: 'AuditLogs', path: '/audit', checks: ['AUDIT TRAIL'] },
   { name: 'Providers', path: '/providers', checks: ['模型配置中心'] },
@@ -12,17 +12,8 @@ const PAGES = [
 ];
 
 test.describe('AI Memory OS — E2E Smoke Suite', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('http://127.0.0.1:5173/');
-    await page.evaluate(() => {
-      localStorage.setItem('admin_token', 'test-token');
-      localStorage.setItem('mos_admin_token', 'test-token');
-    });
-    await page.reload();
-    await page.waitForSelector('text=COMMAND DECK', { timeout: 10000 });
-  });
-
-  for (const p of PAGES) {
+  test.beforeEach(async ({ page }) => { await page.goto('http://127.0.0.1:5173/'); await page.waitForTimeout(2000); });
+  for(const p of PAGES) {
     test(`${p.name} page renders correctly`, async ({ page }) => {
       if (p.path !== '/') await page.goto(`http://127.0.0.1:5173${p.path}`);
       for (const text of p.checks) {
@@ -44,7 +35,7 @@ test.describe('AI Memory OS — E2E Smoke Suite', () => {
   });
 
   test('Topbar shows logo and health indicator', async ({ page }) => {
-    await expect(page.locator('text=AI MEMORY OS')).toBeVisible();
+    await expect(page.locator('text=AI 记忆体')).toBeVisible();
     await expect(page.locator('text=ADMIN')).toBeVisible();
   });
 
@@ -59,6 +50,6 @@ test.describe('AI Memory OS — E2E Smoke Suite', () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('http://127.0.0.1:5173/');
     await page.waitForTimeout(1000);
-    await expect(page.locator('text=AI MEMORY OS')).toBeVisible();
+    await expect(page.locator('text=AI 记忆体')).toBeVisible();
   });
 });
