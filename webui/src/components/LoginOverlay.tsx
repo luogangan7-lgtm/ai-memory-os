@@ -30,16 +30,16 @@ export function LoginOverlay() {
     <div className="login-overlay">
       <div className="login-box">
         <div className="login-logo">🧠</div>
-        <div className="login-title">COMMAND DECK LOGIN</div>
+        <div className="login-title">管理端登录</div>
         <div className="login-sub">请输入管理员凭据以连接 AI MEMORY OS 网关</div>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>安全密码</label>
+            <label>管理员密码</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="输入管理员密码..."
+              placeholder="输入密码..."
               className="form-input"
               autoFocus
             />

@@ -25,24 +25,24 @@ export function ConfigPage() {
 
   return (
     <div>
-      <div className='page-title'>SYSTEM CONFIG</div>
-      <div className='page-sub'>RAG parameters and security settings</div>
+      <div className='page-title'>系统配置</div>
+      <div className='page-sub'>RAG 参数与安全设置</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
         <div className='card'>
-          <div className='card-head'><div className='card-title'><div className='card-icon ci-teal'>R</div>RAG Parameters</div></div>
+          <div className='card-head'><div className='card-title'><div className='card-icon ci-teal'>R</div>RAG 参数</div></div>
           <div className='form-group'><label>Top-K</label><input type='text' value={topk} onChange={e => setTopk(+e.target.value)} /></div>
           <div className='form-group'><label>Min Similarity: {sim.toFixed(2)}</label><input type='range' min={0} max={1} step={0.05} value={sim} onChange={e => setSim(+e.target.value)} /></div>
           <div className='form-group'><label>Max Context Tokens</label><input type='text' value={ctxTokens} onChange={e => setCtxTokens(+e.target.value)} /></div>
           <div className='form-group'><label>History Messages</label><input type='text' value={history} onChange={e => setHistory(+e.target.value)} /></div>
-          <button className='btn btn-teal w-full' onClick={saveRAG}>Save RAG</button>
+          <button className='btn btn-teal w-full' onClick={saveRAG}>保存 RAG</button>
         </div>
         <div className='card'>
-          <div className='card-head'><div className='card-title'><div className='card-icon ci-red'>S</div>Security & Rate Limit</div></div>
+          <div className='card-head'><div className='card-title'><div className='card-icon ci-red'>S</div>安全与限速</div></div>
           <div className='form-group'><label>Write Rate (per min)</label><input type='text' value={rateWrite} onChange={e => setRateWrite(+e.target.value)} /></div>
           <div className='form-group'><label>Read Rate (per min)</label><input type='text' value={rateRead} onChange={e => setRateRead(+e.target.value)} /></div>
           <div className='form-group'><label>Max Memory Length (chars)</label><input type='text' value={maxMemLen} onChange={e => setMaxMemLen(+e.target.value)} /></div>
           <div className='form-group'><label>JWT Expire (minutes)</label><input type='text' value={jwtExpire} onChange={e => setJwtExpire(+e.target.value)} /></div>
-          <button className='btn btn-teal w-full' onClick={saveSec}>Save Security</button>
+          <button className='btn btn-teal w-full' onClick={saveSec}>保存安全</button>
         </div>
       </div>
     </div>
