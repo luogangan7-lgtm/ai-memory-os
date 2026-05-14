@@ -40,15 +40,15 @@ export function Topbar() {
     <header className="topbar">
       <div className="topbar-left">
         <div className="logo-orb">🧠</div>
-        <span className="logo-text">AI MEMORY OS</span>
-        <span className="admin-badge">ADMIN</span>
+        <span className="logo-text">AI 记忆体</span>
+        <span className="admin-badge">管理</span>
       </div>
       <div className="topbar-right">
         <div className="health-indicator">
           <div className={`health-dot ${healthy ? "" : "err"}`} />
           <span className="health-text">{statusText}</span>
         </div>
-        <span className="topbar-location">LOCALHOST ONLY</span>
+        <span className="topbar-location">仅本地</span>
         <button className="topbar-logout" onClick={logout} title="退出登录">
           ⏻
         </button>

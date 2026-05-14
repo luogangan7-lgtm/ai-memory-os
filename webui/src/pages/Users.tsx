@@ -9,26 +9,26 @@ export function UsersPage() {
 
   const load = useCallback(async () => {
     try { const r = await getUsers(q); setUsers(r.users); }
-    catch { toast('err', 'err'); }
+    catch { toast('加载失败', 'err'); }
   }, [q, toast]);
   useEffect(() => { load(); }, [load]);
 
   async function toggle(uid: string, active: boolean) {
-    try { await toggleUserStatus(uid, active); toast(active ? 'paused' : 'activated'); load(); }
-    catch { toast('err', 'err'); }
+    try { await toggleUserStatus(uid, active); toast(active ? '已暂停' : '已激活'); load(); }
+    catch { toast('加载失败', 'err'); }
   }
 
   return (
     <div>
-      <div className='page-title'>USER REGISTRY</div>
-      <div className='page-sub'>User management</div>
+      <div className='page-title'>用户管理</div>
+      <div className='page-sub'>用户管理</div>
       <div className='card'>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <input placeholder='search' value={q} onChange={e => setQ(e.target.value)} />
+          <input placeholder='搜索' value={q} onChange={e => setQ(e.target.value)} />
           <button className='btn btn-teal' onClick={load}>search</button>
         </div>
         <table className='table'>
-          <thead><tr><th>User</th><th>Team</th><th>Memories</th><th>Tokens</th><th>Status</th><th>Action</th></tr></thead>
+          <thead><tr><th>用户名</th><th>租户</th><th>记忆数</th><th>Token</th><th>状态</th><th>操作</th></tr></thead>
           <tbody>
             {users.map((u, i) => (
               <tr key={i}>
@@ -36,8 +36,8 @@ export function UsersPage() {
                 <td>{u.team_id}</td>
                 <td>{u.memory_count?.toLocaleString()}</td>
                 <td>{u.token_usage?.toLocaleString()}</td>
-                <td><span className={`badge ${u.active !== false ? 'badge-emerald' : 'badge-red'}`}>{u.active !== false ? 'ACTIVE' : 'SUSPENDED'}</span></td>
-                <td><button className={`btn ${u.active !== false ? 'btn-danger' : 'btn-ghost'}`} onClick={() => toggle(u.user_id, u.active !== false)}>{u.active !== false ? 'Pause' : 'Activate'}</button></td>
+                <td><span className={`badge ${u.active !== false ? 'badge-emerald' : 'badge-red'}`}>{u.active !== false ? '活跃' : '已暂停'}</span></td>
+                <td><button className={`btn ${u.active !== false ? 'btn-danger' : 'btn-ghost'}`} onClick={() => toggle(u.user_id, u.active !== false)}>{u.active !== false ? '暂停' : '激活'}</button></td>
               </tr>
             ))}
           </tbody>
