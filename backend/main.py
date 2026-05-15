@@ -85,6 +85,8 @@ if UI_DIR.exists():
 
 if APP_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(APP_DIR), html=True), name="app_ui")
+# Mount React SPA at root (after API routes)
+app.mount("/", StaticFiles(directory=str(UI_DIR), html=True), name="spa")
 
 # Metrics
 from backend.services.metrics import metrics_response
