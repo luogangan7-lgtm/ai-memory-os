@@ -970,451 +970,324 @@ async def detect_local_providers_endpoint():
                         "models": models[:10],
                         "is_embedding_capable": any(
                             "embed" in m.lower() or "bge" in m.lower() 
-                            for m in models
-                        )
-                    }
-        except Exception:
-            return None
-            
-    results = await asyncio.gather(*[check_framework(fw) for fw in LOCAL_FRAMEWORKS])
+                            fo
+# ── V6.0 CORE ADMIN ENDPOINTS ──
+
+@router.get("/health")
+async def get_system_health():
+    """Check connectivity to all core microservices."""
+    from backend.api.routes import pg_repo, qdrant_store, graph_store
+    from backend.services.config import settings
+    import redis
     
-    # Deduplicate results by name to avoid repeating local frameworks
-    detected = []
-    seen_names = set()
-    for r in results:
-        if r is not None and r["name"] not in seen_names:
-            detected.append(r)
-            seen_names.add(r["name"])
-            
-    return {"detected": detected}
+    health = {"backend": True}
+    
+    # Postgres
+    try: health["postgres"] = pg_repo and await pg_repo.pool.fetchval("SELECT 1") == 1
+    except: health["postgres"] = False
+    
+    # Qdrant
+    try:
+        health["qdrant"] = False
+        if qdrant_store:
+            # Simple check
+            qdrant_store.client.get_collections()
+            health["qdrant"] = True
+    except: pass
+    
+    # Neo4j
+    try:
+        health["neo4j"] = False
+        if graph_store:
+            with graph_store.driver.session() as session:
+                session.run("RETURN 1")
+                health["neo4j"] = True
+    except: pass
+    
+    # Redis
+    try:
+        r = redis.from_url(settings.redis_uri)
+        health["redis"] = r.ping()
+    except: health["redis"] = False
+    
+    # MinIO
+    try:
+        from backend.memory.minio_store import MinIOStore
+        minio = MinIOStore()
+        minio.client.list_buckets()
+        health["minio"] = True
+    except: health["minio"] = False
+    
+    return health
 
+@router.get("/stats")
+async def usage_stats():
+    """Retrieve global system telemetry and RAG savings."""
+    from backend.api.routes import pg_repo
+    if not pg_repo: return {"error": "DB not ready"}
+    
+    total_memories = await pg_repo.pool.fetchval("SELECT COUNT(*) FROM memories")
+    total_tenants = await pg_repo.pool.fetchval("SELECT COUNT(DISTINCT team_id) FROM memories")
+    
+    # Vector count from Qdrant if possible, or estimate
+    vector_count = total_memories
+    
+    # RAG Savings: $0.02 per 1k tokens saved (estimate)
+    saved_tokens = await pg_repo.pool.fetchval("SELECT COALESCE(SUM(tokens_saved_estimate), 0) FROM user_token_usage")
+    rag_savings_usd = (saved_tokens / 1000.0) * 0.02
+    
+    return {
+        "total_memories": total_memories,
+        "total_tenants": total_tenants,
+        "vector_count": vector_count,
+        "rag_savings_usd": rag_savings_usd,
+        "tokens_saved": saved_tokens
+    }
 
-# --- Newly Added Endpoints for V5.1 Spec (Scenario A) ---
+@router.get("/stats/throughput")
+async def get_throughput_stats():
+    """Get memory write throughput for the last 10 minutes."""
+    from backend.api.routes import pg_repo
+    if not pg_repo: return {"labels": [], "values": []}
+    
+    rows = await pg_repo.pool.fetch("""
+        SELECT to_char(created_at, 'HH24:MI') as bucket, COUNT(*) as cnt
+        FROM memories
+        WHERE created_at >= now() - interval '10 minutes'
+        GROUP BY bucket ORDER BY bucket
+    """)
+    return {
+        "labels": [r["bucket"] for r in rows],
+        "values": [r["cnt"] for r in rows]
+    }
 
-from datetime import datetime, timezone
-import time
-import uuid
+# ── LLM ENGINE HUB ──
 
-@router.get("/providers/llm-engine")
-async def get_llm_engine():
-    """Retrieve custom classification/reflection/embedding/rerank model configuration state (脱敏)."""
+@router.get("/system-llm")
+async def get_system_llm_config():
+    """Retrieve internal engine configurations."""
     cfg = registry.load_llm_engine_config()
-    routing = registry.load_routing()
-    res = {}
-    
-    # 1. Classifier & Reflection
-    for engine in ["classifier", "reflection"]:
-        info = cfg.get(engine, {})
-        res[engine] = {
-            "provider": info.get("provider", ""),
-            "model": info.get("model", ""),
-            "base_url": info.get("base_url", ""),
-            "has_key": bool(info.get("api_key")),
-            "batch_size": info.get("batch_size", 4 if engine == "classifier" else 50)
-        }
-        
-    # 2. Embedding
-    emb_route = routing.get("embedding", {})
-    emb_prov = emb_route.get("provider", "")
-    emb_model = emb_route.get("model", "")
-    emb_cfg = registry.configs.get(emb_prov) if emb_prov else None
-    res["embedding"] = {
-        "provider": emb_prov,
-        "model": emb_model,
-        "base_url": emb_cfg.api_base if emb_cfg else "",
-        "has_key": bool(emb_cfg.api_key) if (emb_cfg and emb_cfg.api_key) else False
+    return {
+        "embed": cfg.get("embed", {"model_name": "bge-m3", "provider": "custom"}),
+        "reflect": cfg.get("reflect", {"model_name": "deepseek-chat", "provider": "deepseek"}),
+        "classify": cfg.get("classify", {"model_name": "deepseek-chat", "provider": "deepseek"})
     }
+
+@router.post("/system-llm")
+async def save_system_llm_config(data: dict):
+    """Update internal engine configuration (Embed/Reflect/Classify)."""
+    engine_type = data.get("engine_type")
+    if engine_type not in ["embed", "reflect", "classify"]:
+        raise HTTPException(400, "Invalid engine type")
+        
+    cfg = registry.load_llm_engine_config()
     
-    # 3. Rerank
-    rr_route = routing.get("rerank", {})
-    rr_prov = rr_route.get("provider", "")
-    rr_model = rr_route.get("model", "")
-    rr_cfg = registry.configs.get(rr_prov) if rr_prov else None
-    res["rerank"] = {
-        "provider": rr_prov,
-        "model": rr_model,
-        "has_key": bool(rr_cfg.api_key) if (rr_cfg and rr_cfg.api_key) else False
+    update = {
+        "provider": data.get("provider"),
+        "model_name": data.get("model_name"),
+        "api_base_url": data.get("api_base_url"),
     }
-    
-    return {"config": res}
+    if data.get("api_key"):
+        from backend.utils.crypto import encrypt_key
+        update["api_key"] = encrypt_key(data["api_key"])
+        
+    cfg[engine_type] = update
+    registry.save_llm_engine_config(cfg)
+    return {"status": "ok"}
 
-@router.post("/providers/llm-engine")
-async def save_llm_engine(data: dict):
-    """Save custom classification/reflection/embedding/rerank model configuration."""
-    engine = data.get("engine")
-    if engine not in ["classifier", "reflection", "embedding", "rerank"]:
-        raise HTTPException(400, "Invalid engine identifier")
-    
+@router.post("/system-llm/test")
+async def test_system_llm(data: dict):
+    """Test connectivity for a specific engine config."""
     provider = data.get("provider")
-    model = data.get("model")
+    model = data.get("model_name")
     api_key = data.get("api_key")
-    base_url = data.get("base_url", "")
+    base_url = data.get("api_base_url")
+    engine_type = data.get("engine_type")
     
-    if not provider or not model or not api_key:
-        raise HTTPException(400, "provider, model, and api_key are required fields")
-        
-    if engine in ["classifier", "reflection"]:
-        # Retrieve saved key if masked
-        if api_key.startswith("••"):
-            cfg = registry.load_llm_engine_config()
-            saved_info = cfg.get(engine, {})
-            saved_key = saved_info.get("api_key", "")
-            if saved_key:
-                api_key = saved_key  # Already encrypted
-            else:
-                raise HTTPException(400, "API key required (cannot use mask without previously saved key)")
-        else:
-            from backend.utils.crypto import encrypt_key
-            api_key = encrypt_key(api_key)
-            
-        cfg = registry.load_llm_engine_config()
-        cfg[engine] = {
-            "provider": provider,
-            "model": model,
-            "api_key": api_key,
-            "base_url": base_url,
-            "batch_size": data.get("batch_size", 4 if engine == "classifier" else 50)
-        }
-        registry.save_llm_engine_config(cfg)
-        
-    elif engine == "embedding":
-        if api_key.startswith("••"):
-            cfg = registry.configs.get(provider)
-            if cfg and cfg.api_key:
-                api_key = cfg.api_key
-            else:
-                raise HTTPException(400, "API key required")
-        
-        # Save provider config in registry
-        registry.update_provider(
-            provider,
-            api_key=api_key,
-            api_base=base_url,
-            enabled_models={"embedding": model},
-            enabled_capabilities=["embedding"]
-        )
-        # Save routing config
-        routing = registry.load_routing()
-        routing["embedding"] = {"provider": provider, "model": model}
-        registry.save_routing(routing)
-        
-    elif engine == "rerank":
-        if api_key.startswith("••"):
-            cfg = registry.configs.get(provider)
-            if cfg and cfg.api_key:
-                api_key = cfg.api_key
-            else:
-                raise HTTPException(400, "API key required")
-                
-        # Save provider config in registry
-        registry.update_provider(
-            provider,
-            api_key=api_key,
-            enabled_models={"rerank": model},
-            enabled_capabilities=["rerank"]
-        )
-        # Save routing config
-        routing = registry.load_routing()
-        routing["rerank"] = {"provider": provider, "model": model}
-        registry.save_routing(routing)
-        
-    return {"status": "success", "message": f"{engine} config saved successfully"}
-
-@router.post("/providers/embedding")
-async def save_embedding_config(data: dict):
-    """Wrapper to save custom embedding model configuration."""
-    data["engine"] = "embedding"
-    return await save_llm_engine(data)
-
-@router.post("/providers/rerank")
-async def save_rerank_config(data: dict):
-    """Wrapper to save custom rerank model configuration."""
-    data["engine"] = "rerank"
-    return await save_llm_engine(data)
-
-@router.post("/providers/test-llm")
-async def test_llm_config(data: dict):
-    """Test connection and validation response latency for an LLM/Embedding/Rerank engine."""
-    provider = data.get("provider")
-    model = data.get("model")
-    api_key = data.get("api_key")
-    base_url = data.get("base_url")
-    engine = data.get("engine", "test")
-    
-    if not provider or not model or not api_key:
-        raise HTTPException(400, "provider, model, and api_key are required fields")
-        
-    if api_key.startswith("••"):
-        if engine in ["classifier", "reflection"]:
-            cfg = registry.load_llm_engine_config()
-            saved_info = cfg.get(engine, {})
-            saved_key = saved_info.get("api_key", "")
-            if saved_key:
-                from backend.utils.crypto import decrypt_key
-                try:
-                    api_key = decrypt_key(saved_key)
-                except Exception:
-                    api_key = saved_key
-            else:
-                raise HTTPException(400, "API key required (cannot use mask without previously saved key)")
-        else:
-            cfg = registry.configs.get(provider)
-            if cfg and cfg.api_key:
-                api_key = cfg.api_key
-            else:
-                raise HTTPException(400, "API key required (cannot use mask without previously saved key)")
-            
+    # Re-use test logic from ModelRegistry or local provider
     from backend.manager.registry import PROVIDER_CLASSES
-    cls = PROVIDER_CLASSES.get(provider)
-    if not cls:
-        return {"success": False, "error": f"Unsupported provider: {provider}"}
-        
     from backend.providers.base import ProviderConfig
+    
+    cls = PROVIDER_CLASSES.get(provider)
+    if not cls: return {"ok": False, "error": f"Provider {provider} not supported"}
+    
+    # If key is missing, try to load from saved
+    if not api_key:
+        saved = registry.load_llm_engine_config().get(engine_type, {})
+        if saved.get("api_key"):
+            from backend.utils.crypto import decrypt_key
+            api_key = decrypt_key(saved["api_key"])
+            
     prov_cfg = ProviderConfig(
         provider_type=provider,
-        api_key=api_key,
+        api_key=api_key or "",
         api_base=base_url or "",
-        enabled_models={"test": model},
-        enabled_capabilities=["llm"]
+        enabled_models={"llm": model, "embedding": model, "rerank": model},
+        enabled_capabilities=["llm", "embedding"]
     )
     prov = cls(prov_cfg)
-    prov.config.enabled_models["llm"] = model
     
-    start_time = time.time()
+    start = time.time()
     try:
-        await prov.chat([{"role": "user", "content": "ping"}], max_tokens=2)
-        latency = int((time.time() - start_time) * 1000)
-        return {"success": True, "latency_ms": latency, "model": model}
+        if engine_type == "embed":
+            await prov.embed(["ping"])
+        else:
+            await prov.chat([{"role": "user", "content": "ping"}], max_tokens=1)
+        latency = int((time.time() - start) * 1000)
+        return {"ok": True, "latency_ms": latency}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"ok": False, "error": str(e)}
 
-@router.get("/users")
-async def list_users_enriched(q: str = "", limit: int = 50):
-    """List registered users with memory count, token metrics and active state."""
-    from backend.auth.accounts import list_users as accounts_list_users
-    from backend.auth.accounts import _load as _load_accounts
-    users = accounts_list_users()
-    accounts = _load_accounts()
-    
-    from backend.api.routes import pg_repo
-    enriched = []
-    for u in users:
-        username = u["username"]
-        team_id = u["team_id"]
-        
-        memory_count = 0
-        token_usage = 0
-        try:
-            if pg_repo:
-                memory_count = await pg_repo.count_by_team(team_id)
-                # Query Postgres token usage
-                async with pg_repo.pool.acquire() as conn:
-                    token_usage = await conn.fetchval(
-                        "SELECT COALESCE(SUM(total_tokens), 0) FROM user_token_usage WHERE user_id=$1",
-                        pg_repo.safe_uuid(team_id)
-                    )
-        except Exception:
-            pass
-            
-        if q and q.lower() not in username.lower() and q.lower() not in team_id.lower():
-            continue
-            
-        user_info = accounts.get(username, {})
-        is_active = not user_info.get("revoked", False) and not user_info.get("suspended", False)
-        
-        enriched.append({
-            "user_id": username,
-            "username": username,
-            "team_id": team_id,
-            "memory_count": memory_count,
-            "token_usage": token_usage,
-            "created_at": u.get("created", ""),
-            "active": is_active
-        })
-        
-    return {"users": enriched[:limit]}
+# ── AI REFLECTION CHAT ──
 
-@router.post("/users/{user_id}/suspend")
-async def suspend_user_endpoint(user_id: str):
-    """Suspend a user account."""
-    from backend.auth.accounts import suspend_user
-    success = suspend_user(user_id)
-    if not success:
-        raise HTTPException(404, "User not found")
-    return {"status": "success", "message": f"User {user_id} suspended"}
-
-@router.post("/users/{user_id}/activate")
-async def activate_user_endpoint(user_id: str):
-    """Activate a suspended/revoked user account."""
-    from backend.auth.accounts import activate_user
-    success = activate_user(user_id)
-    if not success:
-        raise HTTPException(404, "User not found")
-    return {"status": "success", "message": f"User {user_id} activated"}
-
-@router.get("/stats/monitoring")
-async def get_monitoring_stats():
-    """Aggregate token usage charts, writes over time, latency, and top active tenants."""
-    from backend.api.routes import pg_repo
+@router.post("/reflection/chat")
+async def reflection_ai_chat(data: dict):
+    """Interactive AI chat with the knowledge base analysis engine."""
+    messages = data.get("messages", [])
+    if not messages: raise HTTPException(400, "Messages required")
     
-    # 1. 7-day token labels & values
-    # Defaults in case of empty DB
-    token_labels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    token_values = [0, 0, 0, 0, 0, 0, 0]
+    # Inject system context for reflection
+    system_prompt = {
+        "role": "system",
+        "content": "You are the AI Memory OS Reflection Engine. Your job is to analyze the user's knowledge base, "
+                   "summarize findings, identify knowledge gaps, and trigger memory consolidation. "
+                   "You have access to global statistics. Maintain a professional, technical, and helpful persona."
+    }
     
-    # 2. 24-hour write labels & values
-    writes_labels = [f"{i}:00" for i in range(24)]
-    writes_values = [0] * 24
-    
-    # 3. Latency distribution buckets: [<50ms, 50-100ms, 100-200ms, 200-500ms, >500ms]
-    # Default is empty or baseline distributions
-    latency_buckets = [0, 0, 0, 0, 0]
-    
-    # 4. Top active tenants
-    top_tenants = []
-    
+    # Use the reflection engine LLM
     try:
-        if pg_repo:
-            async with pg_repo.pool.acquire() as conn:
-                # Group writes by hour (past 24h)
-                write_rows = await conn.fetch("""
-                    SELECT EXTRACT(HOUR FROM created_at) as hr, COUNT(*) as cnt
-                    FROM memories
-                    WHERE created_at >= now() - interval '24 hours'
-                    GROUP BY hr
-                """)
-                for r in write_rows:
-                    hr = int(r["hr"])
-                    if 0 <= hr < 24:
-                        writes_values[hr] = int(r["cnt"])
-                        
-                # Token usage per day for the last 7 days
-                weekday_rows = await conn.fetch("""
-                    SELECT EXTRACT(ISODOW FROM created_at) as dow, SUM(total_tokens) as tokens
-                    FROM user_token_usage
-                    WHERE created_at >= now() - interval '7 days'
-                    GROUP BY dow
-                """)
-                for r in weekday_rows:
-                    dow = int(r["dow"]) - 1 # 1-indexed Monday -> 0-indexed Sunday
-                    if 0 <= dow < 7:
-                        token_values[dow] = int(r["tokens"])
-                        
-                # Aggregate top tenants
-                tenant_rows = await conn.fetch("""
-                    SELECT team_id, COUNT(*) as cnt
-                    FROM memories
-                    GROUP BY team_id
-                    ORDER BY cnt DESC LIMIT 10
-                """)
-                for idx, r in enumerate(tenant_rows):
-                    tid = r["team_id"]
-                    total_toks = await conn.fetchval(
-                        "SELECT COALESCE(SUM(total_tokens), 0) FROM user_token_usage WHERE user_id=$1",
-                        pg_repo.safe_uuid(tid)
-                    )
-                    top_tenants.append({
-                        "team_id": tid,
-                        "memory_count": r["cnt"],
-                        "token_usage": total_toks,
-                        "active": True
-                    })
-    except Exception:
-        pass
-        
-    # Standard baseline simulated metrics fallback if the system is newly initialized or empty
-    if sum(token_values) == 0:
-        token_values = [1420, 2100, 1850, 3200, 2900, 950, 1500]
-    if sum(writes_values) == 0:
-        writes_values = [4, 2, 1, 0, 0, 2, 8, 15, 24, 18, 20, 32, 28, 14, 22, 38, 45, 26, 12, 18, 24, 15, 8, 6]
-    if sum(latency_buckets) == 0:
-        latency_buckets = [842, 532, 214, 85, 21]
-        
-    if not top_tenants:
-        top_tenants = [
-            {"team_id": "default", "memory_count": 42, "token_usage": 1580, "active": True}
-        ]
-        
-    return {
-        "token_labels": token_labels,
-        "token_values": token_values,
-        "writes_labels": writes_labels,
-        "writes_values": writes_values,
-        "latency_buckets": latency_buckets,
-        "top_tenants": top_tenants
-    }
+        reply = await registry.chat_for_engine("reflect", [system_prompt] + messages)
+        return {"reply": reply}
+    except Exception as e:
+        return {"reply": f"❌ Reflection Error: {str(e)}"}
 
-@router.get("/audit-logs")
-async def list_audit_logs(action: str = "", user: str = "", limit: int = 50):
-    """Retrieve system security audit trails with advanced multi-filter matching."""
-    from backend.api.routes import pg_repo
-    if not pg_repo:
-        return {"logs": []}
-        
-    async with pg_repo.pool.acquire() as conn:
-        q = "SELECT * FROM audit_log"
-        where_clauses = []
-        params = []
-        
-        if action and action != "all":
-            params.append(action)
-            where_clauses.append(f"action = ${len(params)}")
-            
-        if user:
-            params.append(f"%{user}%")
-            where_clauses.append(f"agent_id ILIKE ${len(params)}")
-            
-        if where_clauses:
-            q += " WHERE " + " AND ".join(where_clauses)
-            
-        q += f" ORDER BY created_at DESC LIMIT ${len(params) + 1}"
-        params.append(limit)
-        
-        rows = await conn.fetch(q, *params)
-        
-        logs = []
-        for r in rows:
-            details = {}
-            if r["details"]:
-                try:
-                    details = json.loads(r["details"]) if isinstance(r["details"], str) else r["details"]
-                except Exception:
-                    pass
-            logs.append({
-                "created_at": r["created_at"].isoformat() if r["created_at"] else "",
-                "user_id": r["agent_id"] or "system",
-                "username": r["agent_id"] or "system",
-                "team_id": details.get("team_id", "default"),
-                "action": r["action"],
-                "target_id": r["memory_id"] or details.get("target_id", "—"),
-                "ip_address": details.get("ip_address", "127.0.0.1"),
-                "success": details.get("success", True)
+# ── KNOWLEDGE GRAPH ──
+
+@router.get("/knowledge-graph")
+async def get_vis_graph(team_id: str = "all"):
+    """Fetch nodes and edges for Vis.js visualization."""
+    from backend.api.routes import graph_store
+    if not graph_store: return {"nodes": [], "edges": []}
+    
+    cypher = "MATCH (n:Knowledge) "
+    if team_id != "all":
+        cypher += f"WHERE n.team_id = '{team_id}' "
+    cypher += "RETURN n LIMIT 100"
+    
+    nodes = []
+    edges = []
+    
+    with graph_store.driver.session() as session:
+        result = session.run(cypher)
+        for record in result:
+            n = record["n"]
+            nodes.append({
+                "id": n.get("id"),
+                "label": n.get("title") or n.get("name") or "Untitled",
+                "type": n.get("category", "general"),
+                "content": n.get("summary") or n.get("content", "")[:200]
             })
-        return {"logs": logs}
-
-@router.post("/config/rag")
-async def save_rag_config(data: dict):
-    """Persist system-wide RAG parameters."""
-    from backend.services.config import load_system_config, save_system_config
-    cfg = load_system_config()
-    cfg["rag"] = {
-        "top_k": int(data.get("top_k", 5)),
-        "min_similarity": float(data.get("min_similarity", 0.60)),
-        "max_context_tokens": int(data.get("max_context_tokens", 2000)),
-        "history_count": int(data.get("history_count", 10))
+            
+            # Find relationships for this node
+            rel_res = session.run("MATCH (n)-[r]->(m) WHERE id(n) = $id RETURN r, m LIMIT 10", id=n.id)
+            for rel_rec in rel_res:
+                r = rel_rec["r"]
+                m = rel_rec["m"]
+                edges.append({
+                    "from": n.get("id"),
+                    "to": m.get("id"),
+                    "type": r.type
+                })
+                
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "last_updated": time.time() * 1000
     }
-    save_system_config(cfg)
-    return {"status": "success", "message": "RAG parameters saved successfully"}
 
-@router.post("/config/security")
+# ── TENANT MANAGEMENT ──
+
+@router.get("/tenants")
+async def list_tenants():
+    """List all tenants with enriched stats."""
+    from backend.api.routes import pg_repo
+    if not pg_repo: return []
+    
+    rows = await pg_repo.pool.fetch("""
+        SELECT team_id, COUNT(*) as memory_count, 
+               MAX(created_at) as last_active,
+               MIN(created_at) as created_at
+        FROM memories GROUP BY team_id
+    """)
+    
+    tenants = []
+    for r in rows:
+        tenants.append({
+            "team_id": r["team_id"],
+            "memory_count": r["memory_count"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else "",
+            "active": True
+        })
+    return {"tenants": tenants}
+
+@router.get("/tenants/{team_id}")
+async def get_tenant_detail(team_id: str):
+    from backend.api.routes import pg_repo
+    if not pg_repo: raise HTTPException(503)
+    
+    count = await pg_repo.count_by_team(team_id)
+    tokens = await pg_repo.pool.fetchval("SELECT SUM(total_tokens) FROM user_token_usage WHERE user_id = $1", pg_repo.safe_uuid(team_id))
+    
+    return {
+        "team_id": team_id,
+        "memory_count": count,
+        "token_usage": tokens or 0,
+        "status": "active"
+    }
+
+@router.delete("/tenants/{team_id}/memories")
+async def clear_tenant_memories(team_id: str):
+    from backend.api.routes import pg_repo, qdrant_store
+    if not pg_repo: raise HTTPException(503)
+    
+    await pg_repo.pool.execute("DELETE FROM memories WHERE team_id = $1", team_id)
+    if qdrant_store:
+        qdrant_store.client.delete(collection_name=qdrant_store.collection_name, points_selector={"must": [{"key": "team_id", "match": {"value": team_id}}]})
+    return {"status": "ok"}
+
+# ── SERVICE TELEMETRY ──
+
+@router.get("/qdrant/stats")
+async def get_qdrant_stats():
+    from backend.api.routes import qdrant_store
+    if not qdrant_store: return {"status": "disconnected"}
+    coll = qdrant_store.client.get_collection(qdrant_store.collection_name)
+    return {
+        "status": "connected",
+        "vectors_count": coll.vectors_count,
+        "segments_count": coll.segments_count,
+        "indexing_status": coll.status
+    }
+
+@router.get("/neo4j/stats")
+async def get_neo4j_stats():
+    from backend.api.routes import graph_store
+    if not graph_store: return {"status": "disconnected"}
+    with graph_store.driver.session() as session:
+        node_count = session.run("MATCH (n) RETURN count(n) as c").single()["c"]
+        rel_count = session.run("MATCH ()-[r]->() RETURN count(r) as c").single()["c"]
+    return {
+        "status": "connected",
+        "nodes": node_count,
+        "relationships": rel_count
+    }
+@router.post("/security/config")
 async def save_security_config(data: dict):
-    """Persist system-wide Security and Rate Limit parameters."""
     from backend.services.config import load_system_config, save_system_config
     cfg = load_system_config()
     cfg["security"] = {
-        "rate_write": int(data.get("rate_write", 60)),
-        "rate_read": int(data.get("rate_read", 120)),
-        "max_mem_len": int(data.get("max_mem_len", 10000)),
         "jwt_expire": int(data.get("jwt_expire", 43200))
     }
     save_system_config(cfg)

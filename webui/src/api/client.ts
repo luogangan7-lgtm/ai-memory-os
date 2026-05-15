@@ -32,9 +32,12 @@ function authHeaders(): Record<string, string> {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
+    const wasToken = !!getToken();
     localStorage.removeItem("admin_token");
     localStorage.removeItem("mos_admin_token");
-    window.location.reload();
+    if (wasToken) {
+      window.location.reload();
+    }
     throw new ApiError(401, "Session expired");
   }
   if (!res.ok) {

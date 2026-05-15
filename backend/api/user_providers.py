@@ -177,8 +177,9 @@ async def get_provider_recommendation(ctx: dict = Depends(get_user_context)):
     return {"recommendation": rec}
 
 
-@router.get("/usage")
-async def get_user_usage(ctx: dict = Depends(get_user_context)):
+@router.get("/analytics")
+async def get_user_analytics(ctx: dict = Depends(get_user_context)):
+    """Fetch user's Monthly Token stats and RAG storage volume. (Alias for V6 Analytics)"""
     """Fetch user's Monthly Token stats and RAG storage volume."""
     from backend.api.routes import pg_repo
     if not pg_repo:

@@ -71,22 +71,25 @@ from backend.api.user_providers import router as user_providers_router
 app.include_router(biz_router)
 app.include_router(proxy_router)
 app.include_router(public_router)
-app.include_router(user_providers_router)
+app.include_router(user_providers_router, prefix="/api")
 app.include_router(admin_router, prefix="/admin")
 app.include_router(mcp_router)
 
 
 # UI routes
-UI_DIR = Path(__file__).parent.parent / "webui-dist"
-APP_DIR = Path(__file__).parent.parent / "webui-dist"
+UI_DIR = Path(__file__).parent / "ui"
+APP_DIR = Path(__file__).parent / "app_ui"
+WEBUI_DIST = Path(__file__).parent.parent / "webui-dist"
 
 if UI_DIR.exists():
     app.mount("/manage", StaticFiles(directory=str(UI_DIR), html=True), name="manage_ui")
 
 if APP_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(APP_DIR), html=True), name="app_ui")
-# Mount React SPA at root (after API routes)
-app.mount("/", StaticFiles(directory=str(UI_DIR), html=True), name="spa")
+
+# Mount React SPA at root (if exists)
+if WEBUI_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(WEBUI_DIST), html=True), name="spa")
 
 # Metrics
 from backend.services.metrics import metrics_response
