@@ -16,7 +16,7 @@ export function ReflectionPage() {
       const r = await triggerReflection();
       toast(r.status === 'initiated' ? 'Reflection started' : (r.message || 'failed'));
       setStatus('triggered');
-    } catch { toast('err', 'err'); setStatus(''); }
+    } catch { console.error('reflection failed'); setStatus(''); }
     setLoading(false);
   }
 
@@ -24,7 +24,7 @@ export function ReflectionPage() {
     try {
       await saveReflectionConfig({ decay_rate: decay, quality_threshold: quality, interval_hours: intervalH });
       toast('Config saved');
-    } catch { toast('err', 'err'); }
+    } catch { console.error('reflection failed'); }
   }
 
   return (
