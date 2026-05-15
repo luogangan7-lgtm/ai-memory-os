@@ -7,7 +7,7 @@ const{toast}=useToast();
 const[logs,setLogs]=useState<AuditLog[]>([]);
 const[action,setAction]=useState("");
 const[user,setUser]=useState("");
-const load=useCallback(async()=>{try{const r=await getAuditLogs(action,user);setLogs(r.logs)}catch{toast("err","err")}},[action,user,toast]);
+const load=useCallback(async()=>{try{const r=await getAuditLogs(action,user);setLogs(r.logs)}catch{console.error('audit load failed')}},[action,user,toast]);
 useEffect(()=>{load()},[load]);
 return(<div><div className="page-title">审计日志</div><div className="page-sub">审计日志</div><div className="card">
 <div style={{display:"flex",gap:10,marginBottom:16}}>
