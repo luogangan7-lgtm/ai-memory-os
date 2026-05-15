@@ -17,8 +17,12 @@ class RateLimiter:
 
 _global_limiter = RateLimiter(max_per_second=50)
 
+from fastapi.responses import JSONResponse
+
 async def rate_limit_middleware(request, call_next):
     key = request.client.host if request.client else "unknown"
-    try: await _global_limiter.check(key)
-    except RuntimeError: return __import__("fastapi.responses").JSONResponse(status_code=429, content={"detail":"Too many requests"})
+    try:
+        await _global_limiter.check(key)
+    except RuntimeError:
+        return JSONResponse(status_code=429, content={"detail": "Too many requests"})
     return await call_next(request)

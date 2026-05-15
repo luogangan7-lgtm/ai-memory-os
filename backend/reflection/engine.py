@@ -14,11 +14,13 @@ class ReflectionEngine:
         rpt["stage_transitions"] = await self._auto_transition(team_id)
         rpt["freshness_updated"] = await self._decay_freshness(team_id)
         rpt["summaries"] = await self._summarize(team_id)
-                # Run internalization (evaluate agent memories for promotion)
+        # Run internalization (evaluate agent memories for promotion)
         try:
-            internalizer = InternalizationService(self.pg, None, None)
+            internalizer = InternalizationService(self.pg, self.retrieval if hasattr(self, 'retrieval') else None, self.registry)
             rpt["internalized"] = await internalizer.evaluate_and_promote(team_id)
-        except: pass
+        except Exception as e:
+            print(f"DEBUG: Internalization failed: {e}")
+            rpt["internalized"] = 0
         rpt["crossref_boosted"] = await self._verify_crossref(team_id)
         rpt["auto_promoted"] = await self._auto_promote(team_id)
         rpt["relations_found"] = await self._discover_relations(team_id)

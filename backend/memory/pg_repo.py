@@ -45,7 +45,8 @@ class MemoryRepo:
                     tags TEXT[],
                     metadata JSONB,
                     created_at TIMESTAMP WITH TIME ZONE,
-                    updated_at TIMESTAMP WITH TIME ZONE
+                    updated_at TIMESTAMP WITH TIME ZONE,
+                    lifecycle_stage TEXT DEFAULT 'recent'
                 );
                 
                 -- Add columns if they were missing from older versions
@@ -58,7 +59,7 @@ class MemoryRepo:
 
                 -- Ensure audit_log table exists
                 CREATE TABLE IF NOT EXISTS audit_log (
-                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     memory_id TEXT,
                     agent_id TEXT,
                     action TEXT NOT NULL,
@@ -94,8 +95,75 @@ class MemoryRepo:
                     tokens_saved_estimate INTEGER DEFAULT 0,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
                 );
+
+                -- System LLM Engine Configs
+                CREATE TABLE IF NOT EXISTS system_llm_configs (
+                    id          SERIAL PRIMARY KEY,
+                    engine_type VARCHAR(20) NOT NULL UNIQUE,  -- 'embed' | 'reflect' | 'classify'
+                    provider    VARCHAR(50),
+                    model_name  VARCHAR(100),
+                    api_base_url VARCHAR(255),
+                    api_key_encrypted TEXT,                   -- AES-256 加密后的 API Key
+                    extra_params JSONB DEFAULT '{}',
+                    updated_at  TIMESTAMPTZ DEFAULT NOW()
+                );
+
+                -- Documents table
+                CREATE TABLE IF NOT EXISTS documents (
+                    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    team_id     VARCHAR(100) NOT NULL,
+                    filename    VARCHAR(500),
+                    minio_key   VARCHAR(500),                 -- MinIO Object Path
+                    chunk_count INTEGER DEFAULT 0,
+                    file_size   BIGINT,
+                    tags        TEXT[],
+                    created_at  TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents(team_id);
             """)
         return cls(pool)
+
+    @retry(max_retries=2, delay=0.3)
+    async def update(self, mid: str, team_id: str, **kw):
+        """Update an existing memory."""
+        fields = []
+        values = []
+        i = 1
+        for k, v in kw.items():
+            fields.append(f"{k} = ${i}")
+            if k == "metadata" and isinstance(v, dict):
+                values.append(json.dumps(v))
+            else:
+                values.append(v)
+            i += 1
+        
+        values.append(datetime.now(timezone.utc))
+        q = f"UPDATE memories SET {', '.join(fields)}, updated_at = ${i} WHERE id = ${i+1} AND team_id = ${i+2}"
+        values.append(mid)
+        values.append(team_id)
+        
+        async with self.pool.acquire() as conn:
+            r = await conn.execute(q, *values)
+            return "UPDATE 1" in r
+
+    async def list_documents(self, team_id: str):
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM documents WHERE team_id = $1 ORDER BY created_at DESC", team_id)
+        return [dict(r) for r in rows]
+
+    async def delete_document(self, doc_id: str, team_id: str):
+        async with self.pool.acquire() as conn:
+            r = await conn.execute("DELETE FROM documents WHERE id = $1 AND team_id = $2", safe_uuid(doc_id), team_id)
+            return "DELETE 1" in r
+
+    async def insert_document(self, team_id: str, filename: str, minio_key: str, chunk_count: int, file_size: int, tags: list[str] = None):
+        async with self.pool.acquire() as conn:
+            doc_id = uuid.uuid4()
+            await conn.execute("""
+                INSERT INTO documents (id, team_id, filename, minio_key, chunk_count, file_size, tags)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """, doc_id, team_id, filename, minio_key, chunk_count, file_size, tags or [])
+            return doc_id
 
 
     @retry(max_retries=2, delay=0.3)
