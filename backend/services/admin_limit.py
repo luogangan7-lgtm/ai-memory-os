@@ -23,11 +23,10 @@ class AdminLocalhostMiddleware(BaseHTTPMiddleware):
         if is_admin_path:
             client_host = request.client.host if request.client else "unknown"
             # Allow loopback, Docker Desktop macOS interface, and Docker bridge private networks (172.x, 10.x)
-            allowed = (
-                client_host in ("127.0.0.1", "::1", "localhost", "192.168.65.1") or
+            allowed = (client_host in ("127.0.0.1", "::1", "localhost") or
+                client_host.startswith("192.168.") or
                 client_host.startswith("172.") or
-                client_host.startswith("10.")
-            )
+                client_host.startswith("10."))
             
             # Allow X-Forwarded-For if it maps to local loopback or local private networks
             forwarded_for = request.headers.get("X-Forwarded-For", "")
