@@ -12,7 +12,7 @@
 --glow-teal:0 0 20px rgba(0,240,212,.35);
 --glow-violet:0 0 20px rgba(157,80,255,.35)
 }
-body{font-family:var(--font);background:var(--void);color:var(--text);-webkit-font-smoothing:antialiased}
+body{font-family:var(--font),system-ui,-apple-system,sans-serif;background:var(--void);color:var(--text);-webkit-font-smoothing:antialiased}
 #root{min-height:100vh}
 @keyframes float{0%,100%{transform:translateY(0) rotateY(0deg)}50%{transform:translateY(-3px) rotateY(8deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
@@ -86,7 +86,7 @@ body{font-family:var(--font);background:var(--void);color:var(--text);-webkit-fo
 .badge-emerald{background:rgba(0,230,118,.12);color:var(--emerald);border:1px solid rgba(0,230,118,.2)}
 .badge-crimson{background:rgba(255,77,109,.12);color:var(--crimson);border:1px solid rgba(255,77,109,.2)}
 .badge-amber{background:rgba(255,179,71,.12);color:var(--amber);border:1px solid rgba(255,179,71,.2)}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;transition:all .2s;letter-spacing:.3px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font),system-ui,-apple-system,sans-serif;font-size:12px;font-weight:600;transition:all .2s;letter-spacing:.3px}
 .btn-teal{background:linear-gradient(135deg,rgba(0,240,212,.2),rgba(0,240,212,.08));color:var(--teal);border:1px solid rgba(0,240,212,.3)}
 .btn-teal:hover{background:rgba(0,240,212,.25);box-shadow:0 0 20px rgba(0,240,212,.2);transform:translateY(-1px)}
 .btn-violet{background:linear-gradient(135deg,rgba(157,80,255,.2),rgba(157,80,255,.08));color:var(--violet);border:1px solid rgba(157,80,255,.3)}
@@ -122,7 +122,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .login-title{font-weight:800;font-size:20px;letter-spacing:-.5px;color:var(--text);margin-bottom:8px}
 .login-sub{font-size:12px;color:var(--muted);margin-bottom:32px;font-family:var(--mono)}
 .login-error{color:var(--crimson);font-size:11px;margin-top:14px;font-family:var(--mono);min-height:18px}
-.loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;background:var(--void);color:var(--teal);font-family:var(--font);font-size:18px;font-weight:700;letter-spacing:1px}
+.loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;background:var(--void);color:var(--teal);font-family:var(--font),system-ui,-apple-system,sans-serif;font-size:18px;font-weight:700;letter-spacing:1px}
 
 @media(max-width:1300px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:900px){

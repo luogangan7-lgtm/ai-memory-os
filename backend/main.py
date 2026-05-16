@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     await pg.close()
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=[os.getenv("CORS_ORIGIN", "*")], allow_methods=["*"], allow_headers=["*"])
 
 # Rate limiting middleware
 from backend.services.rate_limit import rate_limit_middleware
