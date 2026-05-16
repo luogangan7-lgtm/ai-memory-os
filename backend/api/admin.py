@@ -968,9 +968,7 @@ async def detect_local_providers_endpoint():
                         "name": fw["name"],
                         "url": fw["url"] + "/v1",
                         "models": models[:10],
-                        "is_embedding_capable": any(
-                            "embed" in m.lower() or "bge" in m.lower() 
-                            fo
+                        "is_embedding_capable": any("embed" in m.lower() or "bge" in m.lower() for m in models[:3])
 # ── V6.0 CORE ADMIN ENDPOINTS ──
 
 @router.get("/health")
