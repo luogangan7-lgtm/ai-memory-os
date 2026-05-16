@@ -1,3 +1,25 @@
+
+function Dashboard() {
+  const [tab, setTab] = useState<"memory" | "connect">("memory");
+  const { logout } = useAuth();
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div className="logo-orb" style={{ margin: "0 auto 16px", width: 56, height: 56, fontSize: 26, borderRadius: 16 }}>🧠</div>
+        <div className="page-title" style={{ textAlign: "center" }}>我的记忆空间</div>
+        <div className="page-sub" style={{ textAlign: "center" }}>记忆管理 · MCP 接入</div>
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={logout}>退出登录</button>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 24 }}>
+        <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>🧠 我的记忆</button>
+        <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>🔑 接入配置</button>
+      </div>
+      {tab === "memory" && <MemoryPanel />}
+      {tab === "connect" && <ConnectPanel />}
+    </div>
+  );
+}
+
 // ── Login & Register Overlay (Premium Edition) ─────────────────────────────────────────────
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -7,11 +29,7 @@ export function LoginOverlay() {
   const { login, signup, error: authError, isAuthenticated } = useAuth();
 
   if (isAuthenticated) {
-    return (<div style={{maxWidth:600,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
-      <div className="logo-orb" style={{margin:"0 auto 16px",width:56,height:56,fontSize:26}}>🧠</div>
-      <div className="page-title" style={{textAlign:"center"}}>已登录</div>
-      <div className="page-sub" style={{textAlign:"center"}}>记忆系统已连接，你的 Agent 可以开始使用了</div>
-    </div>)
+    return (<Dashboard />)
   }
   const [isRegister, setIsRegister] = useState(false);
   
