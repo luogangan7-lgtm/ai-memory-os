@@ -58,6 +58,10 @@ async def login(username_or_email: str, password: str) -> dict:
     
     user = await _REPO.get_account(username_or_email)
     if not user:
+        # Try lookup by email if username not found
+        if "@" in username_or_email:
+            user = await _REPO.get_account_by_email(username_or_email)
+    if not user:
         raise ValueError("账户不存在或密码错误")
     
     if user.get("suspended"):
