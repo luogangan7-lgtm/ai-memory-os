@@ -4,7 +4,15 @@ import { useAuth } from "../contexts/AuthContext";
 import "../css/login.css";
 
 export function LoginOverlay() {
-  const { login, signup, error: authError } = useAuth();
+  const { login, signup, error: authError, isAuthenticated } = useAuth();
+
+  if (isAuthenticated) {
+    return (<div style={{maxWidth:600,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
+      <div className="logo-orb" style={{margin:"0 auto 16px",width:56,height:56,fontSize:26}}>🧠</div>
+      <div className="page-title" style={{textAlign:"center"}}>已登录</div>
+      <div className="page-sub" style={{textAlign:"center"}}>记忆系统已连接，你的 Agent 可以开始使用了</div>
+    </div>)
+  }
   const [isRegister, setIsRegister] = useState(false);
   
   const [email, setEmail] = useState("");
