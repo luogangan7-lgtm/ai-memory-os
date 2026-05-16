@@ -90,7 +90,7 @@ export const saveReflectionConfig = (body: ReflectionConfig) => api.post("/refle
 // Auth
 export const login = (id: string, password: string, isUserApp: boolean = false) => {
   const url = isUserApp ? "/auth/token" : "/auth/login";
-  return api.post<{ api_key: string }>(url, {
+  return api.post<{ api_key?: string; access_token?: string }>(url, {
     username: id,
     email: id, // Send both, backend will decide
     password,
