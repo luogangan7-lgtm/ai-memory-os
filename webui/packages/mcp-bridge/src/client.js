@@ -20,5 +20,5 @@ export class MemoryOSClient {
   store({ content, title, tags = [], importance = 'normal' }) { return this.request('POST', '/memory/store', { content, title, tags, importance, source_type: 'agent' }); }
   list({ limit = 10, offset = 0 }) { return this.request('GET', `/memory/recent?limit=${limit}&offset=${offset}`); }
   delete({ memory_id }) { return this.request('DELETE', `/memory/${memory_id}`); }
-  status() { return this.request('GET', '/memory/stats'); }
+  status() { return this.request('GET', '/stats'); }
 }
