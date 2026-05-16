@@ -75,6 +75,7 @@ services:
       - MEMORY_OS_NEO4J_USER=neo4j
       - MEMORY_OS_NEO4J_PASSWORD=password
       - MEMORY_OS_USE_STANDALONE=false
+      - ALLOW_REMOTE_ADMIN=true
       - CODEX_HOME=/app/config
       - MEMORY_OS_ACCOUNTS=/app/config/memory-os/accounts.json
       - MEMORY_OS_KEYS_FILE=/app/config/memory-os/api_keys.json
