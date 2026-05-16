@@ -23,6 +23,10 @@ export function Topbar() {
         setStatusText(allOk ? "系统正常" : "部分离线");
       } catch {
         if (!mounted) return;
+        try {
+          const r = await fetch("/");
+          if (r.ok) { setHealthy(false); setStatusText("后端在线 — 登录后查看详情"); return; }
+        } catch {}
         setHealthy(false);
         setStatusText("后端未连接");
       }
