@@ -80,6 +80,21 @@ class SQLiteMemoryRepo:
                     created_at TEXT
                 )
             """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS accounts (
+                    username TEXT PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    api_key TEXT UNIQUE NOT NULL,
+                    role TEXT DEFAULT 'user',
+                    agent_id TEXT,
+                    revoked INTEGER DEFAULT 0,
+                    suspended INTEGER DEFAULT 0,
+                    metadata TEXT DEFAULT '{}',
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            """)
             await db.commit()
         return repo
 
@@ -132,12 +147,155 @@ class SQLiteMemoryRepo:
                     res.append(d)
                 return res
 
+    async def list_audit_logs(self, limit=50):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_knowledge_tree(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT category, subcategory, count(*) as count 
+                FROM memories 
+                GROUP BY category, subcategory
+                ORDER BY category, subcategory
+            """) as cursor:
+                rows = await cursor.fetchall()
+                tree = {}
+                for r in rows:
+                    cat = r["category"] or "未分类"
+                    sub = r["subcategory"] or "其他"
+                    if cat not in tree: tree[cat] = {"count": 0, "subs": {}}
+                    tree[cat]["subs"][sub] = r["count"]
+                    tree[cat]["count"] += r["count"]
+                return tree
+
     async def audit(self, memory_id: str, agent_id: str, action: str, details: dict = None):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "INSERT INTO audit_log (memory_id, agent_id, action, details) VALUES (?,?,?,?)",
                 (memory_id, agent_id, action, json.dumps(details or {}))
             )
+            await db.commit()
+
+    # --- Account Management Methods ---
+    async def get_account(self, username: str) -> Optional[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM accounts WHERE username=?", (username,)) as cursor:
+                r = await cursor.fetchone()
+                return dict(r) if r else None
+
+    async def get_account_by_token(self, token: str) -> Optional[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM accounts WHERE api_key=?", (token,)) as cursor:
+                r = await cursor.fetchone()
+                return dict(r) if r else None
+
+    async def insert_account(self, username: str, team_id: str, password_hash: str, api_key: str, role: str = 'user', agent_id: str = None, metadata: dict = None):
+        now = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO accounts (username, team_id, password_hash, api_key, role, agent_id, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (username, team_id, password_hash, api_key, role, agent_id or username, json.dumps(metadata or {}), now, now))
+            await db.commit()
+
+    async def list_accounts(self) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM accounts ORDER BY created_at DESC") as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def update_account_status(self, username: str, revoked: bool = None, suspended: bool = None, api_key: str = None):
+        fields = []
+        vals = []
+        if revoked is not None:
+            fields.append("revoked = ?")
+            vals.append(1 if revoked else 0)
+        if suspended is not None:
+            fields.append("suspended = ?")
+            vals.append(1 if suspended else 0)
+        if api_key is not None:
+            fields.append("api_key = ?")
+            vals.append(api_key)
+        
+        if not fields: return False
+        
+        now = datetime.now(timezone.utc).isoformat()
+        fields.append("updated_at = ?")
+        vals.append(now)
+        vals.append(username)
+        
+        q = f"UPDATE accounts SET {', '.join(fields)} WHERE username = ?"
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(q, vals)
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def delete_account(self, username: str) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM accounts WHERE username=?", (username,))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def list_all(self, limit=50, query=None):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            q = "SELECT * FROM memories "
+            params = []
+            if query:
+                q += "WHERE title LIKE ? OR content LIKE ? "
+                params = [f"%{query}%", f"%{query}%"]
+            q += "ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+            async with db.execute(q, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_items(self, category: str, subcategory: str = None, limit: int = 50):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if subcategory and subcategory != "其他":
+                q = "SELECT id, title, content, created_at FROM memories WHERE category=? AND subcategory=? ORDER BY created_at DESC LIMIT ?"
+                params = (category, subcategory, limit)
+            else:
+                q = "SELECT id, title, content, created_at FROM memories WHERE category=? ORDER BY created_at DESC LIMIT ?"
+                params = (category, limit)
+            async with db.execute(q, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_counts(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT count(*) as t FROM memories") as cursor:
+                r = await cursor.fetchone()
+                total = r["t"] if r else 0
+            async with db.execute("SELECT count(*) as t FROM memories WHERE source_type='agent'") as cursor:
+                r = await cursor.fetchone()
+                stores = r["t"] if r else 0
+            return {"total": total, "agent": stores}
+
+    async def delete_memory(self, mid):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM memories WHERE id=?", (mid,))
+            await db.commit()
+
+    async def get_unclassified(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT id, title, content FROM memories WHERE category IS NULL OR category = '' OR category = '未分类'") as cursor:
+                return [dict(r) for r in await cursor.fetchall()]
+
+    async def update_classification(self, mid, category, subcategory, topic):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE memories SET category=?, subcategory=?, topic=? WHERE id=?", (category, subcategory, topic, mid))
             await db.commit()
 
     # --- User-Pay API Keys & Token Usage Methods (V5.0 Spec) ---
@@ -208,6 +366,9 @@ class SQLiteMemoryRepo:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (str(uuid.uuid4()), user_id, provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate, now))
             await db.commit()
+
+    async def close(self):
+        pass
 
     async def close(self):
         pass

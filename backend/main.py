@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.api.proxy import router as proxy_router
 from backend.api.admin import init_registry as init_admin, router as admin_router, public_router
 from backend.api.routes import init_stores as init_biz, router as biz_router
+from backend.auth.accounts import init_accounts, register as register_user
 from backend.graph.neo4j_store import GraphStore
 from backend.manager.registry import ModelRegistry
 from backend.memory.ingestion import IngestionPipeline
@@ -37,13 +38,19 @@ async def lifespan(app: FastAPI):
     rp = RetrievalPipeline(qs, gs)
     registry = ModelRegistry()
     
-    # Ensure default admin account exists
+    # Initialize accounts with DB
+    from backend.auth.apikeys import init_keys
+    init_accounts(pg)
+    init_keys(pg)
+
+    # Ensure default admin account exists (now async)
     try:
-        from backend.auth.accounts import register
-        acc_file = Path.home() / ".codex" / "memory-os" / "accounts.json"
-        if not acc_file.exists():
-            register("default", "admin", "admin123", "admin")
-    except: pass
+        admin_exists = await pg.get_account("admin")
+        if not admin_exists:
+            await register_user("default", "admin", "admin", "admin")
+            print("👤 Default admin account created.")
+    except Exception as e:
+        print(f"⚠️ Error creating default admin: {e}")
 
     init_biz(qs, gs, ip, rp, pg, registry)
     init_admin(registry, pg)
@@ -57,7 +64,9 @@ async def lifespan(app: FastAPI):
     await pg.close()
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=[os.getenv("CORS_ORIGIN", "*")], allow_methods=["*"], allow_headers=["*"])
+# Hardened CORS: Allow localhost and the current local IP
+ALLOWED_ORIGINS = ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 # Rate limiting middleware
 from backend.services.rate_limit import rate_limit_middleware
@@ -76,14 +85,29 @@ app.include_router(user_providers_router, prefix="/api")
 app.include_router(admin_router, prefix="/admin")
 app.include_router(mcp_router)
 
+# Favicon fix
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse(Path(__file__).parent / "ui" / "assets" / "favicon.ico") if (Path(__file__).parent / "ui" / "assets" / "favicon.ico").exists() else None
+
 
 # UI routes
 UI_DIR = Path(__file__).parent / "ui"
 APP_DIR = Path(__file__).parent / "app_ui"
 WEBUI_DIST = Path(__file__).parent.parent / "webui-dist"
 
-if UI_DIR.exists():
-    app.mount("/manage", StaticFiles(directory=str(UI_DIR), html=True), name="manage_ui")
+@app.get("/manage/{full_path:path}")
+async def serve_manage_ui(full_path: str):
+    # This handles SPA routing for the Command Deck
+    if full_path == "" or full_path.endswith("/"):
+        return FileResponse(UI_DIR / "index.html")
+    
+    file_path = UI_DIR / full_path
+    if file_path.is_file():
+        return FileResponse(file_path)
+    
+    # Fallback to index.html for SPA routes (e.g. /manage/login, /manage/tenants)
+    return FileResponse(UI_DIR / "index.html")
 
 if APP_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(APP_DIR), html=True), name="app_ui")

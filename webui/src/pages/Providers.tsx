@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { PROVIDERS, getRecommendations, type ProviderInfo } from '../data/models';
+import { api } from '../api/client';
 
 interface PipeConfig { provider: string; apiKey: string; model: string; purpose: string; }
 const DEFAULTS: PipeConfig[] = [
-  { provider:'deepseek', apiKey:'', model:'deepseek-v4-flash', purpose:'classifier' },
-  { provider:'deepseek', apiKey:'', model:'deepseek-v4-pro', purpose:'reflection' },
-  { provider:'alibaba', apiKey:'', model:'text-embedding-v4', purpose:'embedding' },
-  { provider:'alibaba', apiKey:'', model:'gte-rerank-v2', purpose:'rerank' },
+  { provider:'deepseek', apiKey:'', model:'deepseek-chat', purpose:'classifier' },
+  { provider:'deepseek', apiKey:'', model:'deepseek-chat', purpose:'reflection' },
+  { provider:'alibaba', apiKey:'', model:'text-embedding-v3', purpose:'embedding' },
+  { provider:'alibaba', apiKey:'', model:'gte-rerank', purpose:'rerank' },
 ];
 const LABELS: Record<string,{name:string;desc:string;icon:string}> = {
   classifier:{name:'内容分类器',desc:'自动将记忆分为常识/人物/代码/任务等类型',icon:'🏷️'},
@@ -22,10 +23,19 @@ const meta=LABELS[cfg.purpose]||{name:cfg.purpose,desc:'',icon:'⚙️'};
 const prov=PROVIDERS.find(p=>p.id===cfg.provider);
 const [testing,setTesting]=useState(false);
 const [status,setStatus]=useState<'idle'|'ok'|'err'>('idle');
+
 async function test(){
 setTesting(true);setStatus('idle');
-try{const r=await fetch((prov?.baseUrl||'').replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},body:JSON.stringify({model:cfg.model,messages:[{role:'user',content:'hi'}],max_tokens:5})});
-setStatus(r.ok?'ok':'err');}catch{setStatus('err')}finally{setTesting(false)}}
+try{
+  const res = await api.post<{ok:boolean}>('/providers/test', { provider: cfg.provider, apiKey: cfg.apiKey, model: cfg.model });
+  setStatus(res.ok ? 'ok' : 'err');
+} catch {
+  setStatus('err');
+} finally {
+  setTesting(false);
+}
+}
+
 return(<div className='pipe-card'>
 <div className='pipe-header'><span className='pipe-icon'>{meta.icon}</span><div><div className='pipe-name'>{meta.name}</div><div className='pipe-desc'>{meta.desc}</div></div><div className={`pipe-status ${status}`}>{status==='ok'?'✅ 已连接':status==='err'?'❌ 连接失败':''}</div></div>
 <div className='pipe-body'><div className='pipe-row'>
@@ -39,9 +49,27 @@ const FEATURE_ZH:Record<string,string>={'Chat':'对话','Vision':'视觉','Embed
 export function ModelConfigPage(){
 const[cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
 const[saved,setSaved]=useState(false);
+
 async function saveAll(){
-try{await fetch('/admin/providers/configure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:cfgs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model}))})});
-setSaved(true);setTimeout(()=>setSaved(false),2000)}catch{setSaved(false)}}
+try{
+  const token = localStorage.getItem("admin_token") || localStorage.getItem("mos_admin_token");
+  const res = await fetch('/admin/providers/configure', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ configs: cfgs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model,apiKey:c.apiKey})) })
+  });
+  if (!res.ok) throw new Error('Save failed');
+  setSaved(true);setTimeout(()=>setSaved(false),2000)
+} catch (err) {
+  console.error(err);
+  setSaved(false);
+  alert("保存失败，请检查登录状态或后端日志");
+}
+}
+
 const recs=getRecommendations('classifier').concat(getRecommendations('reflection'),getRecommendations('embedding'),getRecommendations('rerank'));
 const cn=PROVIDERS.filter(p=>p.region==='cn');
 const intl=PROVIDERS.filter(p=>p.region==='intl');
@@ -54,6 +82,7 @@ return(<div>
 {cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>{const n=[...cfgs];n[i]=c;setCfgs(n)}}/>)}
 </div>
 <div className="card" style={{marginTop:20,marginBottom:20}}><div className="card-title">💡 推荐配置组合</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>{recs.map(r=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.m} className="card" style={{padding:16,cursor:"pointer",borderColor:"var(--border)"}} onClick={()=>{const n=[...cfgs];const idx=n.findIndex(c=>c.purpose===n[idx]?.purpose||"classifier");if(idx>=0)n[idx]={provider:r.p,model:r.m,apiKey:n[idx]?.apiKey||"",purpose:n[idx]?.purpose||"classifier"};setCfgs(n)}}><div style={{fontSize:12,color:"var(--teal)",marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--mono)"}}>{r.m}</div></div>)})}</div></div><div className="card" style={{marginTop:20}}><div className="card-title">📋 可用模型清单</div>
+{/* Provider lists... */}
 <div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🇨🇳 中国厂商 ({cn.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{cn.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>
 <div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🌐 海外厂商 ({intl.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{intl.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>
 {local.length>0&&<div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>💻 本地模型 ({local.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{local.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>}

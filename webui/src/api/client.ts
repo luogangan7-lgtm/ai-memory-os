@@ -1,7 +1,9 @@
 // ── Typed API Client ─────────────────────────────────────────────────
 // Replaces bare fetch() + localStorage token handling scattered across index.html
 
-const ADMIN_BASE = "/admin";
+// For User App, base is empty; for Admin App, base is /admin
+const IS_USER_APP = window.location.hash.includes("/app") || window.location.pathname.startsWith("/app");
+const BASE = IS_USER_APP ? "" : "/admin";
 
 export class ApiError extends Error {
   constructor(
@@ -49,12 +51,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   async get<T>(path: string): Promise<T> {
-    const res = await fetch(`${ADMIN_BASE}${path}`, { headers: authHeaders() });
+    const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
     return handleResponse<T>(res);
   },
 
   async post<T>(path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${ADMIN_BASE}${path}`, {
+    const res = await fetch(`${BASE}${path}`, {
       method: "POST",
       headers: authHeaders(),
       body: body ? JSON.stringify(body) : undefined,
@@ -63,7 +65,7 @@ export const api = {
   },
 
   async put<T>(path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${ADMIN_BASE}${path}`, {
+    const res = await fetch(`${BASE}${path}`, {
       method: "PUT",
       headers: authHeaders(),
       body: body ? JSON.stringify(body) : undefined,

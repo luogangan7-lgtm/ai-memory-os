@@ -19,7 +19,7 @@ async def get_user_context(credentials: HTTPAuthorizationCredentials | None = De
     
     # 1. Check API Key / Account
     from backend.auth.apikeys import validate_key
-    info = validate_key(token)
+    info = await validate_key(token)
     if info:
         return {
             "team_id": info["team_id"],

@@ -26,7 +26,7 @@ export function Topbar() {
         try {
           const r = await fetch("/");
           if (r.ok) { setHealthy(false); setStatusText("后端在线 — 登录后查看详情"); return; }
-        } catch {}
+        } catch { /* server unreachable */ }
         setHealthy(false);
         setStatusText("后端未连接");
       }

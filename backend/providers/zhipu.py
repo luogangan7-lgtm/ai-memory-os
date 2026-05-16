@@ -73,7 +73,14 @@ class ZhipuProvider(BaseProvider):
                 )
                 resp.raise_for_status()
                 await client.aclose()
-                return resp.json()
+                data = resp.json()
+                # Record token usage
+                usage = data.get("usage", {})
+                tokens = usage.get("total_tokens", 0)
+                if tokens:
+                    from backend.services.cost_tracker import CostTracker
+                    CostTracker.record(model, tokens, provider="zhipu")
+                return data["choices"][0]["message"]["content"]
         except Exception:
             await client.aclose()
             raise
