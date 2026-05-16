@@ -35,10 +35,10 @@ function AdminRoutes() {
 function AppShell() {
   const { isLoading } = useAuth();
   if (isLoading) return <div className="loading-screen">LOADING...</div>;
+  const isUser = window.location.pathname.startsWith("/app");
   return (
     <Routes>
-      <Route path="/app" element={<LoginOverlay />} />
-      <Route path="*" element={<AdminRoutes />} />
+      <Route path="*" element={isUser ? <LoginOverlay /> : <AdminRoutes />} />
     </Routes>
   );
 }
