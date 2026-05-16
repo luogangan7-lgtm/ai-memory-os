@@ -139,6 +139,7 @@ def main():
 
     # Step 6: Auto-open admin UI in browser
     open_browser(manage_url)
+    open_browser(app_url)
 
     # Step 7: Wait
     try:
