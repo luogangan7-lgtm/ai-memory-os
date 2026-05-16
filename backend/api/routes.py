@@ -65,6 +65,17 @@ async def root():
     return {"status": "ok", "version": settings.version}
 
 
+
+@router.post("/auth/register")
+async def register_user(data: dict):
+    from backend.auth.accounts import register
+    try:
+        team = data.get("team_id") or data.get("username", "default")
+        result = register(team, data["username"], data["password"])
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
 @router.post("/auth/token")
 async def login(team_id: str = "default"):
     token = create_access_token(team_id)

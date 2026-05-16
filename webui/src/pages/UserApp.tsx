@@ -7,11 +7,11 @@ const search=useCallback(async()=>{try{const r=await fetch('/memory/search',{met
 useEffect(()=>{search()},[search]);
 return(<div className='card'><div className='card-title'>🧠 我的记忆</div><div style={{display:'flex',gap:8,marginBottom:12}}><input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/><button className='btn btn-teal' onClick={search}>搜索</button></div><div style={{maxHeight:300,overflow:'auto'}}>{memories.map((m,i)=><div key={i} style={{padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:13}}><div style={{fontWeight:600}}>{m.title||'无标题'}</div><div style={{color:'var(--muted)',fontSize:12,marginTop:2}}>{m.content?.substring(0,150)}</div></div>)}</div></div>)}
 
-function ConnectPanel(){
+function ConnectPanel({token:propToken}:{token?:string}){
 
 const[connected,setConnected]=useState<'checking'|'online'|'offline'>('checking');
-useEffect(()=>{function check(){fetch(window.location.origin+'/').then(r=>setConnected(r.ok?'online':'offline')).catch(()=>setConnected('offline'))};check();var i=setInterval(check,8000);return ()=>clearInterval(i)},[]);
-const[token]=useState(()=>'mos_'+Math.random().toString(36).slice(2,10)+'_'+Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join(''));
+useEffect(()=>{function check(){fetch(window.location.origin+'/').then(r=>setConnected(r.ok?'online':'offline')).catch(()=>setConnected('offline'))};check();const i=setInterval(check,8000);return ()=>clearInterval(i)},[]);
+const[token]=useState(()=>propToken||'mos_'+Math.random().toString(36).slice(2,10)+'_'+Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join(''));
 const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex'>('cursor');
 const[copied,setCopied]=useState(false);
 
