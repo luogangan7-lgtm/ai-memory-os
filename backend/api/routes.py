@@ -67,19 +67,37 @@ async def root():
 
 
 @router.post("/auth/register")
-async def register_user(data: dict):
+async def register_user_endpoint(data: dict):
     from backend.auth.accounts import register
     try:
-        team = data.get("team_id") or data.get("username", "default")
-        result = register(team, data["username"], data["password"])
-        return result
-    except ValueError as e:
+        username = data.get("username")
+        password = data.get("password")
+        email = data.get("email")
+        # Default team_id to a new unique ID if not provided, or use username
+        team_id = data.get("team_id") or username or "default"
+        
+        if not (username or email) or not password:
+            raise HTTPException(400, "Username/Email and password required")
+            
+        result = await register(team_id, username, password, "user", email=email)
+        return {"status": "success", "user_id": result["username"], "team_id": team_id, "email": email}
+    except Exception as e:
         raise HTTPException(400, str(e))
 
 @router.post("/auth/token")
-async def login(team_id: str = "default"):
-    token = create_access_token(team_id)
-    return {"access_token": token, "team_id": team_id}
+async def login_endpoint(data: dict):
+    from backend.auth.accounts import login
+    from backend.auth.middleware import create_access_token
+    
+    username_or_email = data.get("username") or data.get("email")
+    password = data.get("password")
+    
+    try:
+        acc = await login(username_or_email, password)
+        token = create_access_token(acc["team_id"])
+        return {"access_token": token, "team_id": acc["team_id"], "username": acc["username"]}
+    except Exception as e:
+        raise HTTPException(401, str(e))
 
 
 

@@ -1,19 +1,12 @@
-"""User account management - username/password + API key."""
+"""User account management - username/password + API key (PostgreSQL Driven)."""
+import hashlib, secrets, asyncio
+from typing import Optional
 
-import json, os, hashlib, secrets
-from pathlib import Path
+_REPO = None
 
-ACCOUNTS_FILE = Path(os.environ.get("MEMORY_OS_ACCOUNTS", str(Path.home() / ".codex" / "memory-os" / "accounts.json")))
-
-def _load():
-    ACCOUNTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if ACCOUNTS_FILE.exists():
-        return json.loads(ACCOUNTS_FILE.read_text())
-    return {}
-
-def _save(data):
-    ACCOUNTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ACCOUNTS_FILE.write_text(json.dumps(data, indent=2))
+def init_accounts(repo):
+    global _REPO
+    _REPO = repo
 
 def hash_password(password: str) -> str:
     salt = secrets.token_hex(16)
@@ -27,80 +20,87 @@ def verify_password(password: str, stored: str) -> bool:
     except:
         return False
 
-def register(team_id: str, username: str, password: str, role: str = "user") -> dict:
-    accounts = _load()
-    if username in accounts:
-        raise ValueError("用户名已存在")
+async def register(team_id: str, username: str, password: str, role: str = "user", email: str = None) -> dict:
+    if not _REPO: raise RuntimeError("Accounts system not initialized")
+    
+    # Check if username or email already exists
+    existing = await _REPO.get_account(username)
+    if existing:
+        raise ValueError("用户名或邮箱已存在")
+    
+    if email:
+        existing_email = await _REPO.get_account_by_email(email)
+        if existing_email:
+            raise ValueError("该邮箱已被注册")
+    
     token = "mos_" + secrets.token_hex(16)
-    accounts[username] = {
-        "team_id": team_id,
-        "password": hash_password(password),
-        "api_key": token,
-        "role": role,
-        "agent_id": username,
-        "created": __import__("datetime").datetime.now().isoformat(),
-    }
-    _save(accounts)
-    return {"username": username, "api_key": token, "team_id": team_id, "role": role}
+    hashed = hash_password(password)
+    
+    await _REPO.insert_account(
+        username=username,
+        team_id=team_id,
+        password_hash=hashed,
+        api_key=token,
+        role=role,
+        email=email,
+        is_verified=False
+    )
+    
+    if email:
+        # Mock Email Sending
+        code = secrets.token_hex(3).upper()
+        print(f"\n[MOCK EMAIL] To: {email} | Content: Your verification code is {code}\n")
+        
+    return {"username": username, "email": email, "api_key": token, "team_id": team_id, "role": role}
 
-def login(username: str, password: str) -> dict:
-    accounts = _load()
-    user = accounts.get(username)
+async def login(username_or_email: str, password: str) -> dict:
+    if not _REPO: raise RuntimeError("Accounts system not initialized")
+    
+    user = await _REPO.get_account(username_or_email)
     if not user:
-        raise ValueError("该用户名未在系统注册")
-    if not verify_password(password, user["password"]):
+        raise ValueError("账户不存在或密码错误")
+    
+    if user.get("suspended"):
+        raise ValueError("账户已被禁用，请联系管理员")
+    
+    if not verify_password(password, user["password_hash"]):
         raise ValueError("密码输入错误")
-    return {"username": username, "api_key": user["api_key"], "team_id": user["team_id"], "role": user["role"]}
+    
+    return {
+        "username": user["username"], 
+        "api_key": user["api_key"], 
+        "team_id": user["team_id"], 
+        "role": user["role"]
+    }
 
-def list_users() -> list[dict]:
-    """Return all users (without passwords)."""
-    accounts = _load()
+async def list_users() -> list[dict]:
+    if not _REPO: return []
+    users = await _REPO.list_accounts()
     result = []
-    for username, info in accounts.items():
+    for u in users:
         result.append({
-            "username": username,
-            "team_id": info.get("team_id", "default"),
-            "role": info.get("role", "user"),
-            "created": info.get("created", ""),
-            "api_key_prefix": info.get("api_key", "")[:12] + "...",
+            "username": u["username"],
+            "team_id": u["team_id"],
+            "role": u["role"],
+            "created": u["created_at"].isoformat() if hasattr(u["created_at"], "isoformat") else (u["created_at"] or ""),
+            "api_key_prefix": u["api_key"][:12] + "...",
+            "status": "revoked" if u["revoked"] else ("suspended" if u["suspended"] else "active")
         })
     return result
 
-def revoke_user(username: str) -> bool:
-    """Revoke a user: rotate their API key so it's invalid, mark as revoked."""
-    accounts = _load()
-    if username not in accounts:
-        return False
-    # Rotate the key to invalidate it, mark as revoked
-    accounts[username]["api_key"] = "REVOKED_" + secrets.token_hex(8)
-    accounts[username]["revoked"] = True
-    _save(accounts)
-    return True
+async def revoke_user(username: str) -> bool:
+    if not _REPO: return False
+    new_token = "REVOKED_" + secrets.token_hex(8)
+    return await _REPO.update_account_status(username, revoked=True, api_key=new_token)
 
-def suspend_user(username: str) -> bool:
-    """Suspend a user account."""
-    accounts = _load()
-    if username not in accounts:
-        return False
-    accounts[username]["suspended"] = True
-    _save(accounts)
-    return True
+async def suspend_user(username: str) -> bool:
+    if not _REPO: return False
+    return await _REPO.update_account_status(username, suspended=True)
 
-def activate_user(username: str) -> bool:
-    """Activate a suspended/revoked user account."""
-    accounts = _load()
-    if username not in accounts:
-        return False
-    accounts[username]["suspended"] = False
-    accounts[username]["revoked"] = False
-    _save(accounts)
-    return True
+async def activate_user(username: str) -> bool:
+    if not _REPO: return False
+    return await _REPO.update_account_status(username, revoked=False, suspended=False)
 
-def delete_user(username: str) -> bool:
-    """Completely remove a user account."""
-    accounts = _load()
-    if username not in accounts:
-        return False
-    del accounts[username]
-    _save(accounts)
-    return True
+async def delete_user(username: str) -> bool:
+    if not _REPO: return False
+    return await _REPO.delete_account(username)

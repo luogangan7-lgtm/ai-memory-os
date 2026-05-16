@@ -120,6 +120,22 @@ class MemoryRepo:
                     created_at  TIMESTAMPTZ DEFAULT NOW()
                 );
                 CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents(team_id);
+
+                -- Accounts table (Migrated from JSON for concurrency)
+                CREATE TABLE IF NOT EXISTS accounts (
+                    username TEXT PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    api_key TEXT UNIQUE NOT NULL,
+                    role TEXT DEFAULT 'user',
+                    agent_id TEXT,
+                    revoked BOOLEAN DEFAULT false,
+                    suspended BOOLEAN DEFAULT false,
+                    metadata JSONB DEFAULT '{}',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
+                CREATE INDEX IF NOT EXISTS idx_accounts_api_key ON accounts(api_key);
             """)
         return cls(pool)
 
@@ -306,6 +322,66 @@ class MemoryRepo:
                 INSERT INTO user_token_usage (id, user_id, provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
             """, uuid.uuid4(), safe_uuid(user_id), provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate)
+
+    # --- Account Management Methods ---
+    async def get_account(self, username: str) -> Optional[dict]:
+        async with self.pool.acquire() as conn:
+            r = await conn.fetchrow("SELECT * FROM accounts WHERE username=$1 OR email=$1", username)
+            return dict(r) if r else None
+
+    async def get_account_by_email(self, email: str) -> Optional[dict]:
+        async with self.pool.acquire() as conn:
+            r = await conn.fetchrow("SELECT * FROM accounts WHERE email=$1", email)
+            return dict(r) if r else None
+
+    async def get_account_by_token(self, token: str) -> Optional[dict]:
+        async with self.pool.acquire() as conn:
+            r = await conn.fetchrow("SELECT * FROM accounts WHERE api_key=$1", token)
+            return dict(r) if r else None
+
+    async def insert_account(self, username: str, team_id: str, password_hash: str, api_key: str, role: str = 'user', agent_id: str = None, email: str = None, is_verified: bool = False, metadata: dict = None):
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO accounts (username, team_id, password_hash, api_key, role, agent_id, email, is_verified, metadata)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            """, username, team_id, password_hash, api_key, role, agent_id or username, email, is_verified, json.dumps(metadata or {}))
+
+    async def list_accounts(self) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM accounts ORDER BY created_at DESC")
+            return [dict(r) for r in rows]
+
+    async def update_account_status(self, username: str, revoked: bool = None, suspended: bool = None, api_key: str = None):
+        fields = []
+        vals = []
+        i = 1
+        if revoked is not None:
+            fields.append(f"revoked = ${i}")
+            vals.append(revoked)
+            i += 1
+        if suspended is not None:
+            fields.append(f"suspended = ${i}")
+            vals.append(suspended)
+            i += 1
+        if api_key is not None:
+            fields.append(f"api_key = ${i}")
+            vals.append(api_key)
+            i += 1
+        
+        if not fields: return False
+        
+        vals.append(datetime.now(timezone.utc))
+        vals.append(username)
+        q = f"UPDATE accounts SET {', '.join(fields)}, updated_at = ${i} WHERE username = ${i+1}"
+        
+        async with self.pool.acquire() as conn:
+            r = await conn.execute(q, *vals)
+            return "UPDATE 1" in r
+
+    async def delete_account(self, username: str) -> bool:
+        async with self.pool.acquire() as conn:
+            r = await conn.execute("DELETE FROM accounts WHERE username=$1", username)
+            return "DELETE 1" in r
 
     async def close(self):
         await self.pool.close()

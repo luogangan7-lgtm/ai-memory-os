@@ -7,18 +7,18 @@ ANTHROPIC_BASE = "https://api.anthropic.com/v1"
 ANTHROPIC_VERSION = "2023-06-01"
 
 ANTHROPIC_CATALOG = [
-    ModelInfo(id="claude-opus-4-5", display_name="Claude Opus 4.5",
+    ModelInfo(id="claude-3-5-sonnet-20241022", display_name="Claude 3.5 Sonnet (Latest)",
               provider="anthropic", capabilities=[ModelCapability.CHAT],
               context_window=200000, description="Anthropic 旗舰模型，逻辑/代码/分析全球顶级",
-              pricing_per_1m_tokens=15.0),
-    ModelInfo(id="claude-sonnet-4-5", display_name="Claude Sonnet 4.5",
-              provider="anthropic", capabilities=[ModelCapability.CHAT],
-              context_window=200000, description="性价比最佳，推理极强，速度快，强烈推荐",
               pricing_per_1m_tokens=3.0),
-    ModelInfo(id="claude-haiku-3-5", display_name="Claude Haiku 3.5",
+    ModelInfo(id="claude-3-5-haiku-20241022", display_name="Claude 3.5 Haiku",
               provider="anthropic", capabilities=[ModelCapability.CHAT],
               context_window=200000, description="极速轻量版，适合高频低延迟任务",
               pricing_per_1m_tokens=0.25),
+    ModelInfo(id="claude-3-opus-20240229", display_name="Claude 3 Opus",
+              provider="anthropic", capabilities=[ModelCapability.CHAT],
+              context_window=200000, description="深度推理模型",
+              pricing_per_1m_tokens=15.0),
 ]
 
 
@@ -40,7 +40,7 @@ class AnthropicProvider(BaseProvider):
                 resp = await client.post(
                     f"{ANTHROPIC_BASE}/messages",
                     headers=self._headers(),
-                    json={"model": "claude-haiku-3-5", "max_tokens": 1,
+                    json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 1,
                           "messages": [{"role": "user", "content": "Hi"}]}
                 )
                 if resp.status_code in (200, 400):

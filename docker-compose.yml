@@ -3,22 +3,24 @@ version: '3.9'
 services:
   qdrant:
     image: qdrant/qdrant:latest
-
+    ports:
+      - "6333:6333"
+      - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
 
   postgres:
     image: postgres:16
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: memoryos
       POSTGRES_PASSWORD: memoryos
       POSTGRES_DB: memory_os
-
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./backend/schemas/init.sql:/docker-entrypoint-initdb.d/init.sql
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U memoryos -d memory_os"]
       interval: 5s
@@ -28,13 +30,14 @@ services:
 
   neo4j:
     image: neo4j:5
+    ports:
+      - "7474:7474"
+      - "7687:7687"
     environment:
       NEO4J_AUTH: neo4j/password
       NEO4J_PLUGINS: '["apoc"]'
-
     volumes:
       - neo4j_data:/data
-
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1'"]
       interval: 10s
@@ -44,18 +47,21 @@ services:
 
   minio:
     image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: password
-
     volumes:
       - minio_data:/data
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-
+    ports:
+      - "6379:6379"
     restart: unless-stopped
 
   backend:

@@ -88,8 +88,19 @@ export const triggerReflection = () => api.post<ReflectionTriggerResponse>("/ref
 export const saveReflectionConfig = (body: ReflectionConfig) => api.post("/reflection/config", body);
 
 // Auth
-export const login = (password: string) =>
-  api.post<{ api_key: string }>("/auth/login", {
-    username: "admin",
+export const login = (id: string, password: string, isUserApp: boolean = false) => {
+  const url = isUserApp ? "/auth/token" : "/auth/login";
+  return api.post<{ api_key: string }>(url, {
+    username: id,
+    email: id, // Send both, backend will decide
     password,
+  });
+};
+
+export const signup = (username: string, email: string, password: string) =>
+  api.post("/auth/register", {
+    username,
+    email,
+    password,
+    team_id: username // Auto-assign team_id
   });

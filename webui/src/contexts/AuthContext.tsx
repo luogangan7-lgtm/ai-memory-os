@@ -13,7 +13,8 @@ interface AuthState {
   token: string;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (password: string) => Promise<void>;
+  login: (id: string, password: string) => Promise<void>;
+  signup: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   error: string | null;
 }
@@ -40,16 +41,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = useCallback(async (password: string) => {
+  const login = useCallback(async (id: string, password: string) => {
     setError(null);
     try {
-      const data = await apiLogin(password);
+      // In User App, we use email/username login
+      const isUserApp = window.location.hash.includes("/app");
+      const data = await apiLogin(id, password, isUserApp);
       localStorage.setItem("admin_token", data.api_key);
       localStorage.setItem("mos_admin_token", data.api_key);
       setToken(data.api_key);
     } catch (e: unknown) {
-      const msg =
-        e instanceof Error ? e.message : "网关连接失败，请检查后端服务";
+      const msg = e instanceof Error ? e.message : "验证失败";
+      setError(msg);
+      throw e;
+    }
+  }, []);
+
+  const signup = useCallback(async (username: string, email: string, password: string) => {
+    setError(null);
+    try {
+      const { signup: apiSignup } = await import("../api/endpoints");
+      await apiSignup(username, email, password);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "注册失败";
       setError(msg);
       throw e;
     }
@@ -65,9 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         token,
-        isAuthenticated: token.length > 0,
+        isAuthenticated: !!token && token.length > 0,
         isLoading,
         login,
+        signup,
         logout,
         error,
       }}

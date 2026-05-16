@@ -18,8 +18,8 @@ class Settings(BaseSettings):
 
     # Qdrant
     qdrant_host: str = "localhost"
-    qdrant_port: int = 6335
-    use_standalone: bool = True  # SQLite mode, no Docker needed
+    qdrant_port: int = 6333
+    use_standalone: bool = False  # Docker mode enabled
 
     # Neo4j
     neo4j_uri: str = "bolt://localhost:7687"
