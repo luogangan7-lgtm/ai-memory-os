@@ -1,16 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-
-function ChatPanel(){
-const [msgs,setMsgs]=useState<{role:string;content:string}[]>([]);
-const [input,setInput]=useState('');const [loading,setLoading]=useState(false);
-const endRef=useRef<HTMLDivElement>(null);
-async function send(){
-if(!input.trim()||loading)return;
-const m={role:'user',content:input};
-setMsgs(p=>[...p,m]);setInput('');setLoading(true);
-try{const res=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',messages:[...msgs,m]})});const d=await res.json();setMsgs(p=>[...p,{role:'assistant',content:d.choices?.[0]?.message?.content||'无响应'}])}catch{setMsgs(p=>[...p,{role:'assistant',content:'连接失败'}])}setLoading(false)}
-useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'})},[msgs]);
-return(<div className='card' style={{flex:2,display:'flex',flexDirection:'column',minHeight:500}}><div className='card-title'>💬 AI 对话</div><div style={{flex:1,overflow:'auto',maxHeight:400,marginBottom:12}}>{msgs.map((m,i)=><div key={i} style={{padding:'8px 12px',marginBottom:6,borderRadius:8,background:m.role==='user'?'rgba(0,240,212,.06)':'rgba(157,80,255,.06)',fontSize:13,lineHeight:1.7}}><span style={{color:m.role==='user'?'var(--teal)':'var(--violet)',fontWeight:600,fontSize:11}}>{m.role==='user'?'你':'AI'}: </span>{m.content}</div>)}<div ref={endRef}/></div><div style={{display:'flex',gap:8}}><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder='输入消息...' style={{flex:1}} disabled={loading}/><button className='btn btn-teal' onClick={send} disabled={loading}>{loading?'...':'发送'}</button></div></div>)}
+import { useState, useEffect, useCallback } from 'react';
 
 function MemoryPanel(){
 const [memories,setMemories]=useState<{title:string;content:string}[]>([]);
@@ -71,5 +59,5 @@ return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 </div>)}
 
 export function UserAppPage(){
-const [tab,setTab]=useState<'chat'|'memory'|'connect'>('chat');
-return(<div style={{maxWidth:900,margin:'0 auto',padding:'40px 24px'}}><div style={{textAlign:'center',marginBottom:32}}><div className='logo-orb' style={{margin:'0 auto 16px',width:56,height:56,fontSize:26,borderRadius:16}}>🧠</div><div className='page-title' style={{textAlign:'center'}}>我的记忆空间</div><div className='page-sub' style={{textAlign:'center'}}>AI 对话 · 记忆管理 · MCP 接入</div></div><div style={{display:'flex',gap:10,justifyContent:'center',marginBottom:24}}>{(['chat','memory','connect'] as const).map(t=><button key={t} className={`btn ${tab===t?'btn-teal':'btn-ghost'}`} onClick={()=>setTab(t)}>{t==='chat'?'💬 AI 对话':t==='memory'?'🧠 我的记忆':'🔑 接入配置'}</button>)}</div>{tab==='chat'&&<ChatPanel/>}{tab==='memory'&&<MemoryPanel/>}{tab==='connect'&&<ConnectPanel/>}</div>)}
+const [tab,setTab]=useState<'memory'|'connect'>('memory');
+return(<div style={{maxWidth:900,margin:'0 auto',padding:'40px 24px'}}><div style={{textAlign:'center',marginBottom:32}}><div className='logo-orb' style={{margin:'0 auto 16px',width:56,height:56,fontSize:26,borderRadius:16}}>🧠</div><div className='page-title' style={{textAlign:'center'}}>我的记忆空间</div><div className='page-sub' style={{textAlign:'center'}}>记忆管理 · MCP 接入</div></div><div style={{display:'flex',gap:10,justifyContent:'center',marginBottom:24}}>{(['memory','connect'] as const).map(t=><button key={t} className={`btn ${tab===t?'btn-teal':'btn-ghost'}`} onClick={()=>setTab(t)}>{t==='memory'?'🧠 我的记忆':'🔑 接入配置'}</button>)}</div>{}{tab==='memory'&&<MemoryPanel/>}{tab==='connect'&&<ConnectPanel/>}</div>)}
