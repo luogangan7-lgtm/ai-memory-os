@@ -21,46 +21,45 @@ return(<div className='card'><div className='card-title'>🧠 我的记忆</div>
 
 function ConnectPanel(){
 const[token]=useState(()=>'mos_'+Math.random().toString(36).slice(2,10)+'_'+Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join(''));
-const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'>('cursor');
-const[tab,setTab]=useState<'config'|'prompt'>('config');
+const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex'>('cursor');
 const[copied,setCopied]=useState(false);
 
-const configs:Record<string,string>={
-cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://localhost:8003"]}}},null,2),
+const configs={cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://localhost:8003"],env:{}}}},null,2),
 claude:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp"],env:{MOS_TOKEN:token,MOS_SERVER:"http://localhost:8003"}}}},null,2),
-openclaw:"SSE 远程接入 URL:\nhttp://localhost:8003/mcp?token="+token+"\n\n方式1: OpenClaw → MCP Servers → 添加 SSE → 粘贴上方 URL\n方式2: stdio 模式同上 Cursor 配置",
-cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://localhost:8003"],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2)};
+openclaw:"SSE 地址: http://localhost:8003/mcp?token="+token,
+cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://localhost:8003"],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2),
+continue:JSON.stringify({experimental:{modelContextProtocolServers:[{transport:{type:"stdio",command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://localhost:8003"]}}]}},null,2),
+roo:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://localhost:8003"],alwaysAllow:["memory_search","memory_store"]}},null,2),
+codex:"# ~/.codex/config.toml\n[[mcp_servers]]\nname = \"ai-memory-os\"\ncommand = \"npx\"\nargs = [\"-y\", \"@ai-memory-os/mcp\", \"--token="+token+"\", \"--server=http://localhost:8003\"]"};
 
-const promptText='[自动记忆规则 — 粘贴到 Agent 的 System Prompt]\n\n1. 对话开始时用 memory_search 检索相关背景知识（静默）\n2. 获得重要信息时用 memory_store 自动写入（静默）\n3. 对话结束时保存有价值内容的摘要（静默）\n4. 用户说"记住/忘掉/搜索记忆"时执行对应操作\n5. 所有记忆操作无需向用户报告，除非操作失败';
+const FILE_PATHS={cursor:'~/.cursor/mcp.json',claude:'~/Library/Application Support/Claude/claude_desktop_config.json',openclaw:'OpenClaw → Settings → MCP Servers',cline:'VS Code → Cline → MCP Servers',continue:'~/.continue/config.json',roo:'VS Code → Roo Code → MCP Servers',codex:'~/.codex/config.toml'};
 
-const cfgFiles:Record<string,string>={cursor:'~/.cursor/mcp.json',claude:'~/Library/Application Support/Claude/claude_desktop_config.json',openclaw:'OpenClaw → Settings → MCP Servers → Add SSE',cline:'VS Code → Cline → MCP Servers (JSON)'};
+const AGENTS=[{id:'cursor',name:'Cursor'},{id:'claude',name:'Claude Desktop'},{id:'openclaw',name:'OpenClaw (SSE)'},{id:'cline',name:'Cline'},{id:'continue',name:'Continue'},{id:'roo',name:'Roo Code'},{id:'codex',name:'Codex CLI'}];
+
+const SYSTEM_PROMPTS={standard:'[AI Memory OS 自动记忆规则]\n\n1. 对话开始 → memory_search 检索相关背景知识\n2. 获得重要信息 → memory_store 自动写入\n3. 对话结束有价值内容 → memory_store 保存摘要\n4. 用户说"记住/忘掉/搜索"→ 对应操作\n5. 以上操作静默完成，无需向用户报告',concise:'[记忆规则] ①开始→memory_search ②重要信息→memory_store ③结束→保存摘要 ④记住/忘掉/搜索→对应操作。静默执行。',dev:'[开发记忆策略]\n- 提到项目名 → memory_search 架构/依赖\n- 解决Bug → memory_store 问题+方案\n- 技术决策 → memory_store 原因\n- 代码记忆只存逻辑摘要，不存完整代码'};
+
+const[pType,setPType]=useState<'standard'|'concise'|'dev'>('standard');
 
 return(<div className='card'><div className='card-title'>🔑 接入配置</div>
-
 <div style={{marginBottom:20}}>
-<div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>你的 MCP Token（用于 Agent 连接记忆系统）</div>
+<div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>你的 MCP Token（Agent 连接记忆系统的凭证）</div>
 <div style={{display:'flex',gap:8,alignItems:'center'}}>
 <code style={{flex:1,background:'rgba(0,0,0,.3)',padding:'10px 14px',borderRadius:8,fontSize:12,fontFamily:'var(--mono)',wordBreak:'break-all'}}>{token}</code>
 <button className='btn btn-teal' onClick={()=>{navigator.clipboard.writeText(token);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>{copied?'✅ 已复制':'📋 复制'}</button></div></div>
 
-<div style={{marginBottom:16}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>选择你的 Agent</div>
+<div style={{marginBottom:16}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>选择你的 Agent（{AGENTS.length} 种）</div>
 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-{['cursor','claude','openclaw','cline'].map(a=><button key={a} className={`btn ${agent===a?'btn-teal':'btn-ghost'}`} onClick={()=>setAgent(a as 'cursor'|'claude'|'openclaw'|'cline')} style={{fontSize:11}}>{a==='cursor'?'Cursor':a==='claude'?'Claude Desktop':a==='openclaw'?'OpenClaw (SSE)':'Cline'}</button>)}
+{AGENTS.map(a=><button key={a.id} className={`btn ${agent===a.id?'btn-teal':'btn-ghost'}`} onClick={()=>setAgent(a.id as 'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex')} style={{fontSize:11}}>{a.name}</button>)}
 </div></div>
 
-<div style={{display:'flex',gap:8,marginBottom:12}}>
-<button className={`btn ${tab==='config'?'btn-teal':'btn-ghost'}`} onClick={()=>setTab('config')} style={{fontSize:11}}>⚙️ 配置文件</button>
-<button className={`btn ${tab==='prompt'?'btn-teal':'btn-ghost'}`} onClick={()=>setTab('prompt')} style={{fontSize:11}}>📝 系统提示词</button></div>
+<div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>配置文件位置: {FILE_PATHS[agent]||'N/A'}</div>
+<code style={{display:'block',background:'rgba(0,0,0,.3)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',maxHeight:220,overflow:'auto',marginBottom:8}}>{configs[agent]||''}</code>
+<button className='btn btn-teal btn-sm' style={{fontSize:11,marginBottom:20}} onClick={()=>{navigator.clipboard.writeText(configs[agent]||'');setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制配置</button>
 
-{tab==='config'&&<>
-<div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>配置文件位置: {cfgFiles[agent]}</div>
-<code style={{display:'block',background:'rgba(0,0,0,.3)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',maxHeight:250,overflow:'auto'}}>{configs[agent]||""}</code>
-<button className='btn btn-ghost' style={{marginTop:8,fontSize:11}} onClick={()=>{navigator.clipboard.writeText(configs[agent]||"");setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制配置</button></>}
-
-{tab==='prompt'&&<>
-<div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>粘贴到 Agent 的 System Prompt / 自定义指令中</div>
-<code style={{display:'block',background:'rgba(0,0,0,.3)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',maxHeight:250,overflow:'auto',lineHeight:1.8}}>{promptText}</code>
-<button className='btn btn-ghost' style={{marginTop:8,fontSize:11}} onClick={()=>{navigator.clipboard.writeText(promptText);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制提示词</button></>}
+<div style={{borderTop:'1px solid var(--border)',paddingTop:16}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>系统提示词（粘贴到 Agent 的 System Prompt）</div>
+<div style={{display:'flex',gap:6,marginBottom:10}}>{Object.keys(SYSTEM_PROMPTS).map(k=><button key={k} className={`btn ${pType===k?'btn-teal':'btn-ghost'}`} onClick={()=>setPType(k as 'standard'|'concise'|'dev')} style={{fontSize:10}}>{k==='standard'?'📝 完整版':k==='concise'?'⚡ 精简版':'💻 开发版'}</button>)}</div>
+<code style={{display:'block',background:'rgba(0,0,0,.3)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',lineHeight:1.8,maxHeight:200,overflow:'auto',marginBottom:8}}>{SYSTEM_PROMPTS[pType]}</code>
+<button className='btn btn-teal btn-sm' style={{fontSize:11}} onClick={()=>{navigator.clipboard.writeText(SYSTEM_PROMPTS[pType]);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制提示词</button></div>
 </div>)}
 
 export function UserAppPage(){
