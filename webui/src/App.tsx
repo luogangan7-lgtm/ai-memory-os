@@ -9,7 +9,7 @@ import { ModelConfigPage } from "./pages/Providers";
 import { TenantsPage } from "./pages/Tenants";
 import { UsersPage } from "./pages/Users";
 import { ReflectionPage } from "./pages/Reflection";
-import { UserAppPage } from './pages/UserApp';
+import { LoginOverlay } from './pages/UserApp';
 import { GraphPage } from "./pages/Graph";
 import { ConfigPage } from "./pages/Config";
 
@@ -37,7 +37,7 @@ function AppShell() {
   if (isLoading) return <div className="loading-screen">LOADING...</div>;
   return (
     <Routes>
-      <Route path="/app" element={<UserAppPage />} />
+      <Route path="/app" element={<LoginOverlay />} />
       <Route path="*" element={<AdminRoutes />} />
     </Routes>
   );
