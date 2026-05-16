@@ -10,7 +10,7 @@ return(<div className='card'><div className='card-title'>🧠 我的记忆</div>
 function ConnectPanel(){
 
 const[connected,setConnected]=useState<'checking'|'online'|'offline'>('checking');
-useEffect(()=>{fetch(window.location.origin+'/stats').then(r=>setConnected(r.ok?'online':'offline')).catch(()=>setConnected('offline'))},[]);
+useEffect(()=>{fetch(window.location.origin+'/').then(r=>setConnected(r.ok?'online':'offline')).catch(()=>setConnected('offline'))},[]);
 const[token]=useState(()=>'mos_'+Math.random().toString(36).slice(2,10)+'_'+Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join(''));
 const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex'>('cursor');
 const[copied,setCopied]=useState(false);
