@@ -47,9 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // In User App, we use email/username login
       const isUserApp = window.location.hash.includes("/app");
       const data = await apiLogin(id, password, isUserApp);
-      localStorage.setItem("admin_token", data.api_key || data.access_token);
-      localStorage.setItem("mos_admin_token", data.api_key || data.access_token);
-      setToken(data.api_key || data.access_token);
+      localStorage.setItem("admin_token", (data.api_key || data.access_token || ""));
+      localStorage.setItem("mos_admin_token", (data.api_key || data.access_token || ""));
+      setToken((data.api_key || data.access_token || ""));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "验证失败";
       setError(msg);
