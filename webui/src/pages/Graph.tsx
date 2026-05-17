@@ -10,7 +10,7 @@ export function GraphPage(){
       try {
         const res = await api.get<{ nodes: number; edges: number; status: string }>('/graph/summary');
         setStats(res);
-      } catch (err) {
+      } catch (_err) {
         setStats({ nodes: 0, edges: 0, status: 'error' });
       }
     }
