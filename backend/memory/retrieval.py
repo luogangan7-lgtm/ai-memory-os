@@ -89,7 +89,7 @@ class RetrievalPipeline:
         if use_graph and deduped:
             memory_ids = [r["payload"]["memory_id"] for r in deduped]
             try:
-                graph_ctxs = self.graph.find_related(memory_ids, top_k=top_k)
+                graph_ctxs = await self.graph.find_related(memory_ids, top_k=top_k)
                 for r in deduped:
                     r["graph_context"] = [
                         g for g in graph_ctxs

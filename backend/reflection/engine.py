@@ -124,7 +124,7 @@ class ReflectionEngine:
             for r in rows:
                 if self.graph:
                     try:
-                        self.graph.create_relation(r["id_a"], r["id_b"], "same_topic", 0.7)
+                        await self.graph.create_relation(r["id_a"], r["id_b"], "same_topic", 0.7)
                         n += 1
                     except: pass
         return n
