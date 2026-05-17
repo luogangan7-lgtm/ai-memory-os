@@ -100,7 +100,7 @@ async def login_endpoint(data: dict):
     
     try:
         acc = await login(username_or_email, password)
-        token = create_access_token(acc["team_id"])
+        token = create_access_token(acc["team_id"], role=acc["role"])
         return {
             "access_token": token, 
             "api_key": acc["api_key"],
