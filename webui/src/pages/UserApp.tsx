@@ -292,7 +292,7 @@ const PROVIDERS = ALL_PROVIDERS.filter(x=>!x.region||x.region!=="local").map(x=>
 
 
 const[p,setP]=useState("");const[k,setK]=useState("");const[m,setM]=useState("");const[b,setB]=useState("");
-const[r,setR]=useState("");const[l,setL]=useState(false);
+const[r,setR]=useState("");const[l,setL]=useState(false);const[stats,setStats]=useState({mem:0,tokens:0,calls:0});
 const prov=PROVIDERS.find(x=>x.id===p);
 useEffect(()=>{fetch("/stats").then(r=>r.json()).then(d=>setStats({mem:d.total_memories||0,tokens:d.total_tokens||0,calls:d.pipeline_calls||0})).catch(()=>{})},[]);
 useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
