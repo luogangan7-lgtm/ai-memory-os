@@ -741,7 +741,7 @@ async def query_graph(
     if not graph_store:
         raise HTTPException(status_code=503, detail="Graph store not ready")
     try:
-        data = graph_store.get_relations(
+        data = await graph_store.get_relations(
             memory_id=req.memory_id or "",
             relation_types=req.relation_types or None,
             max_depth=req.max_depth,
