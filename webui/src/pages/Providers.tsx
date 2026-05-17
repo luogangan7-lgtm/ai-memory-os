@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PROVIDERS, getRecommendations, type ProviderInfo } from '../data/models';
 import { api } from '../api/client';
+import { getRouting, getProviders, getLLMEngineConfig } from '../api/endpoints';
 
 interface PipeConfig { provider: string; apiKey: string; model: string; purpose: string; }
 const DEFAULTS: PipeConfig[] = [
@@ -64,19 +65,128 @@ const FEATURE_ZH:Record<string,string>={'Chat':'对话','Vision':'视觉','Embed
 export function ModelConfigPage(){
 const[cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
 const[saved,setSaved]=useState(false);
+const[loading,setLoading]=useState(true);
+const[providersData,setProvidersData]=useState<any>({});
+
+useEffect(() => {
+  async function loadData() {
+    try {
+      const [routingRes, engineRes, providersRes] = await Promise.all([
+        getRouting(),
+        getLLMEngineConfig(),
+        getProviders()
+      ]);
+      
+      setProvidersData(providersRes || {});
+      
+      const loadedCfgs = DEFAULTS.map(def => {
+        let provider = def.provider;
+        let model = def.model;
+        let apiKey = "";
+        
+        if (def.purpose === 'classifier' || def.purpose === 'reflection') {
+          const engineCfg = engineRes?.config?.[def.purpose];
+          if (engineCfg) {
+            provider = engineCfg.provider || provider;
+            model = engineCfg.model || model;
+          }
+        } else if (def.purpose === 'embedding' || def.purpose === 'rerank') {
+          const routeCfg = routingRes?.[def.purpose];
+          if (routeCfg) {
+            provider = routeCfg.provider || provider;
+            model = routeCfg.model || model;
+          }
+        }
+        
+        const providerCfg = providersRes?.[provider];
+        if (providerCfg) {
+          apiKey = providerCfg.api_key || "";
+        }
+        
+        return {
+          purpose: def.purpose,
+          provider,
+          model,
+          apiKey
+        };
+      });
+      
+      setCfgs(loadedCfgs);
+    } catch (err) {
+      console.error("Failed to load provider configs:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+  loadData();
+}, []);
+
+const handleConfigChange = (index: number, newCfg: PipeConfig) => {
+  const updatedCfgs = [...cfgs];
+  const prevCfg = cfgs[index];
+  
+  // If provider changed, auto-populate key and default model
+  if (prevCfg && newCfg.provider !== prevCfg.provider) {
+    newCfg.apiKey = providersData[newCfg.provider]?.api_key || '';
+    
+    // Auto-select a valid model
+    const prov = PROVIDERS.find(p => p.id === newCfg.provider);
+    const validModels = prov?.models.filter(m => {
+      if (newCfg.purpose === 'embedding') return m.type === 'embedding';
+      if (newCfg.purpose === 'rerank') return m.type === 'rerank';
+      return m.type === 'chat' || m.type === 'reasoning';
+    }) || [];
+    const modelToSelect = validModels.find(m => m.recommended) || validModels[0];
+    newCfg.model = modelToSelect ? modelToSelect.id : '';
+  }
+  
+  updatedCfgs[index] = newCfg;
+  
+  // Sync API keys across all cards using the same provider
+  const targetProvider = newCfg.provider;
+  const targetKey = newCfg.apiKey;
+  for (let i = 0; i < updatedCfgs.length; i++) {
+    const item = updatedCfgs[i];
+    if (item && item.provider === targetProvider) {
+      item.apiKey = targetKey;
+    }
+  }
+  
+  setCfgs(updatedCfgs);
+};
 
 async function saveAll(){
 try{
   const token = localStorage.getItem("admin_token") || localStorage.getItem("mos_admin_token");
+  const payloadConfigs = cfgs.map(c => ({
+    purpose: c.purpose,
+    provider: c.provider,
+    model: c.model,
+    apiKey: c.apiKey.endsWith('...') ? '' : c.apiKey
+  }));
+
   const res = await fetch('/admin/providers/configure', {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ configs: cfgs.map(c=>({purpose:c.purpose,provider:c.provider,model:c.model,apiKey:c.apiKey})) })
+    body: JSON.stringify({ configs: payloadConfigs })
   });
   if (!res.ok) throw new Error('Save failed');
+  
+  // Update local providersData so the keys show as masked immediately without reloading
+  const updatedProviders = { ...providersData };
+  cfgs.forEach(c => {
+    if (c.apiKey && !c.apiKey.endsWith('...')) {
+      updatedProviders[c.provider] = {
+        ...updatedProviders[c.provider],
+        api_key: c.apiKey.slice(0, 8) + '...'
+      };
+    }
+  });
+  setProvidersData(updatedProviders);
+
   setSaved(true);setTimeout(()=>setSaved(false),2000)
 } catch (err) {
   console.error(err);
@@ -85,7 +195,26 @@ try{
 }
 }
 
-const recs=getRecommendations('classifier').concat(getRecommendations('reflection'),getRecommendations('embedding'),getRecommendations('rerank'));
+if (loading) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+      <div className="spinner" style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--teal-alpha-20)', borderTopColor: 'var(--teal)', animation: 'spin 1s linear infinite' }}></div>
+      <div style={{ color: 'var(--muted)', fontSize: 14 }}>正在加载模型与算力配置...</div>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const recs = [
+  ...getRecommendations('classifier').map(r => ({ ...r, purpose: 'classifier' })),
+  ...getRecommendations('reflection').map(r => ({ ...r, purpose: 'reflection' })),
+  ...getRecommendations('embedding').map(r => ({ ...r, purpose: 'embedding' })),
+  ...getRecommendations('rerank').map(r => ({ ...r, purpose: 'rerank' }))
+];
 const cn=PROVIDERS.filter(p=>p.region==='cn');
 const intl=PROVIDERS.filter(p=>p.region==='intl');
 const local=PROVIDERS.filter(p=>p.region==='local');
@@ -94,9 +223,18 @@ return(<div>
 <div className='page-header'><div><div className='page-title'>模型配置中心</div><div className='page-sub'>配置 AI Memory OS 各管线的底层大模型——分类、反思、向量化、重排序</div></div>
 <button className={`btn ${saved?'btn-emerald':'btn-teal'}`} onClick={saveAll} style={{fontSize:14,padding:'10px 24px'}}>{saved?'✅ 已保存':'💾 保存全部配置'}</button></div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))',gap:20,marginBottom:30}}>
-{cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>{const n=[...cfgs];n[i]=c;setCfgs(n)}}/>)}
+{cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>handleConfigChange(i,c)}/>)}
 </div>
-<div className="card" style={{marginTop:20,marginBottom:20}}><div className="card-title">💡 推荐配置组合</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>{recs.map((r,i)=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.p+r.m+i} className="card" style={{padding:16,cursor:"pointer",borderColor:"var(--border)"}} onClick={()=>{const n=[...cfgs];const idx=n.findIndex(c=>c.purpose===n[idx]?.purpose||"classifier");if(idx>=0)n[idx]={provider:r.p,model:r.m,apiKey:n[idx]?.apiKey||"",purpose:n[idx]?.purpose||"classifier"};setCfgs(n)}}><div style={{fontSize:12,color:"var(--teal)",marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--mono)"}}>{r.m}</div></div>)})}</div></div><div className="card" style={{marginTop:20}}><div className="card-title">📋 可用模型清单</div>
+<div className="card" style={{marginTop:20,marginBottom:20}}><div className="card-title">💡 推荐配置组合</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>{recs.map((r,i)=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.p+r.m+i} className="card" style={{padding:16,cursor:"pointer",borderColor:"var(--border)"}} onClick={()=>{
+  const idx = cfgs.findIndex(c => c.purpose === r.purpose);
+  if (idx >= 0) {
+    const current = cfgs[idx];
+    if (current) {
+      const updated = { ...current, provider: r.p, model: r.m };
+      handleConfigChange(idx, updated);
+    }
+  }
+}}><div style={{fontSize:12,color:"var(--teal)",marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--mono)"}}>{r.m}</div></div>)})}</div></div><div className="card" style={{marginTop:20}}><div className="card-title">📋 可用模型清单</div>
 {/* Provider lists... */}
 <div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🇨🇳 中国厂商 ({cn.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{cn.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>
 <div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🌐 海外厂商 ({intl.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{intl.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>

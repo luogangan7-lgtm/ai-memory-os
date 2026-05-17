@@ -557,6 +557,31 @@ async def debug_registry():
         },
     }
 
+@router.get("/providers/llm-engine")
+async def get_llm_engine_config():
+    """Get specific LLM engine configs (classifier, reflection)."""
+    registry = ModelRegistry.get_instance()
+    engine_data = registry.load_llm_engine_config()
+    
+    config = {}
+    for engine in ["classifier", "reflection"]:
+        cfg = engine_data.get(engine, {})
+        provider_name = cfg.get("provider", "deepseek")
+        model_name = cfg.get("model", "deepseek-chat")
+        
+        provider_cfg = registry.configs.get(provider_name)
+        has_key = bool(provider_cfg.api_key) if provider_cfg else False
+        base_url = (provider_cfg.api_base or "") if provider_cfg else ""
+        
+        config[engine] = {
+            "provider": provider_name,
+            "model": model_name,
+            "has_key": has_key,
+            "base_url": base_url
+        }
+        
+    return {"config": config}
+
 @public_router.post("/providers/configure")
 async def configure_providers(data: dict):
     """Bulk configure providers and model roles from the UI."""
@@ -595,8 +620,20 @@ async def configure_providers(data: dict):
             engine_data[c["purpose"]] = {"provider": c["provider"], "model": c["model"]}
             
     reg.save_llm_engine_config(engine_data)
+    
+    # 4. Sync and update routing.json
+    routing_data = reg.load_routing()
+    for c in configs:
+        purpose = c["purpose"]
+        if purpose in ["embedding", "rerank"]:
+            routing_data[purpose] = {"provider": c["provider"], "model": c["model"]}
+        elif purpose in ["classifier", "reflection"]:
+            routing_data["llm"] = {"provider": c["provider"], "model": c["model"]}
+            
+    reg.save_routing(routing_data)
         
     return {"ok": True, "message": "Configuration saved successfully"}
+
 
 @router.post("/providers/test")
 async def test_provider_connection(data: dict):
@@ -605,13 +642,23 @@ async def test_provider_connection(data: dict):
     api_key = data.get("apiKey")
     model = data.get("model")
     
-    if not provider_id or not api_key:
-        raise HTTPException(400, "Provider and API Key required")
+    if not provider_id:
+        raise HTTPException(400, "Provider required")
         
     from backend.manager.registry import ModelRegistry
     from backend.providers.base import ProviderConfig
     
     reg = ModelRegistry.get_instance()
+    
+    # Fallback to stored key if key is masked or empty
+    if not api_key or api_key.endswith("..."):
+        stored_cfg = reg.configs.get(provider_id)
+        if stored_cfg and stored_cfg.api_key:
+            api_key = stored_cfg.api_key
+            
+    if not api_key:
+        raise HTTPException(400, "API Key required")
+        
     try:
         cfg = ProviderConfig(provider_type=provider_id, api_key=api_key, enabled_models={"llm": model} if model else {})
         p_class = reg.get_provider_class(provider_id)
