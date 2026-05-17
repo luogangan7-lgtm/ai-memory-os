@@ -1,40 +1,85 @@
-"""Pipeline runner: orchestrates L0→L1→L2→L3 processing."""
+"""Pipeline runner with queue-based high-concurrency support."""
 from __future__ import annotations
 import asyncio, logging
 from backend.memory.pg_repo import MemoryRepo
-from backend.pipeline.l0_recorder import record_conversation
-from backend.pipeline.l1_extractor import extract_from_conversation, store_facts
-from backend.pipeline.l2_synthesizer import synthesize
-from backend.pipeline.l3_persona import generate
 
 logger = logging.getLogger("pipeline")
 _repo: MemoryRepo | None = None
+_semaphore = asyncio.Semaphore(5)  # Max 5 concurrent LLM calls total
+_team_locks: dict[str, asyncio.Lock] = {}
 
 def init(repo: MemoryRepo):
-    global _repo
-    _repo = repo
+    global _repo; _repo = repo
     import backend.pipeline.l0_recorder as l0; l0.init(repo)
     import backend.pipeline.l1_extractor as l1; l1.init(repo)
     import backend.pipeline.l2_synthesizer as l2; l2.init(repo)
     import backend.pipeline.l3_persona as l3; l3.init(repo)
 
-async def process_conversation(team_id: str, session_id: str, messages: list[dict]) -> list[str]:
-    logger.info(f"Pipeline L0→L3 started for {team_id}/{session_id}")
-    conv_id = await record_conversation(team_id, session_id, messages)
-    if not conv_id: return []
-    
-    facts = await extract_from_conversation(conv_id, team_id)
-    if not facts:
-        await _repo.pool.execute(
-            "UPDATE pipeline_conversations SET processed_l1=TRUE WHERE id=$1", conv_id)
-        return []
-    
-    atom_ids = await store_facts(team_id, facts, session_id)
+async def enqueue(team_id: str, session_id: str, messages: list[dict]) -> str | None:
+    """Enqueue conversation for pipeline processing. Returns queue_id."""
+    if _repo is None: return None
+    import uuid, json
+    qid = str(uuid.uuid4())
     await _repo.pool.execute(
-        "UPDATE pipeline_conversations SET processed_l1=TRUE WHERE id=$1", conv_id)
-    
-    _ = asyncio.create_task(synthesize(team_id, atom_ids))
-    _ = asyncio.create_task(generate(team_id))
-    
-    logger.info(f"Pipeline L0→L1 done for {team_id}/{session_id} ({len(facts)} facts, L2/L3 async)")
-    return atom_ids
+        """INSERT INTO pipeline_queue (id, team_id, layer, input_ids, status)
+           VALUES ($1, $2, 'L1', $3::uuid[], 'pending')""",
+        qid, team_id, [qid])
+    from backend.pipeline.l0_recorder import record_conversation
+    cid = await record_conversation(team_id, session_id, messages)
+    if cid:
+        await _repo.pool.execute(
+            "UPDATE pipeline_queue SET input_ids=$1 WHERE id=$2",
+            [cid], qid)
+    return qid
+
+async def process_queue():
+    """Background worker: poll queue and process pending tasks."""
+    if _repo is None: return
+    while True:
+        try:
+            row = await _repo.pool.fetchrow(
+                "SELECT * FROM pipeline_queue WHERE status='pending' ORDER BY scheduled_at LIMIT 1")
+            if not row:
+                await asyncio.sleep(5); continue
+            
+            team = row["team_id"]; qid = row["id"]
+            await _repo.pool.execute(
+                "UPDATE pipeline_queue SET status='processing' WHERE id=$1", qid)
+            
+            lock = _team_locks.setdefault(team, asyncio.Lock())
+            async with lock:
+                async with _semaphore:
+                    try:
+                        cids = row["input_ids"] or []
+                        if cids:
+                            from backend.pipeline.l1_extractor import extract_from_conversation, store_facts
+                            facts = await extract_from_conversation(cids[0], team)
+                            if facts:
+                                aids = await store_facts(team, facts, "")
+                                from backend.pipeline.l2_synthesizer import synthesize
+                                from backend.pipeline.l3_persona import generate
+                                asyncio.create_task(synthesize(team, aids))
+                                asyncio.create_task(generate(team))
+                        
+                        await _repo.pool.execute(
+                            "UPDATE pipeline_queue SET status='done', finished_at=NOW() WHERE id=$1", qid)
+                    except Exception as e:
+                        retries = (row["retry_count"] or 0) + 1
+                        if retries <= 3:
+                            await _repo.pool.execute(
+                                "UPDATE pipeline_queue SET status='pending', retry_count=$1, error_msg=$2 WHERE id=$3",
+                                retries, str(e)[:500], qid)
+                        else:
+                            await _repo.pool.execute(
+                                "UPDATE pipeline_queue SET status='failed', error_msg=$1, finished_at=NOW() WHERE id=$2",
+                                str(e)[:500], qid)
+        except Exception:
+            await asyncio.sleep(10)
+
+_background_task: asyncio.Task | None = None
+
+def start_worker():
+    global _background_task
+    if _background_task is None or _background_task.done():
+        _background_task = asyncio.create_task(process_queue())
+        logger.info("Pipeline worker started (5 concurrent, per-team serialized)")
