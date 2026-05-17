@@ -405,12 +405,12 @@ async def store_memory(
     # Create graph node and relations
     if graph_store:
         try:
-            graph_store.create_memory_node(
+            await graph_store.create_memory_node(
                 memory_id=memory_id, title=req.title,
                 category=req.category, memory_type=req.memory_type,
             )
             for rel in req.relations:
-                graph_store.create_relation(
+                await graph_store.create_relation(
                     source_id=memory_id, target_id=rel.target_id,
                     relation_type=rel.relation_type, weight=rel.weight,
                 )

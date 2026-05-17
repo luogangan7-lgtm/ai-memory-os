@@ -202,14 +202,17 @@ async def mcp_post_handler(
                     raise ValueError("Query is required for memory_search")
 
                 if retrieval and registry:
-                    # Execute hybrid search
+                    # Execute hybrid search with dynamic reranker passing
+                    use_rerank = hasattr(registry, "reranker") and registry.reranker is not None
                     raw_results = await retrieval.search(
                         query=query,
                         embedding_fn=registry.embed_single,
                         team_id=team_id,
                         workspace_id=workspace_id,
                         top_k=top_k,
-                        use_graph=True
+                        use_graph=True,
+                        use_rerank=use_rerank,
+                        rerank_fn=registry.rerank if use_rerank else None
                     )
                     # Compile context
                     from backend.services.context_compiler import ContextCompiler

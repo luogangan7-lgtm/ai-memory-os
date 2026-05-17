@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
         pg = await MemoryRepo.create(host=settings.pg_host, port=settings.pg_port, user=settings.pg_user, password=settings.pg_password, database=settings.pg_db)
     
     gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+    await gs.setup_indexes()
     ms = MinIOStore()
     ip = IngestionPipeline(qs)
     rp = RetrievalPipeline(qs, gs)

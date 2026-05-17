@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from neo4j import GraphDatabase
+from neo4j import AsyncGraphDatabase
 
 
 class GraphStore:
@@ -17,26 +17,38 @@ class GraphStore:
         user: str = "neo4j",
         password: str = "password",
     ):
-        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+        self.driver = AsyncGraphDatabase.driver(uri, auth=(user, password))
 
-    def close(self) -> None:
-        self.driver.close()
+    async def close(self) -> None:
+        await self.driver.close()
 
-    def create_memory_node(
+    async def setup_indexes(self) -> None:
+        """Create critical unique constraints/indexes to prevent full node scans."""
+        query = "CREATE CONSTRAINT IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE"
+        async with self.driver.session() as session:
+            try:
+                await session.run(query)
+                import logging
+                logging.getLogger("graph_store").info("Neo4j unique constraint on Memory(id) verified.")
+            except Exception as e:
+                import logging
+                logging.getLogger("graph_store").warning(f"Could not setup Neo4j constraint: {e}")
+
+    async def create_memory_node(
         self, memory_id: str, title: str, category: str, memory_type: str
     ) -> None:
         query = """
         MERGE (m:Memory {id: $id})
         SET m.title = $title, m.category = $category, m.memory_type = $memory_type
         """
-        with self.driver.session() as session:
-            session.run(
+        async with self.driver.session() as session:
+            await session.run(
                 query,
                 id=memory_id, title=title,
                 category=category, memory_type=memory_type,
             )
 
-    def create_relation(
+    async def create_relation(
         self, source_id: str, target_id: str,
         relation_type: str, weight: float = 1.0,
     ) -> None:
@@ -46,14 +58,14 @@ class GraphStore:
         MERGE (a)-[r:RELATES {type: $relation_type}]->(b)
         SET r.weight = $weight
         """
-        with self.driver.session() as session:
-            session.run(
+        async with self.driver.session() as session:
+            await session.run(
                 query,
                 source_id=source_id, target_id=target_id,
                 relation_type=relation_type, weight=weight,
             )
 
-    def get_relations(
+    async def get_relations(
         self, memory_id: str,
         relation_types: Optional[list[str]] = None,
         max_depth: int = 2, top_k: int = 20,
@@ -78,9 +90,9 @@ class GraphStore:
         LIMIT {top}
         """
 
-        with self.driver.session() as session:
-            result = session.run(query, **params)
-            for record in result:
+        async with self.driver.session() as session:
+            result = await session.run(query, **params)
+            async for record in result:
                 for n in (record["m"], record["related"]):
                     if n["id"] not in nodes_set:
                         nodes_set[n["id"]] = {
@@ -99,7 +111,7 @@ class GraphStore:
 
         return {"nodes": list(nodes_set.values()), "edges": edges}
 
-    def find_related(
+    async def find_related(
         self, memory_ids: list[str], top_k: int = 10,
     ) -> list[dict[str, Any]]:
         """Find relations between a set of memory IDs."""
@@ -112,8 +124,8 @@ class GraphStore:
                r.type AS relation_type, r.weight AS weight
         LIMIT $top_k
         """
-        with self.driver.session() as session:
-            result = session.run(query, ids=memory_ids, top_k=top_k)
+        async with self.driver.session() as session:
+            result = await session.run(query, ids=memory_ids, top_k=top_k)
             return [
                 {
                     "source": record["source"],
@@ -121,12 +133,12 @@ class GraphStore:
                     "relation_type": record["relation_type"],
                     "weight": record["weight"],
                 }
-                for record in result
+                async for record in result
             ]
 
-    def delete_memory_node(self, memory_id: str) -> None:
-        with self.driver.session() as session:
-            session.run(
+    async def delete_memory_node(self, memory_id: str) -> None:
+        async with self.driver.session() as session:
+            await session.run(
                 "MATCH (m:Memory {id: $id}) DETACH DELETE m",
                 id=memory_id,
             )
