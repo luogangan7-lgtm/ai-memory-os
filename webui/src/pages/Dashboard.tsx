@@ -42,7 +42,9 @@ export function DashboardPage() {
     error?: string;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [routing, setRouting] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [llmEngine, setLlmEngine] = useState<any>(null);
   const [testStates, setTestStates] = useState<Record<'classifier' | 'reflection' | 'embedding' | 'rerank', TestState>>({
     classifier: { testing: false, status: 'idle' },
@@ -69,6 +71,7 @@ export function DashboardPage() {
           [type]: { testing: false, status: 'err', error: res.error || '测试失败' }
         }));
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setTestStates(p => ({
         ...p,
