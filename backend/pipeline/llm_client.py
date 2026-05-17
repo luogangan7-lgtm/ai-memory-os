@@ -2,7 +2,24 @@
 from __future__ import annotations
 import httpx
 
+import sys
+sys.path.insert(0, '/app')
+from backend.api.user_providers import _user_llm_configs
+
 async def call_llm(prompt: str, team_id: str = "") -> str | None:
+    # 1. Check user's own LLM config first (per-team isolation)
+    user_cfg = _user_llm_configs.get(team_id, {})
+    if user_cfg.get("api_key") and user_cfg.get("base_url"):
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.post(
+                    user_cfg["base_url"] + "/chat/completions",
+                    json={"model": user_cfg.get("model", "deepseek-chat"), "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
+                    headers={"Authorization": f"Bearer {user_cfg['api_key']}"})
+                return resp.json()["choices"][0]["message"]["content"]
+        except: pass
+
+    # 2. Fallback to admin ModelRegistry (system default)
     """Call user's configured LLM. Returns None if user has no key."""
     from backend.manager.registry import ModelRegistry
     reg = ModelRegistry.get_instance()
