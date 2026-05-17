@@ -16,18 +16,37 @@ router = APIRouter(prefix="/mcp", tags=["mcp"])
 logger = logging.getLogger("mcp_server")
 
 # SSE Connections Registry
-# Maps connection_id -> asyncio.Queue for sending events to client
-connections: Dict[str, asyncio.Queue] = {}
+# Maps connection_id -> Dict of connection details (queue, team_id, agent_id, username)
+connections: Dict[str, Dict[str, Any]] = {}
 
 
 # --- Core MCP Specification Endpoints ---
 
 @router.get("")
-async def mcp_get_handler(request: Request):
-    """Establishes the SSE Stream channel for the MCP client."""
+async def mcp_get_handler(request: Request, token: Optional[str] = None):
+    """Establishes the SSE Stream channel for the MCP client with token authorization."""
+    if not token:
+        logger.warning("MCP connection attempt rejected: missing token query param")
+        raise HTTPException(status_code=401, detail="API key/token required")
+
+    from backend.auth.apikeys import validate_key
+    info = await validate_key(token)
+    if not info:
+        logger.warning(f"MCP connection attempt rejected: invalid or expired token: {token[:12]}...")
+        raise HTTPException(status_code=401, detail="Invalid token")
+
     connection_id = str(uuid.uuid4())
     queue = asyncio.Queue()
-    connections[connection_id] = queue
+    
+    # Store authenticated context
+    connections[connection_id] = {
+        "queue": queue,
+        "team_id": info.get("team_id", "default"),
+        "agent_id": info.get("agent_id", "default"),
+        "username": info.get("username", "admin")
+    }
+    
+    logger.info(f"MCP Connection authorized for user: {info.get('username')} (ID: {connection_id})")
 
     async def event_generator():
         try:
@@ -58,12 +77,17 @@ async def mcp_post_handler(
     if not connection_id or connection_id not in connections:
         raise HTTPException(status_code=400, detail="Invalid or missing connection_id")
 
+    conn = connections[connection_id]
+    queue = conn["queue"]
+    team_id = conn["team_id"]
+    agent_id = conn["agent_id"]
+
     payload = await request.json()
     req_id = payload.get("id")
     method = payload.get("method")
     params = payload.get("params", {})
 
-    logger.info(f"Received MCP Request - ID: {req_id}, Method: {method}")
+    logger.info(f"Received MCP Request - ID: {req_id}, Method: {method}, User: {conn['username']}")
 
     # Handle standard MCP lifecycle requests
     if method == "initialize":
@@ -81,7 +105,7 @@ async def mcp_post_handler(
                 }
             }
         }
-        await connections[connection_id].put(response)
+        await queue.put(response)
         return {"status": "ok"}
 
     elif method == "tools/list":
@@ -155,7 +179,7 @@ async def mcp_post_handler(
                 ]
             }
         }
-        await connections[connection_id].put(response)
+        await queue.put(response)
         return {"status": "ok"}
 
     elif method == "tools/call":
@@ -164,7 +188,6 @@ async def mcp_post_handler(
         
         # Import core modules dynamically to avoid circular dependencies
         from backend.api.routes import pg_repo, retrieval, registry
-        team_id = "default"  # Default single tenant key, extensible to JWT multi-tenant
 
         result_text = ""
         is_error = False
@@ -249,7 +272,7 @@ async def mcp_post_handler(
                 "isError": is_error
             }
         }
-        await connections[connection_id].put(response)
+        await queue.put(response)
         return {"status": "ok"}
 
     # Catch-all fallback
@@ -261,5 +284,5 @@ async def mcp_post_handler(
             "message": f"Method {method} not supported"
         }
     }
-    await connections[connection_id].put(response)
+    await queue.put(response)
     return {"status": "ok"}
