@@ -148,11 +148,18 @@ async def recommend_routing():
     registry = ModelRegistry.get_instance()
     return registry.recommend_routing()
 
+
 @router.get("/routing/test/{engine_type}")
 async def test_engine(engine_type: str, admin: bool = Depends(require_admin)):
     """Test the currently ACTIVE (deployed) engine routing."""
     registry = ModelRegistry.get_instance()
-    route = registry.load_routing().get(engine_type)
+    
+    if engine_type in ["classifier", "reflection"]:
+        engine_data = registry.load_llm_engine_config()
+        route = engine_data.get(engine_type)
+    else:
+        route = registry.load_routing().get(engine_type)
+        
     if not route:
         return {"status": "error", "error": f"未找到 {engine_type} 的路由配置"}
     
@@ -160,6 +167,7 @@ async def test_engine(engine_type: str, admin: bool = Depends(require_admin)):
     model_id = route["model"]
     
     return await _perform_engine_test(engine_type, provider_name, model_id)
+
 
 @router.post("/routing/test_adhoc")
 async def test_engine_adhoc(data: dict, admin: bool = Depends(require_admin)):
@@ -173,6 +181,7 @@ async def test_engine_adhoc(data: dict, admin: bool = Depends(require_admin)):
         
     return await _perform_engine_test(engine_type, provider_name, model_id)
 
+
 async def _perform_engine_test(engine_type: str, provider_name: str, model_id: str):
     registry = ModelRegistry.get_instance()
     provider = await registry._get_provider(provider_name)
@@ -183,13 +192,14 @@ async def _perform_engine_test(engine_type: str, provider_name: str, model_id: s
     try:
         # Temporarily ensure the model is in enabled_models for the test
         original_models = provider.config.enabled_models.copy()
-        provider.config.enabled_models[engine_type] = model_id
+        role = "llm" if engine_type in ["llm", "classifier", "reflection"] else engine_type
+        provider.config.enabled_models[role] = model_id
         
         response_text = ""
-        if engine_type == "llm":
+        if engine_type in ["llm", "classifier", "reflection"]:
             if not hasattr(provider, 'chat'):
                  return {"status": "error", "error": f"服务商 {provider_name} 不支持逻辑推理 (LLM)"}
-            res = await provider.chat([{"role": "user", "content": "你好，请回复'算力连接成功'并简短打个招呼"}])
+            res = await provider.chat([{"role": "user", "content": "你好，请回复'算力连接成功'并简短打个招呼"}], model=model_id)
             response_text = res
         elif engine_type == "embedding":
             res = await provider.embed(["测试"])

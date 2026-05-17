@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Chart, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { getStats, getThroughput, getHealth, getRouting, testEngine } from '../api/endpoints';
+import { getStats, getThroughput, getHealth, getRouting, testEngine, getLLMEngineConfig } from '../api/endpoints';
 import type { DashboardStats, ServiceHealth } from '../api/types';
 import { PROVIDERS } from '../data/models';
 
@@ -43,13 +43,15 @@ export function DashboardPage() {
   }
 
   const [routing, setRouting] = useState<any>(null);
-  const [testStates, setTestStates] = useState<Record<'llm' | 'embedding' | 'rerank', TestState>>({
-    llm: { testing: false, status: 'idle' },
+  const [llmEngine, setLlmEngine] = useState<any>(null);
+  const [testStates, setTestStates] = useState<Record<'classifier' | 'reflection' | 'embedding' | 'rerank', TestState>>({
+    classifier: { testing: false, status: 'idle' },
+    reflection: { testing: false, status: 'idle' },
     embedding: { testing: false, status: 'idle' },
     rerank: { testing: false, status: 'idle' }
   });
 
-  const runEngineTest = useCallback(async (type: 'llm' | 'embedding' | 'rerank') => {
+  const runEngineTest = useCallback(async (type: 'classifier' | 'reflection' | 'embedding' | 'rerank') => {
     setTestStates(p => ({
       ...p,
       [type]: { testing: true, status: p[type].status, error: p[type].error }
@@ -76,24 +78,27 @@ export function DashboardPage() {
   }, []);
 
   const runAllTests = useCallback(() => {
-    runEngineTest('llm');
+    runEngineTest('classifier');
+    runEngineTest('reflection');
     runEngineTest('embedding');
     runEngineTest('rerank');
   }, [runEngineTest]);
 
   const ld = useCallback(async () => {
     try {
-      const [sr, tp, h, rt] = await Promise.all([
+      const [sr, tp, h, rt, eng] = await Promise.all([
         getStats(),
         getThroughput(),
         getHealth(),
-        getRouting()
+        getRouting(),
+        getLLMEngineConfig()
       ]);
       setStats(sr);
       setTpL(tp.labels);
       setTpV(tp.values);
       setSvc(h.services as ServiceHealth);
       setRouting(rt);
+      setLlmEngine(eng);
       setLog(p => [...p, `[${new Date().toLocaleTimeString()}] ${sr.total} mems | ${sr.active_users} users`].slice(-50));
     } catch {
       /* API unavailable, silent */
@@ -109,11 +114,11 @@ export function DashboardPage() {
   // Auto-run connection diagnostic test on load
   const hasTested = useRef(false);
   useEffect(() => {
-    if (routing && !hasTested.current) {
+    if (routing && llmEngine && !hasTested.current) {
       hasTested.current = true;
       runAllTests();
     }
-  }, [routing, runAllTests]);
+  }, [routing, llmEngine, runAllTests]);
 
   useEffect(() => {
     if (lr.current) lr.current.scrollTop = lr.current.scrollHeight;
@@ -202,19 +207,22 @@ export function DashboardPage() {
                 className='btn btn-teal'
                 style={{ padding: '4px 8px', fontSize: 10 }}
                 onClick={runAllTests}
-                disabled={testStates.llm.testing || testStates.embedding.testing || testStates.rerank.testing}
+                disabled={testStates.classifier.testing || testStates.reflection.testing || testStates.embedding.testing || testStates.rerank.testing}
               >
                 🔄 一键检测
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {(['llm', 'embedding', 'rerank'] as const).map(type => {
-                const route = routing?.[type];
+              {(['classifier', 'reflection', 'embedding', 'rerank'] as const).map(type => {
+                const route = (type === 'classifier' || type === 'reflection') 
+                  ? llmEngine?.config?.[type] 
+                  : routing?.[type];
                 const provName = route ? (PROVIDERS.find(p => p.id === route.provider)?.nameZh || route.provider) : '未配置';
                 const modelName = route ? route.model : '—';
                 const state = testStates[type];
                 const label = {
-                  llm: '大语言模型 (LLM)',
+                  classifier: '内容分类器 (Classifier)',
+                  reflection: '知识整合引擎 (Reflection)',
                   embedding: '向量化模型 (Embedding)',
                   rerank: '重排序模型 (Rerank)'
                 }[type];
