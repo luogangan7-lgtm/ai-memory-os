@@ -289,21 +289,22 @@ return(<div className="card"><div className="card-title">👤 用户画像</div>
 <button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={load}>刷新</button></div>)}
 
 function MyLLMPanel(){
-const[provider,setProvider]=useState("");
-const[apiKey,setApiKey]=useState("");
-const[model,setModel]=useState("");
-const[baseUrl,setBaseUrl]=useState("");
-const[testResult,setTestResult]=useState("");
-const[loading,setLoading]=useState(false);
-useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setProvider(d.provider||"");setModel(d.model||"");setBaseUrl(d.base_url||"")})},[]);
-useEffect(()=>{if(provider&&!baseUrl){var bases={deepseek:"https://api.deepseek.com/v1",alibaba:"https://dashscope.aliyuncs.com/compatible-mode/v1",openai:"https://api.openai.com/v1",zhipu:"https://open.bigmodel.cn/api/paas/v4",moonshot:"https://api.moonshot.cn/v1"};setBaseUrl((bases as Record<string,string>)[provider]||"")}},[provider]);
-async function save(){setLoading(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,api_key:apiKey,model,base_url:baseUrl})});setTestResult("已保存")}catch{setTestResult("保存失败")}setLoading(false)}
-async function test(){setLoading(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:apiKey,base_url:baseUrl,model})});const d=await r.json();setTestResult(d.connected?"✅ 连接成功":"❌ 连接失败: "+(d.error||d.status))}catch{setTestResult("测试失败")}setLoading(false)}
-return(<div className="card"><div className="card-title">🤖 我的 LLM</div><div className="card-desc">配置你自己的大模型，驱动记忆管线（L1/L2/L3）</div>
-<div className="form-group"><label>厂商</label><select value={provider} onChange={e=>setProvider(e.target.value)}><option value="">选择</option><option value="deepseek">DeepSeek</option><option value="alibaba">阿里云百炼</option><option value="openai">OpenAI</option><option value="zhipu">智谱AI</option><option value="moonshot">月之暗面</option></select></div>
-{provider&&<><div className="form-group"><label>API Key</label><input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-..."/></div>
-<div className="form-group"><label>模型</label><input value={model} onChange={e=>setModel(e.target.value)} placeholder="deepseek-chat"/></div>
-<div className="form-group"><label>Base URL</label><input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)}/></div>
-<div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={loading}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={loading||!apiKey}>🔗 测试</button></div></>}
-{testResult&&<div style={{marginTop:12,fontSize:12,color:testResult.includes("✅")?"var(--emerald)":"var(--crimson)"}}>{testResult}</div>}
+const PROVIDERS=[{id:'deepseek',name:'DeepSeek',region:'cn',base:'https://api.deepseek.com/v1',models:['deepseek-v4-pro','deepseek-v4-flash']},{id:'alibaba',name:'阿里云百炼',region:'cn',base:'https://dashscope.aliyuncs.com/compatible-mode/v1',models:['qwen3-max','qwen3.6-plus','qwen3.5-flash','qwq-plus','text-embedding-v4','gte-rerank-v2']},{id:'openai',name:'OpenAI',region:'intl',base:'https://api.openai.com/v1',models:['gpt-5.5','gpt-5.4','gpt-5.4-mini','gpt-5.4-nano','o3','o4-mini']},{id:'zhipu',name:'智谱AI',region:'cn',base:'https://open.bigmodel.cn/api/paas/v4',models:['GLM-5.1','GLM-5-Turbo','GLM-4.7']},{id:'moonshot',name:'月之暗面',region:'cn',base:'https://api.moonshot.cn/v1',models:['kimi-k2.6','kimi-k2.5']},{id:'anthropic',name:'Anthropic',region:'intl',base:'https://api.anthropic.com/v1',models:['claude-opus-4-7','claude-sonnet-4-6','claude-haiku-4-5-20251001']},{id:'google',name:'Google',region:'intl',base:'https://generativelanguage.googleapis.com/v1beta/openai',models:['gemini-3.1-pro-preview','gemini-3-flash','gemini-2.5-pro']},{id:'mistral',name:'Mistral',region:'intl',base:'https://api.mistral.ai/v1',models:['mistral-large-latest','mistral-small-latest']},{id:'cohere',name:'Cohere',region:'intl',base:'https://api.cohere.com/v2',models:['command-a','command-r7b']},{id:'xai',name:'xAI Grok',region:'intl',base:'https://api.x.ai/v1',models:['grok-4','grok-4-mini']},{id:'groq',name:'Groq',region:'intl',base:'https://api.groq.com/openai/v1',models:['llama-4-scout-17b','llama-4-maverick-17b']},{id:'baidu',name:'百度文心',region:'cn',base:'https://qianfan.baidubce.com/v2',models:['ernie-5.0','ernie-4.5-turbo']},{id:'iflytek',name:'讯飞星火',region:'cn',base:'https://spark-api-open.xf-yun.com/v1',models:['spark-4.0-ultra','spark-max']},{id:'bytedance',name:'字节豆包',region:'cn',base:'https://ark.cn-beijing.volces.com/api/v3',models:['doubao-pro-256k','doubao-pro-128k']}];
+
+const[p,setP]=useState("");const[k,setK]=useState("");const[m,setM]=useState("");const[b,setB]=useState("");
+const[r,setR]=useState("");const[l,setL]=useState(false);
+const prov=PROVIDERS.find(x=>x.id===p);
+useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
+useEffect(()=>{if(p&&prov){setB(prov.base)}if(!p){setM("")}},[p]);
+async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
+async function test(){setL(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
+return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+<div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)}>{PROVIDERS.map(x=><option key={x.id} value={x.id}>{x.region==="cn"?"🇨🇳":"🌐"} {x.name}</option>)}</select></div>
+<div className="form-group"><label>模型</label><select value={m} onChange={e=>setM(e.target.value)} disabled={!p}>{prov?.models.map(x=><option key={x} value={x}>{x}</option>)}</select></div></div>
+<div className="form-group"><label>API Key</label><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="sk-..."/></div>
+<div className="form-group"><label>Base URL</label><input value={b} onChange={e=>setB(e.target.value)} style={{fontFamily:"var(--mono)",fontSize:11}}/></div>
+<div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={l}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={l||!k}>🔗 测试连接</button></div>
+{r&&<div style={{marginTop:12,fontSize:12,color:r.includes("✅")?"var(--emerald)":"var(--crimson)"}}>{r}</div>}
 </div>)}
+
