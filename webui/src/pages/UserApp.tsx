@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PROVIDERS as ALL_PROVIDERS } from "../data/models";
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
@@ -176,13 +176,17 @@ function MemoryPanel(){
   const [memories,setMemories]=useState<{title:string;content:string;score:number}[]>([]);
   const [query,setQuery]=useState('');
   const [loading,setLoading]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [uploadMsg,setUploadMsg]=useState('');
 
   const search=useCallback(async()=>{
     if(loading)return;
     setLoading(true);
     try{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = await api.post<any[]>('/memory/search', { query: query || "*", top_k: 20 });
-      setMemories(d.map((x:any)=>({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMemories(d.map((x: any)=>({
         title: x.memory?.title || '无标题',
         content: x.chunk_text || x.memory?.content || '',
         score: x.score || 0
@@ -203,11 +207,23 @@ function MemoryPanel(){
     <div className='card'>
       <div className='card-title'>🧠 我的记忆</div>
       <div style={{display:'flex',gap:8,marginBottom:12}}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} 
-<div><input type="file" id="docUpload" style={{display:"none"}} onChange={async(e)=>{const f=(e.target as HTMLInputElement).files?.[0];if(!f)return;const fd=new FormData();fd.append("file",f);try{await fetch("/memory/upload",{method:"POST",body:fd});search()}catch{}}}/></div>
-placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/>
+        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/>
         <button className='btn btn-teal' onClick={search} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
+        <label className='btn btn-ghost' style={{cursor:'pointer',fontSize:12,padding:'10px 14px',whiteSpace:'nowrap'}}>
+          📄 上传
+          <input type='file' accept='.txt,.md,.pdf' style={{display:'none'}} onChange={async(e)=>{
+            const f=e.target.files?.[0]; if(!f)return;
+            setUploading(true);setUploadMsg('');
+            try{const fd=new FormData();fd.append('file',f);
+              const r=await fetch('/memory/upload',{method:'POST',body:fd});
+              const d=await r.json();
+              setUploadMsg(d.chunks?'✅ OK':'OK');
+              if(d.chunks)setTimeout(()=>search(),500);
+            }catch{setUploadMsg('❌ 失败')}finally{setUploading(false);e.target.value='';}
+          }}/>
+        </label>
       </div>
+      {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('✅')?'var(--emerald)':'var(--crimson)'}}>{uploading?'📤...':uploadMsg}</div>}
       <div style={{maxHeight:400,overflow:'auto'}}>
         {memories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无记忆数据或未搜索到结果</div>}
         {memories.map((m,i)=>(
@@ -256,7 +272,6 @@ const SYSTEM_PROMPTS={standard:'你已连接 AI Memory OS V6.0 长期记忆系�
 
 const[pType,setPType]=useState<'standard'|'concise'|'dev'>('standard');
 
-const fileRef=useRef<HTMLInputElement>(null);
 return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 <div style={{marginBottom:16,display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:connected==='online'?'var(--emerald)':connected==='offline'?'var(--crimson)':'var(--amber)',boxShadow:connected==='online'?'0 0 8px var(--emerald)':connected==='offline'?'0 0 8px var(--crimson)':'none'}}/><span style={{fontSize:13,color:connected==='online'?'var(--emerald)':connected==='offline'?'var(--crimson)':'var(--amber)'}}>{connected==='online'?'已连接到服务器':connected==='offline'?'服务器不可达':'检测中...'}</span></div>
 <div style={{marginBottom:20,padding:"10px 14px",background:"rgba(255,179,71,.08)",borderRadius:10,border:"1px solid rgba(255,179,71,.2)",fontSize:12,color:"var(--amber)"}}>⚠️ 部署到服务器后，请将下方配置中的 <code style={{color:"var(--teal)",fontSize:11}}>localhost:8003</code> 替换为实际服务器地址。<hr style={{borderColor:"var(--border)",margin:"10px 0"}}/></div><div style={{marginBottom:20}}>
@@ -286,7 +301,6 @@ const [persona,setPersona]=useState("");
 const [loading,setLoading]=useState(false);
 async function load(){setLoading(true);try{const r=await fetch("/persona/default");const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
 useEffect(()=>{load()},[]);
-const fileRef=useRef<HTMLInputElement>(null);
 return(<div className="card"><div className="card-title">👤 用户画像</div>
 {loading?<div style={{color:"var(--muted)",fontSize:13}}>生成中...</div>:
 <pre style={{fontSize:13,color:"var(--text)",whiteSpace:"pre-wrap",lineHeight:1.8,fontFamily:"var(--font)"}}>{persona}</pre>}
@@ -301,10 +315,10 @@ const[r,setR]=useState("");const[l,setL]=useState(false);const[stats,setStats]=u
 const prov=PROVIDERS.find(x=>x.id===p);
 useEffect(()=>{fetch("/stats").then(r=>r.json()).then(d=>setStats({mem:d.total_memories||0,tokens:d.total_tokens||0,calls:d.pipeline_calls||0})).catch(()=>{})},[]);
 useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(()=>{if(p&&prov){setB(prov.base)}if(!p){setM("")}},[p]);
 async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
 async function test(){setL(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
-const fileRef=useRef<HTMLInputElement>(null);
 return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
 <div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{PROVIDERS.map(x=><option key={x.id} value={x.id}>{x.region==="cn"?"🇨🇳":"🌐"} {x.name} ({x.models.length} models)</option>)}</select></div>
@@ -318,4 +332,3 @@ return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div cla
 {["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=><div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>{stats.mem}</div></div>)}
 </div></div>
 </div>)}
-

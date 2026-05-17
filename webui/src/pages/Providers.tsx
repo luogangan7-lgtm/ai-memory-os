@@ -66,6 +66,7 @@ export function ModelConfigPage(){
 const[cfgs,setCfgs]=useState<PipeConfig[]>(DEFAULTS);
 const[saved,setSaved]=useState(false);
 const[loading,setLoading]=useState(true);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const[providersData,setProvidersData]=useState<any>({});
 
 useEffect(() => {

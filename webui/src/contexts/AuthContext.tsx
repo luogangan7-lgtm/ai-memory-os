@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isUserApp = window.location.hash.includes("/app") || window.location.pathname.startsWith("/app");
       const data = await apiLogin(id, password, isUserApp);
       
-      const jwtToken = (data as any).access_token || (data as any).token || data.api_key || "";
+      const jwtToken = (data as { access_token?: string; token?: string; api_key?: string }).access_token || (data as { access_token?: string; token?: string; api_key?: string }).token || data.api_key || "";
       const persistentKey = data.api_key || "";
       
       localStorage.setItem("admin_token", jwtToken);

@@ -24,9 +24,6 @@ export const getHealth = () => api.get<HealthResponse>("/health");
 // Dashboard
 export const getStats = () => api.get<DashboardStats>("/stats");
 export const getThroughput = () => api.get<ThroughputPoint>("/stats/throughput");
-export const getRouting = () => api.get<any>("/routing");
-export const getProviders = () => api.get<any>("/providers");
-export const testEngine = (engineType: string) => api.get<any>(`/routing/test/${engineType}`);
 
 // Monitoring
 export const getMonitoring = () => api.get<MonitoringData>("/stats/monitoring");
@@ -109,3 +106,9 @@ export const signup = (username: string, email: string, password: string) =>
     password,
     team_id: username // Auto-assign team_id
   });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const getRouting = () => api.get<any>("/routing");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const getProviders = () => api.get<any>("/providers");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const testEngine = (engineType: string) => api.get<any>(`/routing/test/${engineType}`);
