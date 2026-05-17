@@ -119,6 +119,23 @@ class SQLiteMemoryRepo:
             await db.commit()
         return kw["id"]
 
+    async def add_message(self, team_id: str, agent_id: str, role: str, content: str):
+        """High-level helper to archive a chat message into memory."""
+        import uuid
+        mid = str(uuid.uuid4())
+        return await self.insert(
+            id=mid,
+            team_id=team_id,
+            workspace_id=agent_id or "default",
+            agent_id=agent_id or "default",
+            category="conversation",
+            memory_type="chat",
+            title=f"{role.capitalize()} Message",
+            content=content,
+            source_type="agent" if role == "assistant" else "human",
+            importance=0.5
+        )
+
     async def get(self, mid):
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row

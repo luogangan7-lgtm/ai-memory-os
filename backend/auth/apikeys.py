@@ -29,6 +29,21 @@ async def validate_key(token: str) -> Optional[dict]:
             "username": info.get("username")
         }
     
+    # Fallback: Support authenticating directly via valid JWT access tokens (e.g. from user app web UI login)
+    try:
+        from jose import jwt
+        from backend.services.config import settings
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        team_id = payload.get("team_id", "default")
+        return {
+            "team_id": team_id,
+            "role": payload.get("role", "user"),
+            "agent_id": "mcp-agent",
+            "username": team_id
+        }
+    except Exception:
+        pass
+        
     return None
 
 async def revoke_key(token: str) -> bool:
