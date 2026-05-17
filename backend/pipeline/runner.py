@@ -5,7 +5,8 @@ from backend.memory.pg_repo import MemoryRepo
 
 logger = logging.getLogger("pipeline")
 _repo: MemoryRepo | None = None
-_concurrency = int(os.getenv("PIPELINE_CONCURRENCY", "20"))
+_cpu = os.cpu_count() or 4
+_concurrency = int(os.getenv("PIPELINE_CONCURRENCY", str(_cpu * 4)))
 _team_locks: dict[str, asyncio.Lock] = {}
 
 def init(repo: MemoryRepo):
