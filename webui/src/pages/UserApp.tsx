@@ -17,11 +17,13 @@ function Dashboard() {
         <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>知识库</button>
         <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
         <button className={`btn ${tab === "myllm" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("myllm")}>🤖 我的 LLM</button>
-        <button className={} onClick={() => setTab("persona")}>👤 用户画像</button>
+        <button className={`btn ${tab === "persona" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("persona")}>👤 用户画像</button>
+        <button className={`btn ${tab === "persona" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("persona")}>👤 用户画像</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
       {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
       {tab === "myllm" && <MyLLMPanel />}
+      {tab === "persona" && <PersonaPanel />}
       {tab === "persona" && <PersonaPanel />}
     </div>
   );
@@ -275,6 +277,16 @@ return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 <code style={{display:'block',background:'rgba(0,0,0,.45)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',lineHeight:1.8,maxHeight:200,overflow:'auto',marginBottom:8}}>{SYSTEM_PROMPTS[pType]}</code>
 <button className='btn btn-teal btn-sm' style={{fontSize:11}} onClick={()=>{navigator.clipboard.writeText(SYSTEM_PROMPTS[pType]);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制提示词</button></div>
 </div>)}
+
+function PersonaPanel(){
+const [persona,setPersona]=useState("");
+const [loading,setLoading]=useState(false);
+async function load(){setLoading(true);try{const r=await fetch("/persona/default");const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
+useEffect(()=>{load()},[]);
+return(<div className="card"><div className="card-title">👤 用户画像</div>
+{loading?<div style={{color:"var(--muted)",fontSize:13}}>生成中...</div>:
+<pre style={{fontSize:13,color:"var(--text)",whiteSpace:"pre-wrap",lineHeight:1.8,fontFamily:"var(--font)"}}>{persona}</pre>}
+<button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={load}>刷新</button></div>)}
 
 function MyLLMPanel(){
 const[provider,setProvider]=useState("");
