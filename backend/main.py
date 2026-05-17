@@ -57,6 +57,10 @@ async def lifespan(app: FastAPI):
 
     init_biz(qs, gs, ip, rp, pg, registry)
     init_admin(registry, pg, qs, gs, ms)
+
+    # V6.0 Pipeline init (L0→L3 memory processing)
+    from backend.pipeline.runner import init as init_pipeline
+    init_pipeline(pg)
     refl = ReflectionEngine(pg, gs, registry=registry)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()
