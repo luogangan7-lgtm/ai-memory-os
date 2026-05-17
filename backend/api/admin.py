@@ -62,7 +62,7 @@ async def login_admin(data: dict):
         result = await login(username, password)
         # Wrap result for V6 UI compatibility
         from backend.auth.middleware import create_access_token
-        token = create_access_token(result["team_id"])
+        token = create_access_token(result["team_id"], role=result["role"])
         
         return {
             "api_key": token,
@@ -309,7 +309,13 @@ async def list_tenants():
     for u in users:
         tid = u["team_id"]
         if tid not in teams:
-            teams[tid] = {"team_id": tid, "name": tid, "user_count": 0, "memory_count": 0, "active": True}
+            memory_count = 0
+            if _pg_repo:
+                try:
+                    memory_count = await _pg_repo.count_by_team(tid)
+                except Exception:
+                    pass
+            teams[tid] = {"team_id": tid, "name": tid, "user_count": 0, "memory_count": memory_count, "active": True}
         teams[tid]["user_count"] += 1
     return {"tenants": list(teams.values())}
 

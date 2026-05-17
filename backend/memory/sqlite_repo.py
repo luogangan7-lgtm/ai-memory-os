@@ -164,6 +164,17 @@ class SQLiteMemoryRepo:
                     res.append(d)
                 return res
 
+    async def count_by_team(self, team_id: str, source_type: str = None) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            if source_type:
+                async with db.execute("SELECT count(*) FROM memories WHERE team_id=? AND source_type=?", (team_id, source_type)) as cursor:
+                    res = await cursor.fetchone()
+                    return res[0] if res else 0
+            else:
+                async with db.execute("SELECT count(*) FROM memories WHERE team_id=?", (team_id,)) as cursor:
+                    res = await cursor.fetchone()
+                    return res[0] if res else 0
+
     async def list_audit_logs(self, limit=50):
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
