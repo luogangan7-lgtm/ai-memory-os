@@ -361,8 +361,11 @@ class ModelRegistry:
                     category="conversation",
                     importance=0.5,
                     team_id=team_id,
+                    workspace_id=agent_id or "default",
                     agent_id=agent_id,
-                    memory_id=mid
+                    memory_id=mid,
+                    embedding_fn=self.embed_single
+
                 )
             except Exception as e:
                 print(f"Failed to ingest chat message: {e}")
