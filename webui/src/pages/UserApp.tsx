@@ -203,7 +203,9 @@ function MemoryPanel(){
     <div className='card'>
       <div className='card-title'>🧠 我的记忆</div>
       <div style={{display:'flex',gap:8,marginBottom:12}}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/>
+        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} 
+<div><input type="file" id="docUpload" style={{display:"none"}} onChange={async(e)=>{const f=(e.target as HTMLInputElement).files?.[0];if(!f)return;const fd=new FormData();fd.append("file",f);try{await fetch("/memory/upload",{method:"POST",body:fd});search()}catch{}}}/></div>
+placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/>
         <button className='btn btn-teal' onClick={search} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
       </div>
       <div style={{maxHeight:400,overflow:'auto'}}>
