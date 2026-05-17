@@ -388,8 +388,48 @@ class MemoryRepo:
             return "UPDATE 1" in r
 
     async def delete_account(self, username: str) -> bool:
+        import logging
         async with self.pool.acquire() as conn:
-            r = await conn.execute("DELETE FROM accounts WHERE username=$1", username)
+            # 1. Fetch the user's team_id
+            row = await conn.fetchrow("SELECT team_id FROM accounts WHERE username=$1", username)
+            if not row:
+                return False
+            team_id = row["team_id"]
+            
+            # 2. Transactionally cascade-delete all PG table relationships
+            async with conn.transaction():
+                await conn.execute("DELETE FROM user_provider_configs WHERE user_id=$1", username)
+                await conn.execute("DELETE FROM user_token_usage WHERE user_id=$1", username)
+                await conn.execute("DELETE FROM audit_log WHERE agent_id=$1", username)
+                await conn.execute("DELETE FROM memories WHERE team_id=$1", team_id)
+                r = await conn.execute("DELETE FROM accounts WHERE username=$1", username)
+                
+            # 3. Clean up the physical vector store collection or data entries (Qdrant or LanceDB)
+            try:
+                from backend.manager.registry import ModelRegistry
+                registry = ModelRegistry.get_instance()
+                if registry and registry.qs:
+                    qs = registry.qs
+                    if hasattr(qs, "client") and hasattr(qs.client, "delete_collection"):
+                        # Qdrant: delete the entire per-team isolated vector collection
+                        collection_name = f"memory_team_{team_id}"
+                        try:
+                            qs.client.delete_collection(collection_name)
+                            logging.info(f"Successfully deleted Qdrant vector collection: {collection_name}")
+                        except Exception as e:
+                            logging.warning(f"Could not delete Qdrant collection {collection_name}: {e}")
+                    elif hasattr(qs, "db") and hasattr(qs, "table_name"):
+                        # LanceDB: delete all records belonging to this team_id
+                        try:
+                            if qs.table_name in qs.db.table_names():
+                                table = qs.db.open_table(qs.table_name)
+                                table.delete(f"team_id = '{team_id}'")
+                                logging.info(f"Successfully cleaned up LanceDB vector records for team: {team_id}")
+                        except Exception as e:
+                            logging.warning(f"Could not delete LanceDB records for team {team_id}: {e}")
+            except Exception as e:
+                logging.warning(f"Failed to clean up vector store during user deletion: {e}")
+                
             return "DELETE 1" in r
 
     async def close(self):
