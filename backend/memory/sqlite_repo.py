@@ -256,9 +256,50 @@ class SQLiteMemoryRepo:
             return cursor.rowcount > 0
 
     async def delete_account(self, username: str) -> bool:
+        import logging
         async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # 1. Fetch the user's team_id
+            async with db.execute("SELECT team_id FROM accounts WHERE username=?", (username,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return False
+                team_id = row["team_id"]
+                
+            # 2. Delete all SQLite database table relationships
+            await db.execute("DELETE FROM user_provider_configs WHERE user_id=?", (username,))
+            await db.execute("DELETE FROM user_token_usage WHERE user_id=?", (username,))
+            await db.execute("DELETE FROM audit_log WHERE agent_id=?", (username,))
+            await db.execute("DELETE FROM memories WHERE team_id=?", (team_id,))
             cursor = await db.execute("DELETE FROM accounts WHERE username=?", (username,))
             await db.commit()
+            
+            # 3. Clean up the physical vector store collection or data entries (Qdrant or LanceDB)
+            try:
+                from backend.manager.registry import ModelRegistry
+                registry = ModelRegistry.get_instance()
+                if registry and registry.qs:
+                    qs = registry.qs
+                    if hasattr(qs, "client") and hasattr(qs.client, "delete_collection"):
+                        # Qdrant: delete the entire per-team isolated vector collection
+                        collection_name = f"memory_team_{team_id}"
+                        try:
+                            qs.client.delete_collection(collection_name)
+                            logging.info(f"Successfully deleted Qdrant vector collection: {collection_name}")
+                        except Exception as e:
+                            logging.warning(f"Could not delete Qdrant collection {collection_name}: {e}")
+                    elif hasattr(qs, "db") and hasattr(qs, "table_name"):
+                        # LanceDB: delete all records belonging to this team_id
+                        try:
+                            if qs.table_name in qs.db.table_names():
+                                table = qs.db.open_table(qs.table_name)
+                                table.delete(f"team_id = '{team_id}'")
+                                logging.info(f"Successfully cleaned up LanceDB vector records for team: {team_id}")
+                        except Exception as e:
+                            logging.warning(f"Could not delete LanceDB records for team {team_id}: {e}")
+            except Exception as e:
+                logging.warning(f"Failed to clean up vector store during user deletion: {e}")
+                
             return cursor.rowcount > 0
 
     async def list_all(self, limit=50, query=None):
