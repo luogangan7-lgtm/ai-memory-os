@@ -20,6 +20,7 @@ class ModelCapability(str, Enum):
     RERANK = "rerank"
     CHAT = "chat"
     VISION = "vision"
+    AUDIO = "audio"
 
 
 @dataclass

@@ -26,9 +26,17 @@ class ZhipuProvider(BaseProvider):
     async def discover_models(self) -> list[ModelInfo]:
         return [
             ModelInfo(id="embedding-3", display_name="Embedding-3", provider="zhipu",
-                      capabilities=[ModelCapability.EMBED], embedding_dim=1024),
-            ModelInfo(id="glm-4-flash", display_name="GLM-4 Flash", provider="zhipu",
-                      capabilities=[ModelCapability.CHAT])
+                      capabilities=[ModelCapability.EMBED], embedding_dim=1024, pricing_per_1m_tokens=0.1),
+            ModelInfo(id="glm-5.1", display_name="GLM-5.1", provider="zhipu",
+                      capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=1.0),
+            ModelInfo(id="glm-5-turbo", display_name="GLM-5 Turbo", provider="zhipu",
+                      capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=0.5),
+            ModelInfo(id="glm-5", display_name="GLM-5", provider="zhipu",
+                      capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=2.0),
+            ModelInfo(id="glm-4.7", display_name="GLM-4.7", provider="zhipu",
+                      capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=0.0),
+            ModelInfo(id="glm-4-rerank", display_name="GLM-4 Rerank", provider="zhipu",
+                      capabilities=[ModelCapability.RERANK], context_window=8192, pricing_per_1m_tokens=0.5),
         ]
 
     async def embed(self, texts: list[str]) -> list[list[float]]:

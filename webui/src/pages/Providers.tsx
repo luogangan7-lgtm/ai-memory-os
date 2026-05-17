@@ -16,7 +16,7 @@ const LABELS: Record<string,{name:string;desc:string;icon:string}> = {
   rerank:{name:'重排序模型',desc:'对检索结果进行精排，提升准确率',icon:'🎯'},
 };
 
-function filterProviders(purpose:string){return PROVIDERS.filter(p=>{if(purpose==='embedding'||purpose==='rerank')return p.features.includes('Embedding')||p.features.includes('Rerank');return p.features.includes('Chat')||p.features.includes('Reasoning')})}
+function filterProviders(purpose:string){return PROVIDERS.filter(p=>{if(purpose==='embedding')return p.features.includes('Embedding');if(purpose==='rerank')return p.features.includes('Rerank');return p.features.includes('Chat')||p.features.includes('Reasoning')})}
 
 function PipeCard({cfg,onChange}:{cfg:PipeConfig;onChange:(c:PipeConfig)=>void}){
 const meta=LABELS[cfg.purpose]||{name:cfg.purpose,desc:'',icon:'⚙️'};
@@ -38,9 +38,24 @@ try{
 
 return(<div className='pipe-card'>
 <div className='pipe-header'><span className='pipe-icon'>{meta.icon}</span><div><div className='pipe-name'>{meta.name}</div><div className='pipe-desc'>{meta.desc}</div></div><div className={`pipe-status ${status}`}>{status==='ok'?'✅ 已连接':status==='err'?'❌ 连接失败':''}</div></div>
-<div className='pipe-body'><div className='pipe-row'>
-<label>模型厂商</label><select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})}>{filterProviders(cfg.purpose).map(p=><option key={p.id} value={p.id}>{p.region==='cn'?'🇨🇳':p.region==='local'?'💻':'🌐'} {p.name}</option>)}</select></div>
-<div className='pipe-row'><label>模型</label><select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})}>{prov?.models.filter(m=>{if(cfg.purpose==='embedding')return m.type==='embedding';if(cfg.purpose==='rerank')return m.type==='rerank';return m.type==='chat'||m.type==='reasoning'}).map(m=><option key={m.id} value={m.id}>{m.name}{m.recommended?' ★':''}{m.price?' · '+m.price:''}{m.ctx?' · '+(m.ctx/1000).toFixed(0)+'k':''}</option>)}</select></div>
+<div className='pipe-body'>
+<div className='pipe-row'>
+<label>模型厂商</label>
+<select value={cfg.provider} onChange={e=>onChange({...cfg,provider:e.target.value,model:''})}>
+  <optgroup label="🇨🇳 中国厂商">
+    {filterProviders(cfg.purpose).filter(p=>p.region==='cn').map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+  </optgroup>
+  <optgroup label="🌐 海外厂商">
+    {filterProviders(cfg.purpose).filter(p=>p.region==='intl').map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+  </optgroup>
+  {filterProviders(cfg.purpose).filter(p=>p.region==='local').length > 0 && (
+    <optgroup label="💻 本地模型">
+      {filterProviders(cfg.purpose).filter(p=>p.region==='local').map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+    </optgroup>
+  )}
+</select>
+</div>
+<div className='pipe-row'><label>模型</label><select value={cfg.model} onChange={e=>onChange({...cfg,model:e.target.value})}>{prov?.models.filter(m=>{if(cfg.purpose==='embedding')return m.type==='embedding';if(cfg.purpose==='rerank')return m.type==='rerank';return m.type==='chat'||m.type==='reasoning'}).sort((a,b)=>{if(a.recommended!==b.recommended)return a.recommended?-1:1;return a.name.localeCompare(b.name)}).map(m=><option key={m.id} value={m.id}>{m.recommended?'★ ':''}{m.name}{m.price?' ('+m.price+')':''}</option>)}</select></div>
 <div className='pipe-row'><label>API Key</label><input type='password' value={cfg.apiKey} onChange={e=>onChange({...cfg,apiKey:e.target.value})} placeholder='sk-...'/></div>
 <div className='pipe-row' style={{justifyContent:'flex-end'}}><button className='btn btn-teal' onClick={test} disabled={testing||!cfg.apiKey}>{testing?'测试中...':'🔗 测试连接'}</button></div></div></div>)}
 
@@ -81,7 +96,7 @@ return(<div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))',gap:20,marginBottom:30}}>
 {cfgs.map((cfg,i)=><PipeCard key={i} cfg={cfg} onChange={(c)=>{const n=[...cfgs];n[i]=c;setCfgs(n)}}/>)}
 </div>
-<div className="card" style={{marginTop:20,marginBottom:20}}><div className="card-title">💡 推荐配置组合</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>{recs.map(r=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.m} className="card" style={{padding:16,cursor:"pointer",borderColor:"var(--border)"}} onClick={()=>{const n=[...cfgs];const idx=n.findIndex(c=>c.purpose===n[idx]?.purpose||"classifier");if(idx>=0)n[idx]={provider:r.p,model:r.m,apiKey:n[idx]?.apiKey||"",purpose:n[idx]?.purpose||"classifier"};setCfgs(n)}}><div style={{fontSize:12,color:"var(--teal)",marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--mono)"}}>{r.m}</div></div>)})}</div></div><div className="card" style={{marginTop:20}}><div className="card-title">📋 可用模型清单</div>
+<div className="card" style={{marginTop:20,marginBottom:20}}><div className="card-title">💡 推荐配置组合</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>{recs.map((r,i)=>{const prov=PROVIDERS.find(p=>p.id===r.p);return(<div key={r.p+r.m+i} className="card" style={{padding:16,cursor:"pointer",borderColor:"var(--border)"}} onClick={()=>{const n=[...cfgs];const idx=n.findIndex(c=>c.purpose===n[idx]?.purpose||"classifier");if(idx>=0)n[idx]={provider:r.p,model:r.m,apiKey:n[idx]?.apiKey||"",purpose:n[idx]?.purpose||"classifier"};setCfgs(n)}}><div style={{fontSize:12,color:"var(--teal)",marginBottom:4}}>{r.label}</div><div style={{fontSize:13,fontWeight:600}}>{prov?.name||r.p}</div><div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--mono)"}}>{r.m}</div></div>)})}</div></div><div className="card" style={{marginTop:20}}><div className="card-title">📋 可用模型清单</div>
 {/* Provider lists... */}
 <div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🇨🇳 中国厂商 ({cn.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{cn.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>
 <div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,marginBottom:10}}>🌐 海外厂商 ({intl.length})</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>{intl.map(p=><ProviderListItem key={p.id} p={p}/>)}</div></div>

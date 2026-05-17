@@ -14,6 +14,9 @@ import { GraphPage } from "./pages/Graph";
 import { ConfigPage } from "./pages/Config";
 
 function AdminRoutes() {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <LoginOverlay />;
+  
   return (
     <Layout>
       <Routes>
@@ -35,7 +38,7 @@ function AdminRoutes() {
 function AppShell() {
   const { isLoading } = useAuth();
   if (isLoading) return <div className="loading-screen">LOADING...</div>;
-  const isUser = window.location.pathname.startsWith("/app");
+  const isUser = window.location.pathname.startsWith("/app") || window.location.hostname.includes("app.");
   return (
     <Routes>
       <Route path="*" element={isUser ? <LoginOverlay /> : <AdminRoutes />} />

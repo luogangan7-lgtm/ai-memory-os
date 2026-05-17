@@ -10,22 +10,22 @@ DEEPSEEK_BASE = "https://api.deepseek.com/v1"
 # Static model catalog with rich metadata
 DEEPSEEK_CATALOG = [
     ModelInfo(
-        id="deepseek-chat",
+        id="deepseek-v4-flash",
         display_name="DeepSeek V4 (Chat)",
         provider="deepseek",
         capabilities=[ModelCapability.CHAT],
         context_window=65536,
         description="DeepSeek V4 通用旗舰模型，综合推理能力强，成本极低",
-        pricing_per_1m_tokens=0.27,
+        pricing_per_1m_tokens=1.0,
     ),
     ModelInfo(
-        id="deepseek-reasoner",
+        id="deepseek-v4-pro",
         display_name="DeepSeek V4 Reasoner",
         provider="deepseek",
         capabilities=[ModelCapability.CHAT],
         context_window=65536,
         description="V4 满血推理模型，数学/代码/逻辑链推理全球顶级，适合复杂分析任务",
-        pricing_per_1m_tokens=0.55,
+        pricing_per_1m_tokens=4.0,
     ),
 ]
 

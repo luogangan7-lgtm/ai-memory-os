@@ -7,9 +7,13 @@ export const TOOLS = [
 ];
 
 function fmtSearch(d) {
-  const r = d?.results || d?.memories || [];
+  const r = Array.isArray(d) ? d : (d?.results || d?.memories || []);
   if (!r.length) return 'No memories found.';
-  return r.map((m, i) => `[${i+1}] ${m.title}\n${m.content?.substring(0,500)}\nID: ${m.id||m.memory_id}${m.score?` [${(m.score*100).toFixed(0)}%]`:''}`).join('\n\n---\n\n');
+  return r.map((item, i) => {
+    const m = item.memory || item;
+    const score = item.score !== undefined ? item.score : m.score;
+    return `[${i+1}] ${m.title || 'Untitled'}\n${(m.content || item.chunk_text || '').substring(0,500)}\nID: ${m.id || item.id || m.memory_id || 'N/A'}${score ? ` [${(score*100).toFixed(0)}%]` : ''}`;
+  }).join('\n\n---\n\n');
 }
 function fmtStore(d) { return `Stored. ID: ${d?.id||d?.memory_id||'N/A'}`; }
 function fmtList(d) { const m = d?.memories||[]; return m.length ? m.map((x,i) => `[${i+1}] ${x.title} | ID:${x.id}`).join('\n') : 'Empty.'; }

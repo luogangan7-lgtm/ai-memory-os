@@ -3,10 +3,15 @@ from __future__ import annotations
 from minio import Minio
 from minio.error import S3Error
 
+from backend.services.config import settings
+
 BUCKET = "memory-files"
 
 class MinIOStore:
-    def __init__(self, endpoint="localhost:9000", access_key="admin", secret_key="password"):
+    def __init__(self, endpoint=None, access_key=None, secret_key=None):
+        endpoint = endpoint or settings.minio_endpoint
+        access_key = access_key or settings.minio_access_key
+        secret_key = secret_key or settings.minio_secret_key
         self.client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=False)
         self._ensure_bucket()
 

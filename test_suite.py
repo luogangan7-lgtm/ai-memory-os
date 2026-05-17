@@ -32,7 +32,8 @@ print("=== 功能测试 ===")
 T("root endpoint", R("GET","/").status_code == 200)
 
 # Register
-r = R("POST","/admin/auth/register", json={"username":f"tester_{int(time.time())}","password":"test123","team_id":"testteam","agent_id":"tester"})
+USER = f"tester_{int(time.time())}"
+r = R("POST","/admin/auth/register", json={"username":USER,"password":"test123","team_id":"testteam","agent_id":"tester"})
 T("register", r.status_code == 200)
 KEY = r.json().get("api_key","") if r.status_code == 200 else ""
 if not KEY:
@@ -41,8 +42,8 @@ if not KEY:
 AH = {"Authorization": f"Bearer {KEY}"}
 
 # Login
-T("login correct", R("POST","/admin/auth/login", json={"username":f"tester_{int(time.time())}","password":"test123"}).status_code == 200)
-T("login wrong pw", R("POST","/admin/auth/login", json={"username":f"tester_{int(time.time())}","password":"wrong"}).status_code == 401)
+T("login correct", R("POST","/admin/auth/login", json={"username":USER,"password":"test123"}).status_code == 200)
+T("login wrong pw", R("POST","/admin/auth/login", json={"username":USER,"password":"wrong"}).status_code == 401)
 
 # Store
 time.sleep(1.5)
@@ -78,7 +79,7 @@ T("metrics", R("GET","/metrics").status_code == 200)
 
 print("\n=== 安全测试 ===")
 T("admin needs auth", R("GET","/admin/providers").status_code == 401)
-T("dashboard needs auth", R("GET","/admin/dashboard").status_code == 401)
+T("dashboard needs auth", R("GET","/admin/stats").status_code == 401)
 T("search needs auth", R("POST","/memory/search", json={"query":"test"}).status_code == 401)
 T("store needs auth", R("POST","/memory/store", json={"title":"x","content":"x"}).status_code == 401)
 T("fake token rejected", R("GET","/admin/providers", headers={"Authorization":"Bearer fake123"}).status_code == 401)

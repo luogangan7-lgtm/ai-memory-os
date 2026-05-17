@@ -25,6 +25,30 @@ ALIBABA_MODELS = {
         description="100+ languages, cross-encoder reranker",
         pricing_per_1m_tokens=0.50,
     ),
+    "qwen3.6-flash": ModelInfo(
+        id="qwen3.6-flash", display_name="Qwen3.6 Flash",
+        provider="alibaba", capabilities=[ModelCapability.CHAT],
+        context_window=128000, description="通义千问极速版",
+        pricing_per_1m_tokens=0.2,
+    ),
+    "qwen3.6-plus": ModelInfo(
+        id="qwen3.6-plus", display_name="Qwen3.6 Plus",
+        provider="alibaba", capabilities=[ModelCapability.CHAT],
+        context_window=128000, description="通义千问主力版",
+        pricing_per_1m_tokens=0.8,
+    ),
+    "qwen3.6-max-preview": ModelInfo(
+        id="qwen3.6-max-preview", display_name="Qwen3.6 Max Preview",
+        provider="alibaba", capabilities=[ModelCapability.CHAT],
+        context_window=32000, description="通义千问旗舰版",
+        pricing_per_1m_tokens=2.5,
+    ),
+    "qwen3.5-omni-plus": ModelInfo(
+        id="qwen3.5-omni-plus", display_name="Qwen3.5 Omni Plus",
+        provider="alibaba", capabilities=[ModelCapability.CHAT],
+        context_window=32000, description="全能模型",
+        pricing_per_1m_tokens=0.5,
+    ),
 }
 
 
@@ -56,6 +80,7 @@ class AlibabaProvider(BaseProvider):
         model_id = self.config.enabled_models.get({
             ModelCapability.EMBED: "embedding",
             ModelCapability.RERANK: "rerank",
+            ModelCapability.CHAT: "llm",
         }.get(capability, ""), "")
         if model_id not in ALIBABA_MODELS:
             return False
