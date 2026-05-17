@@ -17,10 +17,12 @@ function Dashboard() {
         <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>知识库</button>
         <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
         <button className={`btn ${tab === "myllm" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("myllm")}>🤖 我的 LLM</button>
+        <button className={} onClick={() => setTab("persona")}>👤 用户画像</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
       {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
       {tab === "myllm" && <MyLLMPanel />}
+      {tab === "persona" && <PersonaPanel />}
     </div>
   );
 }
