@@ -1,11 +1,11 @@
 """Pipeline runner with queue-based high-concurrency support."""
 from __future__ import annotations
-import asyncio, logging
+import asyncio, logging, os
 from backend.memory.pg_repo import MemoryRepo
 
 logger = logging.getLogger("pipeline")
 _repo: MemoryRepo | None = None
-_semaphore = asyncio.Semaphore(5)  # Max 5 concurrent LLM calls total
+_concurrency = int(os.getenv("PIPELINE_CONCURRENCY", "20"))
 _team_locks: dict[str, asyncio.Lock] = {}
 
 def init(repo: MemoryRepo):
@@ -16,65 +16,59 @@ def init(repo: MemoryRepo):
     import backend.pipeline.l3_persona as l3; l3.init(repo)
 
 async def enqueue(team_id: str, session_id: str, messages: list[dict]) -> str | None:
-    """Enqueue conversation for pipeline processing. Returns queue_id."""
     if _repo is None: return None
-    import uuid, json
+    import uuid
     qid = str(uuid.uuid4())
     await _repo.pool.execute(
         """INSERT INTO pipeline_queue (id, team_id, layer, input_ids, status)
-           VALUES ($1, $2, 'L1', $3::uuid[], 'pending')""",
-        qid, team_id, [qid])
+           VALUES ($1, $2, 'L1', $3::uuid[], 'pending')""", qid, team_id, [qid])
     from backend.pipeline.l0_recorder import record_conversation
     cid = await record_conversation(team_id, session_id, messages)
     if cid:
-        await _repo.pool.execute(
-            "UPDATE pipeline_queue SET input_ids=$1 WHERE id=$2",
-            [cid], qid)
+        await _repo.pool.execute("UPDATE pipeline_queue SET input_ids=$1 WHERE id=$2", [cid], qid)
     return qid
 
+async def _process_one(row):
+    team, qid = row["team_id"], row["id"]
+    await _repo.pool.execute("UPDATE pipeline_queue SET status='processing' WHERE id=$1", qid)
+    lock = _team_locks.setdefault(team, asyncio.Lock())
+    async with lock:
+        try:
+            cids = row["input_ids"] or []
+            if cids:
+                from backend.pipeline.l1_extractor import extract_from_conversation, store_facts
+                facts = await extract_from_conversation(cids[0], team)
+                if facts:
+                    aids = await store_facts(team, facts, "")
+                    from backend.pipeline.l2_synthesizer import synthesize
+                    from backend.pipeline.l3_persona import generate
+                    asyncio.create_task(synthesize(team, aids))
+                    asyncio.create_task(generate(team))
+            await _repo.pool.execute("UPDATE pipeline_queue SET status='done', finished_at=NOW() WHERE id=$1", qid)
+        except Exception as e:
+            retries = (row["retry_count"] or 0) + 1
+            if retries <= 3:
+                await _repo.pool.execute(
+                    "UPDATE pipeline_queue SET status='pending', retry_count=$1, error_msg=$2 WHERE id=$3",
+                    retries, str(e)[:500], qid)
+            else:
+                await _repo.pool.execute(
+                    "UPDATE pipeline_queue SET status='failed', error_msg=$1, finished_at=NOW() WHERE id=$2",
+                    str(e)[:500], qid)
+
 async def process_queue():
-    """Background worker: poll queue and process pending tasks."""
+    """Background worker: parallel processing of pending tasks."""
     if _repo is None: return
     while True:
         try:
-            row = await _repo.pool.fetchrow(
-                "SELECT * FROM pipeline_queue WHERE status='pending' ORDER BY scheduled_at LIMIT 1")
-            if not row:
-                await asyncio.sleep(5); continue
-            
-            team = row["team_id"]; qid = row["id"]
-            await _repo.pool.execute(
-                "UPDATE pipeline_queue SET status='processing' WHERE id=$1", qid)
-            
-            lock = _team_locks.setdefault(team, asyncio.Lock())
-            async with lock:
-                async with _semaphore:
-                    try:
-                        cids = row["input_ids"] or []
-                        if cids:
-                            from backend.pipeline.l1_extractor import extract_from_conversation, store_facts
-                            facts = await extract_from_conversation(cids[0], team)
-                            if facts:
-                                aids = await store_facts(team, facts, "")
-                                from backend.pipeline.l2_synthesizer import synthesize
-                                from backend.pipeline.l3_persona import generate
-                                asyncio.create_task(synthesize(team, aids))
-                                asyncio.create_task(generate(team))
-                        
-                        await _repo.pool.execute(
-                            "UPDATE pipeline_queue SET status='done', finished_at=NOW() WHERE id=$1", qid)
-                    except Exception as e:
-                        retries = (row["retry_count"] or 0) + 1
-                        if retries <= 3:
-                            await _repo.pool.execute(
-                                "UPDATE pipeline_queue SET status='pending', retry_count=$1, error_msg=$2 WHERE id=$3",
-                                retries, str(e)[:500], qid)
-                        else:
-                            await _repo.pool.execute(
-                                "UPDATE pipeline_queue SET status='failed', error_msg=$1, finished_at=NOW() WHERE id=$2",
-                                str(e)[:500], qid)
+            rows = await _repo.pool.fetch(
+                "SELECT * FROM pipeline_queue WHERE status='pending' ORDER BY scheduled_at LIMIT $1", _concurrency)
+            if not rows:
+                await asyncio.sleep(3); continue
+            tasks = [asyncio.create_task(_process_one(r)) for r in rows]
+            await asyncio.gather(*tasks, return_exceptions=True)
         except Exception:
-            await asyncio.sleep(10)
+            await asyncio.sleep(5)
 
 _background_task: asyncio.Task | None = None
 
@@ -82,4 +76,4 @@ def start_worker():
     global _background_task
     if _background_task is None or _background_task.done():
         _background_task = asyncio.create_task(process_queue())
-        logger.info("Pipeline worker started (5 concurrent, per-team serialized)")
+        logger.info(f"Pipeline worker started (up to {_concurrency} concurrent, per-team serialized)")
