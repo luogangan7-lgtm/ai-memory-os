@@ -18,12 +18,10 @@ function Dashboard() {
         <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
         <button className={`btn ${tab === "myllm" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("myllm")}>🤖 我的 LLM</button>
         <button className={`btn ${tab === "persona" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("persona")}>👤 用户画像</button>
-        <button className={`btn ${tab === "persona" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("persona")}>👤 用户画像</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
       {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
       {tab === "myllm" && <MyLLMPanel />}
-      {tab === "persona" && <PersonaPanel />}
       {tab === "persona" && <PersonaPanel />}
     </div>
   );
@@ -300,10 +298,10 @@ async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",head
 async function test(){setL(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
 return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-<div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)}>{PROVIDERS.map(x=><option key={x.id} value={x.id}>{x.region==="cn"?"🇨🇳":"🌐"} {x.name}</option>)}</select></div>
-<div className="form-group"><label>模型</label><select value={m} onChange={e=>setM(e.target.value)} disabled={!p}>{prov?.models.map(x=><option key={x} value={x}>{x}</option>)}</select></div></div>
-<div className="form-group"><label>API Key</label><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="sk-..."/></div>
-<div className="form-group"><label>Base URL</label><input value={b} onChange={e=>setB(e.target.value)} style={{fontFamily:"var(--mono)",fontSize:11}}/></div>
+<div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{PROVIDERS.map(x=><option key={x.id} value={x.id}>{x.region==="cn"?"🇨🇳":"🌐"} {x.name} ({x.models.length} models)</option>)}</select></div>
+<div className="form-group"><label>模型</label><select value={m} onChange={e=>setM(e.target.value)} disabled={!p} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{prov?.models.map(x=><option key={x} value={x}>{x}</option>)}</select></div></div>
+<div className="form-group"><label>API Key</label><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="sk-..." style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",fontSize:13}}/></div>
+<div className="form-group"><label>Base URL</label><input value={b} onChange={e=>setB(e.target.value)} style={{fontFamily:"var(--mono)",fontSize:12,background:"rgba(0,0,0,.3)",color:"var(--teal)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px"}}/></div>
 <div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={l}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={l||!k}>🔗 测试连接</button></div>
 {r&&<div style={{marginTop:12,fontSize:12,color:r.includes("✅")?"var(--emerald)":"var(--crimson)"}}>{r}</div>}
 </div>)}
