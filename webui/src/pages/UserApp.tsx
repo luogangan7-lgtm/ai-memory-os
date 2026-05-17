@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
 
 function Dashboard() {
-  const [tab, setTab] = useState<"memory" | "connect">("memory");
+  const [tab, setTab] = useState<"memory" | "connect" | "persona">("memory");
   const { logout, token, mcpKey } = useAuth();
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
