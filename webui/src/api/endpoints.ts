@@ -24,6 +24,9 @@ export const getHealth = () => api.get<HealthResponse>("/health");
 // Dashboard
 export const getStats = () => api.get<DashboardStats>("/stats");
 export const getThroughput = () => api.get<ThroughputPoint>("/stats/throughput");
+export const getRouting = () => api.get<any>("/routing");
+export const getProviders = () => api.get<any>("/providers");
+export const testEngine = (engineType: string) => api.get<any>(`/routing/test/${engineType}`);
 
 // Monitoring
 export const getMonitoring = () => api.get<MonitoringData>("/stats/monitoring");
