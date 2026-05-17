@@ -1,30 +1,38 @@
-export interface ModelInfo{id:string;name:string;size?:string;type:'chat'|'embedding'|'rerank'|'vision'|'reasoning';recommended?:boolean;ctx?:number;price?:string}
+export interface ModelInfo{id:string;name:string;size?:string;type:'chat'|'embedding'|'rerank'|'vision'|'reasoning'|'audio';recommended?:boolean;ctx?:number;price?:string}
 export interface ProviderInfo{id:string;name:string;nameZh:string;region:'cn'|'intl'|'local';baseUrl:string;models:ModelInfo[];features:string[]}
 export const PROVIDERS:ProviderInfo[]=[
 {id:'deepseek',name:'DeepSeek',nameZh:'深度求索',region:'cn',baseUrl:'https://api.deepseek.com/v1',features:['Chat','Reasoning'],models:[
-{id:'deepseek-chat',name:'DeepSeek-V3',type:'chat',recommended:true,ctx:64000,price:'¥1/¥2/M'},
-{id:'deepseek-reasoner',name:'DeepSeek-R1',type:'chat',ctx:64000,price:'¥2/¥4/M'},
+{id:'deepseek-v4-flash',name:'DeepSeek V4 Flash',type:'chat',recommended:true,ctx:65536,price:'¥1.0/M'},
+{id:'deepseek-v4-pro',name:'DeepSeek V4 Pro',type:'chat',ctx:65536,price:'¥4.0/M'},
 ]},
 {id:'alibaba',name:'Alibaba Cloud',nameZh:'阿里云百炼',region:'cn',baseUrl:'https://dashscope.aliyuncs.com/compatible-mode/v1',features:['Chat','Vision','Embedding','Rerank','Audio','Reasoning'],models:[
-{id:'qwen-plus',name:'Qwen-Plus',type:'chat',recommended:true,ctx:131072,price:'¥0.8/¥2/M'},
-{id:'qwen-turbo',name:'Qwen-Turbo',type:'chat',ctx:131072,price:'¥0.3/¥1/M'},
-{id:'qwen-max',name:'Qwen-Max',type:'chat',ctx:131072,price:'¥2/¥6/M'},
-{id:'text-embedding-v3',name:'Text-Embedding-V3',type:'embedding',recommended:true,price:'¥0.07/M'},
-{id:'gte-rerank',name:'GTE-Rerank',type:'rerank',recommended:true,price:'¥0.3/M'},
+{id:'qwen3.6-plus',name:'Qwen3.6 Plus',type:'chat',recommended:true,ctx:128000,price:'¥0.8/M'},
+{id:'qwen3.6-flash',name:'Qwen3.6 Flash',type:'chat',ctx:128000,price:'¥0.2/M'},
+{id:'qwen3.6-max-preview',name:'Qwen3.6 Max Preview',type:'chat',ctx:32000,price:'¥2.5/M'},
+{id:'qwen3.5-omni-plus',name:'Qwen3.5 Omni Plus',type:'chat',ctx:32000,price:'¥0.5/M'},
+{id:'text-embedding-v3',name:'Text-Embedding-V3',type:'embedding',recommended:true,price:'¥0.70/M'},
+{id:'qwen3-rerank',name:'Qwen3-Rerank',type:'rerank',recommended:true,price:'¥0.5/M'},
 ]},
-{id:'zhipu',name:'Zhipu AI',nameZh:'智谱AI',region:'cn',baseUrl:'https://open.bigmodel.cn/api/paas/v4',features:['Chat','Vision','Embedding','Reasoning'],models:[
-{id:'glm-4-flash',name:'GLM-4 Flash',type:'chat',recommended:true,ctx:128000,price:'¥0/M'},
-{id:'glm-4',name:'GLM-4',type:'chat',ctx:128000,price:'¥2/¥8/M'},
-{id:'embedding-2',name:'Embedding-2',type:'embedding',recommended:true},
+{id:'zhipu',name:'Zhipu AI',nameZh:'智谱AI',region:'cn',baseUrl:'https://open.bigmodel.cn/api/paas/v4',features:['Chat','Vision','Embedding','Reasoning','Rerank'],models:[
+{id:'glm-5',name:'GLM-5',type:'chat',recommended:true,ctx:128000,price:'¥2.0/M'},
+{id:'glm-4.7',name:'GLM-4.7',type:'chat',ctx:128000,price:'¥0/M'},
+{id:'glm-5-turbo',name:'GLM-5 Turbo',type:'chat',ctx:128000,price:'¥0.5/M'},
+{id:'glm-5.1',name:'GLM-5.1',type:'chat',ctx:128000,price:'¥1.0/M'},
+{id:'embedding-3',name:'Embedding-3',type:'embedding',recommended:true},
+{id:'glm-4-rerank',name:'GLM-4 Rerank',type:'rerank',recommended:true}
 ]},
 {id:'anthropic',name:'Anthropic',nameZh:'Anthropic',region:'intl',baseUrl:'https://api.anthropic.com/v1',features:['Chat','Vision','Reasoning'],models:[
-{id:'claude-3-5-sonnet-20241022',name:'Claude 3.5 Sonnet',type:'chat',recommended:true,ctx:200000,price:'$3/$15/M'},
-{id:'claude-3-5-haiku-20241022',name:'Claude 3.5 Haiku',type:'chat',ctx:200000,price:'$0.25/$1.25/M'},
+{id:'claude-opus-4-7',name:'Claude Opus 4.7',type:'chat',recommended:true,ctx:1000000,price:'$5/$25/M'},
+{id:'claude-sonnet-4-6',name:'Claude Sonnet 4.6',type:'chat',ctx:1000000,price:'$3/$15/M'},
+{id:'claude-haiku-4-5-20251001',name:'Claude Haiku 4.5',type:'chat',ctx:200000,price:'$1/$5/M'},
 ]},
 {id:'openai',name:'OpenAI',nameZh:'OpenAI',region:'intl',baseUrl:'https://api.openai.com/v1',features:['Chat','Vision','Reasoning','Embedding','Audio'],models:[
+{id:'gpt-4o',name:'GPT-4o',type:'chat',ctx:128000,price:'$5.0/$15/M'},
 {id:'gpt-4o-mini',name:'GPT-4o Mini',type:'chat',recommended:true,ctx:128000,price:'$0.15/$0.6/M'},
-{id:'gpt-4o',name:'GPT-4o',type:'chat',ctx:128000,price:'$2.5/$10/M'},
+{id:'o1',name:'o1',type:'chat',ctx:200000,price:'$15.0/M'},
+{id:'o3-mini',name:'o3 Mini',type:'chat',ctx:200000,price:'$1.1/M'},
 {id:'text-embedding-3-small',name:'Text-Embedding-3-Small',type:'embedding',recommended:true,price:'$0.02/M'},
+{id:'text-embedding-3-large',name:'Text-Embedding-3-Large',type:'embedding',price:'$0.13/M'},
 ]},
 {id:'google',name:'Google',nameZh:'Google',region:'intl',baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',features:['Chat','Vision','Reasoning'],models:[
 {id:'gemini-3.1-pro-preview',name:'Gemini-3.1-Pro',type:'chat',recommended:true,ctx:1048576,price:'$2/$10/M'},
@@ -64,6 +72,69 @@ export const PROVIDERS:ProviderInfo[]=[
 {id:'deepseek-r1:14b',name:'DeepSeek-R1-14B',type:'reasoning',size:'~9GB'},
 {id:'llama3.3:70b',name:'Llama3.3-70B',type:'chat',size:'~40GB'},
 {id:'nomic-embed-text',name:'Nomic-Embed',type:'embedding',size:'~274MB'},
+]},
+{id:'minimax',name:'MiniMax',nameZh:'海螺AI',region:'cn',baseUrl:'https://api.minimax.chat/v1',features:['Chat'],models:[
+{id:'MiniMax-M2.7',name:'MiniMax M2.7',type:'chat',recommended:true,ctx:1000000,price:'¥1.0/M'},
+{id:'MiniMax-M2.5',name:'MiniMax M2.5',type:'chat',ctx:8192,price:'¥0.5/M'},
+{id:'MiniMax-M2.7-highspeed',name:'MiniMax M2.7 (Highspeed)',type:'chat',ctx:245760,price:'¥0.1/M'},
+{id:'MiniMax-M2',name:'MiniMax M2',type:'chat',ctx:8192,price:'¥0.8/M'}
+]},
+{id:'doubao',name:'Doubao',nameZh:'字节火山引擎',region:'cn',baseUrl:'https://ark.cn-beijing.volces.com/api/v3',features:['Chat','Embedding'],models:[
+{id:'doubao-1-5-pro-32k',name:'Doubao 1.5 Pro',type:'chat',recommended:true,ctx:32768,price:'¥0.8/M'},
+{id:'doubao-1-5-lite-32k',name:'Doubao 1.5 Lite',type:'chat',ctx:32768,price:'¥0.3/M'},
+{id:'doubao-embedding',name:'Doubao Embedding',type:'embedding',recommended:true,price:'¥0.1/M'}
+]},
+{id:'baidu',name:'Baidu Ernie',nameZh:'百度文心',region:'cn',baseUrl:'https://qianfan.baidubce.com/v2',features:['Chat','Embedding','Rerank'],models:[
+{id:'ernie-4.5-8k',name:'ERNIE 4.5',type:'chat',recommended:true,ctx:8192,price:'¥1.6/M'},
+{id:'ernie-4.5-turbo-8k',name:'ERNIE 4.5 Turbo',type:'chat',ctx:8192,price:'¥0.8/M'},
+{id:'ernie-lite-8k',name:'ERNIE Lite',type:'chat',ctx:8192,price:'¥0/M'},
+{id:'bce-embedding-v1',name:'BCE Embedding',type:'embedding',recommended:true,price:'¥0.5/M'},
+{id:'bce-reranker-base_v1',name:'BCE Reranker',type:'rerank',recommended:true,price:'¥0.5/M'}
+]},
+{id:'hunyuan',name:'Tencent Hunyuan',nameZh:'腾讯混元',region:'cn',baseUrl:'https://api.hunyuan.cloud.tencent.com/v1',features:['Chat','Embedding'],models:[
+{id:'hunyuan-turbos',name:'Hunyuan Turbo S',type:'chat',recommended:true,ctx:32768,price:'¥0.8/M'},
+{id:'hunyuan-lite',name:'Hunyuan Lite',type:'chat',ctx:256000,price:'¥0/M'},
+{id:'hunyuan-embedding',name:'Hunyuan Embedding',type:'embedding',recommended:true,price:'¥0.7/M'}
+]},
+{id:'spark',name:'iFlytek Spark',nameZh:'讯飞星火',region:'cn',baseUrl:'https://spark-api-open.xf-yun.com/v1',features:['Chat'],models:[
+{id:'4.0Ultra',name:'Spark 4.0 Ultra',type:'chat',recommended:true,ctx:8192,price:'¥4.0/M'},
+{id:'x1',name:'Spark X1',type:'chat',ctx:8192,price:'¥4.0/M'},
+{id:'generalv3.5',name:'Spark 3.5',type:'chat',ctx:8192,price:'¥1.2/M'}
+]},
+{id:'stepfun',name:'Stepfun',nameZh:'阶跃星辰',region:'cn',baseUrl:'https://api.stepfun.com/v1',features:['Chat'],models:[
+{id:'step-2-16k',name:'Step 2',type:'chat',recommended:true,ctx:16384,price:'¥3.8/M'},
+{id:'step-1-8k',name:'Step 1',type:'chat',ctx:8192,price:'¥1.2/M'},
+{id:'step-1-flash',name:'Step 1 Flash',type:'chat',ctx:8192,price:'¥0.2/M'}
+]},
+{id:'yi',name:'01.AI',nameZh:'零一万物',region:'cn',baseUrl:'https://api.lingyiwanwu.com/v1',features:['Chat'],models:[
+{id:'yi-lightning',name:'Yi Lightning',type:'chat',recommended:true,ctx:16384,price:'¥0.14/M'},
+{id:'yi-medium',name:'Yi Medium',type:'chat',ctx:16384,price:'¥2.5/M'},
+{id:'yi-large',name:'Yi Large',type:'chat',ctx:32768,price:'¥20.0/M'}
+]},
+{id:'elevenlabs',name:'ElevenLabs',nameZh:'ElevenLabs',region:'intl',baseUrl:'https://api.elevenlabs.io/v1',features:['Audio'],models:[
+{id:'eleven_v3',name:'Eleven V3',type:'audio',recommended:true,price:'$0.02/M'},
+{id:'eleven_multilingual_v2',name:'Multilingual V2',type:'audio',price:'$0.015/M'},
+{id:'eleven_flash_v2_5',name:'Flash V2.5',type:'audio',price:'$0.005/M'},
+{id:'eleven_turbo_v2_5',name:'Turbo V2.5',type:'audio',price:'$0.005/M'}
+]},
+{id:'moonshot',name:'Moonshot',nameZh:'月之暗面',region:'cn',baseUrl:'https://api.moonshot.cn/v1',features:['Chat'],models:[
+{id:'moonshot-v1-8k',name:'Kimi v1 (8K)',type:'chat',recommended:true,ctx:8192,price:'¥1.2/M'},
+{id:'moonshot-v1-32k',name:'Kimi v1 (32K)',type:'chat',ctx:32768,price:'¥2.4/M'},
+{id:'moonshot-v1-128k',name:'Kimi v1 (128K)',type:'chat',ctx:131072,price:'¥8.0/M'}
+]},
+{id:'tencentci',name:'Tencent CI',nameZh:'腾讯云数据万象',region:'cn',baseUrl:'https://ci.tencentcloudapi.com/v1',features:['Vision'],models:[
+{id:'ci-vision-pro',name:'CI Vision Pro',type:'vision',recommended:true,price:'¥2.0/M'},
+{id:'ci-vision-lite',name:'CI Vision Lite',type:'vision',price:'¥0.5/M'}
+]},
+{id:'siliconflow',name:'SiliconFlow',nameZh:'硅基流动',region:'cn',baseUrl:'https://api.siliconflow.cn/v1',features:['Chat','Embedding','Rerank'],models:[
+{id:'BAAI/bge-m3',name:'BGE-M3',type:'embedding',recommended:true,price:'¥0.1/M'},
+{id:'BAAI/bge-large-zh-v1.5',name:'BGE-Large-ZH',type:'embedding',price:'¥0.1/M'},
+{id:'BAAI/bge-reranker-v2-m3',name:'BGE-Reranker-V2',type:'rerank',recommended:true,price:'¥0.2/M'},
+{id:'deepseek-ai/DeepSeek-V3',name:'DeepSeek-V3 (Silicon)',type:'chat',ctx:131072,price:'¥1.0/M'},
+]},
+{id:'jina',name:'Jina AI',nameZh:'Jina AI',region:'intl',baseUrl:'https://api.jina.ai/v1',features:['Embedding','Rerank'],models:[
+{id:'jina-embeddings-v3',name:'Jina Embeddings V3',type:'embedding',recommended:true,price:'$0.02/M'},
+{id:'jina-reranker-v2-base-multilingual',name:'Jina Reranker V2',type:'rerank',recommended:true,price:'$0.02/M'}
 ]},
 ];
 export function getRecommendations(purpose:'classifier'|'reflection'|'embedding'|'rerank'):{p:string;m:string;label:string;reason:string}[]{

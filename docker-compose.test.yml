@@ -1,0 +1,105 @@
+version: '3.9'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "16333:6333"
+      - "16334:6334"
+    volumes:
+      - test_qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_USER: memoryos
+      POSTGRES_PASSWORD: memoryos
+      POSTGRES_DB: test_memory_os
+    volumes:
+      - test_pg_data:/var/lib/postgresql/data
+      - ./backend/schemas/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memoryos -d test_memory_os"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5
+    ports:
+      - "17474:7474"
+      - "17687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - test_neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
+    volumes:
+      - test_minio_data:/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - MEMORY_OS_PG_HOST=postgres
+      - MEMORY_OS_PG_PORT=5432
+      - MEMORY_OS_PG_USER=memoryos
+      - MEMORY_OS_PG_PASSWORD=memoryos
+      - MEMORY_OS_PG_DB=test_memory_os
+      - MEMORY_OS_QDRANT_HOST=qdrant
+      - MEMORY_OS_QDRANT_PORT=6333
+      - MEMORY_OS_NEO4J_URI=bolt://neo4j:7687
+      - MEMORY_OS_NEO4J_USER=neo4j
+      - MEMORY_OS_NEO4J_PASSWORD=password
+      - MEMORY_OS_USE_STANDALONE=false
+      - ALLOW_REMOTE_ADMIN=true
+      - CODEX_HOME=/app/test_config
+      - MEMORY_OS_MINIO_ENDPOINT=minio:9000
+    volumes:
+      - test_backend_config:/app/test_config
+      - ./webui-dist:/app/webui-dist:ro
+    ports:
+      - "8010:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  test_qdrant_data:
+  test_pg_data:
+  test_neo4j_data:
+  test_minio_data:
+  test_backend_config:

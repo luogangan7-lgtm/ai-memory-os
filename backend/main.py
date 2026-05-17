@@ -16,6 +16,7 @@ from backend.memory.ingestion import IngestionPipeline
 from backend.memory.pg_repo import MemoryRepo
 from backend.memory.qdrant_store import QdrantStore
 from backend.memory.retrieval import RetrievalPipeline
+from backend.memory.minio_store import MinIOStore
 from backend.reflection.engine import ReflectionEngine
 from backend.scheduler.reflection_scheduler import ReflectionScheduler
 from backend.services.config import settings
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI):
         pg = await MemoryRepo.create(host=settings.pg_host, port=settings.pg_port, user=settings.pg_user, password=settings.pg_password, database=settings.pg_db)
     
     gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+    ms = MinIOStore()
     ip = IngestionPipeline(qs)
     rp = RetrievalPipeline(qs, gs)
     registry = ModelRegistry()
@@ -53,7 +55,7 @@ async def lifespan(app: FastAPI):
         print(f"⚠️ Error creating default admin: {e}")
 
     init_biz(qs, gs, ip, rp, pg, registry)
-    init_admin(registry, pg)
+    init_admin(registry, pg, qs, gs, ms)
     refl = ReflectionEngine(pg, gs, registry=registry)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()
@@ -92,8 +94,8 @@ async def favicon():
 
 
 # UI routes
-UI_DIR = Path(__file__).parent / "ui"
-APP_DIR = Path(__file__).parent / "app_ui"
+UI_DIR = Path(__file__).parent.parent / "webui-dist"
+APP_DIR = Path(__file__).parent.parent / "webui-dist"
 WEBUI_DIST = Path(__file__).parent.parent / "webui-dist"
 
 @app.get("/manage/{full_path:path}")
@@ -112,12 +114,12 @@ async def serve_manage_ui(full_path: str):
 if APP_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(APP_DIR), html=True), name="app_ui")
 
-# Mount React SPA at root (if exists)
-if WEBUI_DIST.exists():
-    app.mount("/", StaticFiles(directory=str(WEBUI_DIST), html=True), name="spa")
-
 # Metrics
 from backend.services.metrics import metrics_response
 @app.get("/metrics")
 async def metrics():
     return metrics_response()
+
+# Mount React SPA at root (if exists)
+if WEBUI_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(WEBUI_DIST), html=True), name="spa")

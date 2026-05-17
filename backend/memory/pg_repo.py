@@ -234,6 +234,14 @@ class MemoryRepo:
                 return await conn.fetchval("SELECT count(*) FROM memories WHERE team_id=$1 AND source_type=$2", team_id, source_type)
             return await conn.fetchval("SELECT count(*) FROM memories WHERE team_id=$1", team_id)
 
+    async def get_total_memory_count(self) -> int:
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT count(*) FROM memories") or 0
+
+    async def get_total_team_count(self) -> int:
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT count(DISTINCT team_id) FROM accounts") or 0
+
     async def delete(self, mid, team_id):
         async with self.pool.acquire() as conn:
             r = await conn.execute("DELETE FROM memories WHERE id=$1 AND team_id=$2", mid, team_id)

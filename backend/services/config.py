@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = "password"
 
+    # MinIO
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "admin"
+    minio_secret_key: str = "password"
+
     # Auth
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
@@ -40,7 +45,7 @@ class Settings(BaseSettings):
     # Tunable thresholds (configurable via admin/settings)
     internalize_similarity_threshold: float = 0.88
     internalize_min_content_length: int = 150
-    search_rerank_threshold: float = 0.85
+    search_rerank_threshold: float = 0.0
     lifecycle_promotion_importance: float = 0.8
     lifecycle_promotion_confidence: float = 0.8
     chunk_overlap_tokens: int = 64

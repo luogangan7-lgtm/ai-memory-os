@@ -87,8 +87,10 @@ services:
       - MEMORY_OS_KEYS_FILE=/app/config/memory-os/api_keys.json
       - MEMORY_OS_PROVIDERS=/app/config/memory-os/providers.json
       - MEMORY_OS_ROUTING=/app/config/memory-os/routing.json
+      - MEMORY_OS_MINIO_ENDPOINT=minio:9000
     volumes:
       - backend_config:/app/config
+      - ./webui-dist:/app/webui-dist:ro
     ports:
       - "8003:8003"
     depends_on:

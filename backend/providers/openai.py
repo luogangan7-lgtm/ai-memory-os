@@ -27,11 +27,17 @@ class OpenAIProvider(BaseProvider):
     async def discover_models(self) -> list[ModelInfo]:
         return [
             ModelInfo(id="text-embedding-3-small", display_name="Text Embedding 3 Small",
-                      provider="openai", capabilities=[ModelCapability.EMBED], embedding_dim=1536),
+                      provider="openai", capabilities=[ModelCapability.EMBED], embedding_dim=1536, pricing_per_1m_tokens=0.02),
             ModelInfo(id="text-embedding-3-large", display_name="Text Embedding 3 Large",
-                      provider="openai", capabilities=[ModelCapability.EMBED], embedding_dim=3072),
+                      provider="openai", capabilities=[ModelCapability.EMBED], embedding_dim=3072, pricing_per_1m_tokens=0.13),
             ModelInfo(id="gpt-4o-mini", display_name="GPT-4o Mini",
-                      provider="openai", capabilities=[ModelCapability.CHAT])
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=0.15),
+            ModelInfo(id="gpt-4o", display_name="GPT-4o",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=2.5),
+            ModelInfo(id="o1", display_name="o1 (Reasoner)",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=200000, pricing_per_1m_tokens=15.0),
+            ModelInfo(id="o3-mini", display_name="o3 Mini (Reasoner)",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=200000, pricing_per_1m_tokens=1.1),
         ]
 
     async def embed(self, texts: list[str]) -> list[list[float]]:

@@ -7,18 +7,18 @@ ANTHROPIC_BASE = "https://api.anthropic.com/v1"
 ANTHROPIC_VERSION = "2023-06-01"
 
 ANTHROPIC_CATALOG = [
-    ModelInfo(id="claude-3-5-sonnet-20241022", display_name="Claude 3.5 Sonnet (Latest)",
+    ModelInfo(id="claude-opus-4-7", display_name="Claude Opus 4.7",
               provider="anthropic", capabilities=[ModelCapability.CHAT],
-              context_window=200000, description="Anthropic 旗舰模型，逻辑/代码/分析全球顶级",
+              context_window=1000000, description="Anthropic 最新旗舰推理模型",
+              pricing_per_1m_tokens=5.0),
+    ModelInfo(id="claude-sonnet-4-6", display_name="Claude Sonnet 4.6",
+              provider="anthropic", capabilities=[ModelCapability.CHAT],
+              context_window=1000000, description="高性价比，逻辑与代码极佳",
               pricing_per_1m_tokens=3.0),
-    ModelInfo(id="claude-3-5-haiku-20241022", display_name="Claude 3.5 Haiku",
+    ModelInfo(id="claude-haiku-4-5-20251001", display_name="Claude Haiku 4.5",
               provider="anthropic", capabilities=[ModelCapability.CHAT],
               context_window=200000, description="极速轻量版，适合高频低延迟任务",
-              pricing_per_1m_tokens=0.25),
-    ModelInfo(id="claude-3-opus-20240229", display_name="Claude 3 Opus",
-              provider="anthropic", capabilities=[ModelCapability.CHAT],
-              context_window=200000, description="深度推理模型",
-              pricing_per_1m_tokens=15.0),
+              pricing_per_1m_tokens=1.0),
 ]
 
 

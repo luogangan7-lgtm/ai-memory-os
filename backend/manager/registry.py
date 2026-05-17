@@ -28,6 +28,11 @@ from backend.providers.deepseek import DeepSeekProvider
 from backend.providers.anthropic import AnthropicProvider
 from backend.providers.moonshot import MoonshotProvider
 from backend.providers.generic import GenericOpenAIProvider
+from backend.providers.elevenlabs import ElevenLabsProvider
+from backend.providers.compat_providers import (
+    MiniMaxProvider, DoubaoProvider, BaiduProvider, HunyuanProvider,
+    SparkProvider, StepfunProvider, YiProvider, TencentCIProvider
+)
 from backend.providers.compat_providers import ALL_COMPAT_PROVIDERS
 class OllamaLocalProvider(GenericOpenAIProvider):
     provider_name = "ollama"
@@ -79,6 +84,7 @@ PROVIDER_CLASSES: dict[str, type[BaseProvider]] = {
     "ollama":    OllamaLocalProvider,
     "omlx":      OmlxLocalProvider,
     "custom":    GenericOpenAIProvider,
+    "elevenlabs":ElevenLabsProvider,
     **ALL_COMPAT_PROVIDERS,
 }
 

@@ -70,20 +70,37 @@ def _make_compat_provider(name: str, base_url: str, catalog: list[ModelInfo]):
     return CompatProvider
 
 
+# ── Tencent CI ──
+TencentCIProvider = _make_compat_provider(
+    "tencentci",
+    "https://ci.tencentcloudapi.com/v1",
+    [
+        ModelInfo(id="ci-vision-pro", display_name="CI Vision Pro", provider="tencentci",
+                  capabilities=[ModelCapability.VISION], context_window=8192,
+                  description="腾讯云数据万象视觉大模型", pricing_per_1m_tokens=2.0),
+        ModelInfo(id="ci-vision-lite", display_name="CI Vision Lite", provider="tencentci",
+                  capabilities=[ModelCapability.VISION], context_window=8192,
+                  description="数据万象基础视觉模型", pricing_per_1m_tokens=0.5),
+    ]
+)
+
 # ── MiniMax (海螺 AI) ──
 MiniMaxProvider = _make_compat_provider(
     "minimax",
     "https://api.minimax.chat/v1",
     [
-        ModelInfo(id="MiniMax-Text-01", display_name="MiniMax Text 01", provider="minimax",
+        ModelInfo(id="MiniMax-M2.7", display_name="MiniMax M2.7", provider="minimax",
                   capabilities=[ModelCapability.CHAT], context_window=1000000,
                   description="百万上下文旗舰模型，国内最长上下文之一", pricing_per_1m_tokens=1.0),
-        ModelInfo(id="abab6.5s-chat", display_name="ABAB 6.5s (快速)", provider="minimax",
+        ModelInfo(id="MiniMax-M2.5", display_name="MiniMax M2.5 (Standard)", provider="minimax",
+                  capabilities=[ModelCapability.CHAT], context_window=8192,
+                  description="标准版", pricing_per_1m_tokens=0.5),
+        ModelInfo(id="MiniMax-M2.7-highspeed", display_name="MiniMax M2.7 (快速)", provider="minimax",
                   capabilities=[ModelCapability.CHAT], context_window=245760,
                   description="高速版，适合高频任务", pricing_per_1m_tokens=0.1),
-        ModelInfo(id="abab6.5g-chat", display_name="ABAB 6.5g (高性能)", provider="minimax",
+        ModelInfo(id="MiniMax-M2", display_name="MiniMax M2", provider="minimax",
                   capabilities=[ModelCapability.CHAT], context_window=8192,
-                  description="高性能版", pricing_per_1m_tokens=0.8),
+                  description="基础版", pricing_per_1m_tokens=0.8),
     ]
 )
 
@@ -192,6 +209,40 @@ YiProvider = _make_compat_provider(
     ]
 )
 
+# ── SiliconFlow (硅基流动) ──
+SiliconFlowProvider = _make_compat_provider(
+    "siliconflow",
+    "https://api.siliconflow.cn/v1",
+    [
+        ModelInfo(id="BAAI/bge-m3", display_name="BGE-M3", provider="siliconflow",
+                  capabilities=[ModelCapability.EMBED], context_window=8192,
+                  description="SiliconFlow BGE-M3 Embedding", pricing_per_1m_tokens=0.1),
+        ModelInfo(id="BAAI/bge-large-zh-v1.5", display_name="BGE-Large-ZH", provider="siliconflow",
+                  capabilities=[ModelCapability.EMBED], context_window=512,
+                  description="SiliconFlow BGE-Large", pricing_per_1m_tokens=0.1),
+        ModelInfo(id="BAAI/bge-reranker-v2-m3", display_name="BGE-Reranker-V2", provider="siliconflow",
+                  capabilities=[ModelCapability.RERANK], context_window=8192,
+                  description="SiliconFlow BGE-Reranker", pricing_per_1m_tokens=0.2),
+        ModelInfo(id="deepseek-ai/DeepSeek-V3", display_name="DeepSeek-V3 (Silicon)", provider="siliconflow",
+                  capabilities=[ModelCapability.CHAT], context_window=131072,
+                  description="DeepSeek V3 硅基流动托管", pricing_per_1m_tokens=1.0),
+    ]
+)
+
+# ── Jina AI ──
+JinaProvider = _make_compat_provider(
+    "jina",
+    "https://api.jina.ai/v1",
+    [
+        ModelInfo(id="jina-embeddings-v3", display_name="Jina Embeddings V3", provider="jina",
+                  capabilities=[ModelCapability.EMBED], context_window=8192,
+                  description="Jina AI 最先进的多语言向量模型", pricing_per_1m_tokens=0.02),
+        ModelInfo(id="jina-reranker-v2-base-multilingual", display_name="Jina Reranker V2", provider="jina",
+                  capabilities=[ModelCapability.RERANK], context_window=8192,
+                  description="Jina AI 跨语种重排序模型", pricing_per_1m_tokens=0.02),
+    ]
+)
+
 # Export all new providers
 ALL_COMPAT_PROVIDERS = {
     "minimax": MiniMaxProvider,
@@ -201,4 +252,7 @@ ALL_COMPAT_PROVIDERS = {
     "spark":   SparkProvider,
     "stepfun": StepfunProvider,
     "yi":      YiProvider,
+    "tencentci": TencentCIProvider,
+    "siliconflow": SiliconFlowProvider,
+    "jina": JinaProvider
 }

@@ -60,9 +60,9 @@ def init_stores(qs, gs, ip, rp, pg, reg):
     registry = reg
 
 
-@router.get("/")
-async def root():
-    return {"status": "ok", "version": settings.version}
+# @router.get("/")
+# async def root():
+#     return {"status": "ok", "version": settings.version}
 
 
 
@@ -789,8 +789,8 @@ async def get_longterm(
 @router.get("/stats")
 async def get_root_stats_alias():
     """Root-level stats endpoint redirecting to admin dashboard stats."""
-    from backend.api.admin import usage_stats
-    return await usage_stats()
+    from backend.api.admin import get_dashboard_stats
+    return await get_dashboard_stats()
 
 
 @router.get("/user/stats")

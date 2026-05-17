@@ -80,6 +80,7 @@ class IngestionPipeline:
                 point_id=point_id,
                 vector=vector,
                 text=chunk_text,
+                team_id=team_id,
                 payload={
                     "memory_id": memory_id,
                     "team_id": team_id,
