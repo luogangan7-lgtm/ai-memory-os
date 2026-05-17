@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PROVIDERS as ALL_PROVIDERS } from "../data/models";
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
@@ -256,6 +256,7 @@ const SYSTEM_PROMPTS={standard:'你已连接 AI Memory OS V6.0 长期记忆系�
 
 const[pType,setPType]=useState<'standard'|'concise'|'dev'>('standard');
 
+const fileRef=useRef<HTMLInputElement>(null);
 return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 <div style={{marginBottom:16,display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:connected==='online'?'var(--emerald)':connected==='offline'?'var(--crimson)':'var(--amber)',boxShadow:connected==='online'?'0 0 8px var(--emerald)':connected==='offline'?'0 0 8px var(--crimson)':'none'}}/><span style={{fontSize:13,color:connected==='online'?'var(--emerald)':connected==='offline'?'var(--crimson)':'var(--amber)'}}>{connected==='online'?'已连接到服务器':connected==='offline'?'服务器不可达':'检测中...'}</span></div>
 <div style={{marginBottom:20,padding:"10px 14px",background:"rgba(255,179,71,.08)",borderRadius:10,border:"1px solid rgba(255,179,71,.2)",fontSize:12,color:"var(--amber)"}}>⚠️ 部署到服务器后，请将下方配置中的 <code style={{color:"var(--teal)",fontSize:11}}>localhost:8003</code> 替换为实际服务器地址。<hr style={{borderColor:"var(--border)",margin:"10px 0"}}/></div><div style={{marginBottom:20}}>
@@ -285,6 +286,7 @@ const [persona,setPersona]=useState("");
 const [loading,setLoading]=useState(false);
 async function load(){setLoading(true);try{const r=await fetch("/persona/default");const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
 useEffect(()=>{load()},[]);
+const fileRef=useRef<HTMLInputElement>(null);
 return(<div className="card"><div className="card-title">👤 用户画像</div>
 {loading?<div style={{color:"var(--muted)",fontSize:13}}>生成中...</div>:
 <pre style={{fontSize:13,color:"var(--text)",whiteSpace:"pre-wrap",lineHeight:1.8,fontFamily:"var(--font)"}}>{persona}</pre>}
@@ -302,6 +304,7 @@ useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||""
 useEffect(()=>{if(p&&prov){setB(prov.base)}if(!p){setM("")}},[p]);
 async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
 async function test(){setL(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
+const fileRef=useRef<HTMLInputElement>(null);
 return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
 <div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{PROVIDERS.map(x=><option key={x.id} value={x.id}>{x.region==="cn"?"🇨🇳":"🌐"} {x.name} ({x.models.length} models)</option>)}</select></div>
