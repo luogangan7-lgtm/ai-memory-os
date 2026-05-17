@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
 
 function Dashboard() {
-  const [tab, setTab] = useState<"memory" | "connect" | "persona">("memory");
+  const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm">("memory");
   const { logout, token, mcpKey } = useAuth();
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
@@ -270,4 +270,24 @@ return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 <div style={{display:'flex',gap:6,marginBottom:10}}>{Object.keys(SYSTEM_PROMPTS).map(k=><button key={k} className={`btn ${pType===k?'btn-teal':'btn-ghost'}`} onClick={()=>setPType(k as 'standard'|'concise'|'dev')} style={{fontSize:10}}>{k==='standard'?'📝 完整版':k==='concise'?'⚡ 精简版':'💻 开发版'}</button>)}</div>
 <code style={{display:'block',background:'rgba(0,0,0,.45)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',lineHeight:1.8,maxHeight:200,overflow:'auto',marginBottom:8}}>{SYSTEM_PROMPTS[pType]}</code>
 <button className='btn btn-teal btn-sm' style={{fontSize:11}} onClick={()=>{navigator.clipboard.writeText(SYSTEM_PROMPTS[pType]);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制提示词</button></div>
+</div>)}
+
+function MyLLMPanel(){
+const[provider,setProvider]=useState("");
+const[apiKey,setApiKey]=useState("");
+const[model,setModel]=useState("");
+const[baseUrl,setBaseUrl]=useState("");
+const[testResult,setTestResult]=useState("");
+const[loading,setLoading]=useState(false);
+useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setProvider(d.provider||"");setModel(d.model||"");setBaseUrl(d.base_url||"")})},[]);
+useEffect(()=>{if(provider&&!baseUrl){var bases={deepseek:"https://api.deepseek.com/v1",alibaba:"https://dashscope.aliyuncs.com/compatible-mode/v1",openai:"https://api.openai.com/v1",zhipu:"https://open.bigmodel.cn/api/paas/v4",moonshot:"https://api.moonshot.cn/v1"};setBaseUrl(bases[provider]||"")}},[provider]);
+async function save(){setLoading(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,api_key:apiKey,model,base_url:baseUrl})});setTestResult("已保存")}catch{setTestResult("保存失败")}setLoading(false)}
+async function test(){setLoading(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:apiKey,base_url:baseUrl,model})});const d=await r.json();setTestResult(d.connected?"✅ 连接成功":"❌ 连接失败: "+(d.error||d.status))}catch{setTestResult("测试失败")}setLoading(false)}
+return(<div className="card"><div className="card-title">🤖 我的 LLM</div><div className="card-desc">配置你自己的大模型，驱动记忆管线（L1/L2/L3）</div>
+<div className="form-group"><label>厂商</label><select value={provider} onChange={e=>setProvider(e.target.value)}><option value="">选择</option><option value="deepseek">DeepSeek</option><option value="alibaba">阿里云百炼</option><option value="openai">OpenAI</option><option value="zhipu">智谱AI</option><option value="moonshot">月之暗面</option></select></div>
+{provider&&<><div className="form-group"><label>API Key</label><input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-..."/></div>
+<div className="form-group"><label>模型</label><input value={model} onChange={e=>setModel(e.target.value)} placeholder="deepseek-chat"/></div>
+<div className="form-group"><label>Base URL</label><input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)}/></div>
+<div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={loading}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={loading||!apiKey}>🔗 测试</button></div></>}
+{testResult&&<div style={{marginTop:12,fontSize:12,color:testResult.includes("✅")?"var(--emerald)":"var(--crimson)"}}>{testResult}</div>}
 </div>)}
