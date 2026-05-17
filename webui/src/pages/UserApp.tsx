@@ -294,6 +294,7 @@ const PROVIDERS = ALL_PROVIDERS.filter(x=>!x.region||x.region!=="local").map(x=>
 const[p,setP]=useState("");const[k,setK]=useState("");const[m,setM]=useState("");const[b,setB]=useState("");
 const[r,setR]=useState("");const[l,setL]=useState(false);
 const prov=PROVIDERS.find(x=>x.id===p);
+useEffect(()=>{fetch("/stats").then(r=>r.json()).then(d=>setStats({mem:d.total_memories||0,tokens:d.total_tokens||0,calls:d.pipeline_calls||0})).catch(()=>{})},[]);
 useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
 useEffect(()=>{if(p&&prov){setB(prov.base)}if(!p){setM("")}},[p]);
 async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
@@ -308,7 +309,7 @@ return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div cla
 <div style={{marginTop:16,borderTop:"1px solid var(--border)",paddingTop:12}}>
 <div style={{fontSize:11,color:"var(--muted)",marginBottom:8}}>📊 使用统计</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-{["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=><div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>—</div></div>)}
+{["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=><div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>{stats.mem}</div></div>)}
 </div></div>
 </div>)}
 

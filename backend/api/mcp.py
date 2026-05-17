@@ -253,6 +253,37 @@ async def mcp_post_handler(
                 else:
                     result_text = "Reflection engine scheduler is not running."
 
+            elif tool_name == "persona":
+                import asyncpg, os
+                try:
+                    conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
+                    row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", team_id)
+                    await conn.close()
+                    result_text = row["persona_md"] if row and row["persona_md"] else "Persona not yet generated."
+                except:
+                    result_text = "Persona unavailable."
+
+            elif tool_name == "canvas_get":
+                import asyncpg, os
+                task_id = arguments.get("task_id","")
+                try:
+                    conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
+                    row = await conn.fetchrow("SELECT * FROM task_canvas WHERE team_id=$1 AND task_id=$2", team_id, task_id)
+                    await conn.close()
+                    result_text = f"Canvas: {row['canvas_mermaid']}" if row else f"No canvas for {task_id}"
+                except:
+                    result_text = "Canvas unavailable."
+
+            elif tool_name == "canvas_update":
+                import asyncpg, os
+                try:
+                    conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
+                    await conn.execute("INSERT INTO task_canvas (team_id, task_id, task_title, canvas_mermaid, completed_steps, next_steps) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (team_id, task_id) DO UPDATE SET canvas_mermaid=$4, completed_steps=$5, next_steps=$6, updated_at=NOW()", team_id, arguments.get("task_id",""), arguments.get("task_title",""), arguments.get("mermaid",""), arguments.get("completed",[]), arguments.get("next",[]))
+                    await conn.close()
+                    result_text = "Canvas updated"
+                except:
+                    result_text = "Canvas update failed."
+
             else:
                 is_error = True
                 result_text = f"Tool '{tool_name}' not found."
