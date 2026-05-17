@@ -1,21 +1,20 @@
-# AI Memory OS — Personal/Team Cognitive Operating System V4.0
+# AI Memory OS — Cognitive Storage & Retrieval System V6.1 (Production-Ready)
 
 ![Hero Image](screenshots/dashboard_main.png)
 
-> **Empower your AI with persistent memory. Give your team a unified brain.**
+> **Give your AI persistent memory, and your team a unified brain.**
 
-AI Memory OS is a high-performance, zero-config cognitive storage and retrieval system. Powered by RAG (Retrieval-Augmented Generation), it transforms massive unstructured data (docs, chats, images) into a long-term memory for your AI, providing a production-grade OpenAI-compatible API.
+AI Memory OS is a high-performance, zero-config cognitive storage system. Using RAG (Retrieval-Augmented Generation) technology, it transforms massive amounts of unstructured data into long-term memory for AI, offering a production-ready OpenAI-compatible API.
 
 ---
 
-## 🌟 Key Features
+## 🌟 Core Features (New in V6.1)
 
-- **🚀 Zero-Dependency Standalone**: Built-in embedded SQLite, LanceDB, and NetworkX. One-click execution on macOS/Windows without Docker.
-- **🔌 Intelligent Env Detection**: Desktop app automatically detects Docker and provides one-click download guidance, seamlessly switching between Standalone and Production modes.
-- **🧠 Hybrid Search Engine**: Combines Vector search, Knowledge Graph, and Full-text search (BM25), improving recall rates by 40%.
-- **🔒 Enterprise Security**: Multi-tenant physical isolation and RBAC (Role-Based Access Control) to keep your sensitive knowledge secure.
-- **🔌 Seamless Proxy**: Built-in `/v1/chat/completions` proxy. Upgrade existing agents with memory capabilities by simply changing the `BASE_URL`.
-- **📈 Visual Control**: "Command Deck" dashboard for real-time monitoring of token consumption, knowledge distribution, and system health.
+- **🚀 21 Top-Tier Model Providers**: Full support for DeepSeek, SiliconFlow, Jina AI, Moonshot, ElevenLabs (Audio), Tencent CI (Vision), and more, properly configured with localized pricing ($ and ¥).
+- **🔮 Intelligent Pipeline Config**: Completely overhauled Model Configuration UX. Strict capability filters ensure only embedding models appear in the Embedding pipeline and rerank models in the Rerank pipeline. Includes smart sorting putting high-value Recommended (★) models first.
+- **🔌 MCP Memory Gateway**: Provide long-term memory to any AI Agent, supporting 1-click integration for 7 Agents (Cursor, Claude Desktop, etc.).
+- **🧠 Hybrid Search Engine**: Combines Vector search, Knowledge Graph search, and Full-text BM25 search.
+- **🎨 Neural Void UI**: Stunning cyber-aesthetic dark theme with seamless login overlay and particle backgrounds.
 
 ---
 
@@ -23,84 +22,83 @@ AI Memory OS is a high-performance, zero-config cognitive storage and retrieval 
 
 ```mermaid
 graph TD
-    User((User/Dev)) -->|REST API/Web| Controller[Desktop Controller/Electron]
-    Controller -->|Launch| Backend[FastAPI Backend Binary]
-    Backend -->|Store| VectorDB[(LanceDB/Qdrant)]
-    Backend -->|Metadata| SQLite[(SQLite/Postgres)]
-    Backend -->|Rel| GraphDB[(NetworkX/Neo4j)]
-    Backend -->|Proxy| LLM[LLM Providers: OpenAI/Ollama/DashScope]
+    User((User/Dev)) -->|REST API/Web| Backend[FastAPI Backend]
+    Backend -->|Store| VectorDB[(Qdrant)]
+    Backend -->|Metadata| Postgres[(PostgreSQL)]
+    Backend -->|Rel| GraphDB[(Neo4j)]
+    Backend -->|Proxy| LLM[LLM Providers]
 ```
 
 ---
 
-## 📊 Version Comparison
+## 📦 Download & Installation Guide
 
-| Feature | Zero-Dependency (Standalone) | Full Version (Production) |
-| :--- | :--- | :--- |
-| **Deployment** | One-click installation package | Docker-Compose / K8s |
-| **Database** | SQLite (Embedded) | PostgreSQL |
-| **Vector Store** | LanceDB (Embedded) | Qdrant / Milvus |
-| **Graph DB** | NetworkX | Neo4j |
-| **Use Case** | Personal Desktop / Offline Use | Team Collaboration / High Concurrency |
-| **Scalability** | Limited | High |
+### Option 1: Quick Start (Docker, Recommended)
+Use Docker Compose to launch the entire production environment in one click (Database, Vector store, Graph store, and Backend).
+```bash
+# 1. Clone the repository
+git clone https://github.com/luogangan7-lgtm/ai-memory-os.git
+cd ai-memory-os
 
----
+# 2. Launch production environment
+docker compose up -d
 
-## 🖼️ User Interface
+# 3. Access the system
+# Command Deck (Admin): http://localhost:8003/manage
+# User Terminal: http://localhost:8003/app
+```
 
-### 1. Command Deck (Admin Dashboard)
-Manage model topology and monitor indexing progress.
-![Dashboard](screenshots/dashboard_main.png)
+### Option 2: Developer Setup (Running from source)
+If you want to control the database yourself or do custom development, please follow these steps to download the packages and set up the environment:
 
-### 2. Cognitive Terminal (User Hub)
-Deep conversations with your personal memory and historical knowledge.
-![User App](screenshots/user_app.png)
-
-### 3. Setup Wizard
-A three-step guided setup for new users.
-![Wizard](screenshots/config_wizard.png)
-
----
-
-## 📦 Installation
-
-### 1. Standalone Version (Recommended)
-Download from [GitHub Releases](https://github.com/luogangan7-lgtm/ai-memory-os/releases):
-- **macOS**: `AI-Memory-OS-1.0.0-arm64.dmg` (M1/M2/M3) or `AI-Memory-OS-1.0.0-x64.dmg` (Intel).
-- **Windows**: `AI-Memory-OS-Setup-1.0.0.exe`.
-
-### 2. Full Version Deployment (Recommended for Production)
-Deploy the full production environment including databases, vector store, and backend via Docker:
+#### 1. Backend Dependencies (Python 3.10+)
 ```bash
 git clone https://github.com/luogangan7-lgtm/ai-memory-os.git
-docker-compose up -d
+cd ai-memory-os
+
+# Create virtual environment and install Python packages
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+
+# Run the server (Ensure PostgreSQL and Qdrant are running locally)
+python3 run.py
 ```
-After deployment, visit `http://localhost:8003/manage` to access the Command Deck.
+
+#### 2. Frontend Build (Node.js 18+)
+The system comes with pre-compiled static files so compilation is optional. To modify the React interface, download the npm packages:
+```bash
+cd webui
+npm install
+npm run build
+# After building, the output will automatically be available to the backend
+```
+
+#### 3. MCP Agent Bridge Setup
+If you use Cursor or Claude Desktop to connect to the memory pool:
+```bash
+cd webui/packages/mcp-bridge
+npm install
+```
 
 ---
 
 ## 🚀 Quick Start
 
-### Using as an OpenAI Proxy
-Change the API address in your Agent or App (e.g., Dify, FastGPT):
+### Use as an OpenAI Proxy
+Modify your Agent or application (e.g. Dify, FastGPT) API URL to:
 - **URL**: `http://localhost:8003/v1`
-- **API Key**: Your key generated from the MOS dashboard.
+- **API Key**: The key generated in your MOS Admin Console
 
-### Python SDK
-```python
-from openclaw import MemoryClient
-
-client = MemoryClient(api_key="your_mos_key", base_url="http://localhost:8003")
-# Store Knowledge
-client.store("AI Memory OS uses a hybrid search engine for superior performance.")
-# Search Knowledge
-results = client.search("What are the advantages of the hybrid engine?")
-```
+### Connect to Claude Desktop
+1. Open the User App `http://localhost:8003/app`
+2. Click on 🔑 **Connection Config**, and select Claude Desktop.
+3. Copy the generated JSON config and paste it into your `claude_desktop_config.json` file, then restart Claude.
 
 ---
 
 ## 🛡️ Security
-The system defaults to local encrypted storage. In the "Settings" menu, you can configure IP whitelisting, token auditing, and disk encryption to ensure your data remains absolutely private.
+Local encrypted storage is enabled by default. You can configure IP whitelists, Token auditing, and physical disk encryption via the "Security & Settings" panel to keep your personal brain data strictly private.
 
 ## 📄 License
 MIT License.
