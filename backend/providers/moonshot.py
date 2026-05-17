@@ -29,13 +29,22 @@ class MoonshotProvider(BaseProvider):
             return {"valid": False, "error": "API Key 为空"}
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"{MOONSHOT_BASE}/models",
+                resp = await client.post(
+                    f"{MOONSHOT_BASE}/chat/completions",
+                    json={
+                        "model": "moonshot-v1-8k",
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_tokens": 1
+                    },
                     headers={"Authorization": f"Bearer {self.config.api_key}"}
                 )
                 if resp.status_code == 200:
                     return {"valid": True}
-                return {"valid": False, "error": f"HTTP {resp.status_code}"}
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", resp.text)
+                except Exception:
+                    err_msg = resp.text
+                return {"valid": False, "error": f"HTTP {resp.status_code}: {err_msg[:100]}"}
         except Exception as e:
             return {"valid": False, "error": str(e)}
 

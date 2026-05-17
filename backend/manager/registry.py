@@ -67,6 +67,7 @@ DEFAULT_PROVIDER_CONFIGS: dict[str, dict] = {
     "ollama":    {"provider_type": "ollama",     "api_key": "ollama", "api_base": "http://localhost:11434/v1", "enabled_capabilities": [], "enabled_models": {}},
     "omlx":      {"provider_type": "omlx",       "api_key": "omlx", "api_base": "http://host.docker.internal:7749/v1", "enabled_capabilities": [], "enabled_models": {}},
     "custom":    {"provider_type": "custom",     "api_key": "", "api_base": "", "enabled_capabilities": [], "enabled_models": {}},
+    "elevenlabs":{"provider_type": "elevenlabs", "api_key": "", "api_base": "", "enabled_capabilities": [], "enabled_models": {}},
 }
 
 PROVIDER_CLASSES: dict[str, type[BaseProvider]] = {
@@ -207,7 +208,8 @@ class ModelRegistry:
                                 "reason": "已连通服务商中最优重排模型"}
         return result
 
-
+    def get_provider_class(self, provider_type: str) -> Optional[type[BaseProvider]]:
+        return PROVIDER_CLASSES.get(provider_type)
 
     # ── Provider management ──
 
