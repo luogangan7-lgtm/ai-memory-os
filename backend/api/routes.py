@@ -80,7 +80,13 @@ async def register_user_endpoint(data: dict):
             raise HTTPException(400, "Username/Email and password required")
             
         result = await register(team_id, username, password, "user", email=email)
-        return {"status": "success", "user_id": result["username"], "team_id": team_id, "email": email}
+        return {
+            "status": "success", 
+            "user_id": result["username"], 
+            "team_id": team_id, 
+            "email": email,
+            "api_key": result["api_key"]
+        }
     except Exception as e:
         raise HTTPException(400, str(e))
 
@@ -95,7 +101,12 @@ async def login_endpoint(data: dict):
     try:
         acc = await login(username_or_email, password)
         token = create_access_token(acc["team_id"])
-        return {"access_token": token, "team_id": acc["team_id"], "username": acc["username"]}
+        return {
+            "access_token": token, 
+            "api_key": acc["api_key"],
+            "team_id": acc["team_id"], 
+            "username": acc["username"]
+        }
     except Exception as e:
         raise HTTPException(401, str(e))
 

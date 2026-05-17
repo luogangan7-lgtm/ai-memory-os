@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 function Dashboard() {
   const [tab, setTab] = useState<"memory" | "connect">("memory");
-  const { logout } = useAuth();
+  const { logout, token } = useAuth();
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
       <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -17,7 +17,7 @@ function Dashboard() {
         <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>🔑 接入配置</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
-      {tab === "connect" && <ConnectPanel />}
+      {tab === "connect" && <ConnectPanel token={token} />}
     </div>
   );
 }

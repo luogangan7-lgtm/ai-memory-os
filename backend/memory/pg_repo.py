@@ -264,7 +264,8 @@ class MemoryRepo:
         return await self.insert(
             id=mid,
             team_id=team_id,
-            agent_id=agent_id,
+            workspace_id=agent_id or "default",
+            agent_id=agent_id or "default",
             category="conversation",
             memory_type="chat",
             title=f"{role.capitalize()} Message",
