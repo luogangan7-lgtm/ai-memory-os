@@ -398,8 +398,8 @@ class MemoryRepo:
             
             # 2. Transactionally cascade-delete all PG table relationships
             async with conn.transaction():
-                await conn.execute("DELETE FROM user_provider_configs WHERE user_id=$1", username)
-                await conn.execute("DELETE FROM user_token_usage WHERE user_id=$1", username)
+                await conn.execute("DELETE FROM user_provider_configs WHERE user_id=$1", safe_uuid(username))
+                await conn.execute("DELETE FROM user_token_usage WHERE user_id=$1", safe_uuid(username))
                 await conn.execute("DELETE FROM audit_log WHERE agent_id=$1", username)
                 await conn.execute("DELETE FROM memories WHERE team_id=$1", team_id)
                 r = await conn.execute("DELETE FROM accounts WHERE username=$1", username)
