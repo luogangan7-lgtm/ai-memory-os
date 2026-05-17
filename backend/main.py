@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     app.state.scheduler = sched
     yield
     await sched.stop()
-    if gs: gs.close()
+    if gs: await gs.close()
     await pg.close()
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
@@ -103,17 +103,34 @@ WEBUI_DIST = Path(__file__).parent.parent / "webui-dist"
 async def serve_manage_ui(full_path: str):
     # This handles SPA routing for the Command Deck
     if full_path == "" or full_path.endswith("/"):
-        return FileResponse(UI_DIR / "index.html")
+        response = FileResponse(UI_DIR / "index.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
     
     file_path = UI_DIR / full_path
     if file_path.is_file():
         return FileResponse(file_path)
     
     # Fallback to index.html for SPA routes (e.g. /manage/login, /manage/tenants)
-    return FileResponse(UI_DIR / "index.html")
+    response = FileResponse(UI_DIR / "index.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 if APP_DIR.exists():
-    app.mount("/app", StaticFiles(directory=str(APP_DIR), html=True), name="app_ui")
+    @app.get("/app/{full_path:path}", include_in_schema=False)
+    async def serve_app_ui(full_path: str):
+        if full_path == "" or full_path.endswith("/"):
+            response = FileResponse(APP_DIR / "index.html")
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return response
+            
+        file_path = APP_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+            
+        response = FileResponse(APP_DIR / "index.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
 
 # Metrics
 from backend.services.metrics import metrics_response
@@ -123,4 +140,19 @@ async def metrics():
 
 # Mount React SPA at root (if exists)
 if WEBUI_DIST.exists():
-    app.mount("/", StaticFiles(directory=str(WEBUI_DIST), html=True), name="spa")
+    # app.mount("/", StaticFiles(directory=str(WEBUI_DIST), html=True), name="spa")
+    # Custom mount to prevent index.html caching
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_root(full_path: str):
+        if full_path == "" or full_path.endswith("/"):
+            response = FileResponse(WEBUI_DIST / "index.html")
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return response
+            
+        file_path = WEBUI_DIST / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+            
+        response = FileResponse(WEBUI_DIST / "index.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response

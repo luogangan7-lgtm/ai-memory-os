@@ -714,7 +714,7 @@ async def health():
     # 3. Check Neo4j
     if _graph_store and _graph_store.driver:
         try:
-            _graph_store.driver.verify_connectivity()
+            await _graph_store.driver.verify_connectivity()
             services["neo4j"] = True
         except: pass
 
