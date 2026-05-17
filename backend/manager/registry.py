@@ -126,7 +126,7 @@ class ModelRegistry:
                 "provider_type": v.provider_type,
                 "api_key": v.api_key,
                 "api_base": v.api_base,
-                "enabled_capabilities": [c.value for c in v.enabled_capabilities],
+                "enabled_capabilities": [c.value if hasattr(c, "value") else c for c in v.enabled_capabilities],
                 "enabled_models": v.enabled_models,
             }
             for k, v in self.configs.items()
