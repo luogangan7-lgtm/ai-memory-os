@@ -11,6 +11,7 @@ import { login as apiLogin } from "../api/endpoints";
 
 interface AuthState {
   token: string;
+  mcpKey: string;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (id: string, password: string) => Promise<void>;
@@ -29,27 +30,38 @@ function getStoredToken(): string {
   );
 }
 
+function getStoredMcpKey(): string {
+  return localStorage.getItem("mcp_api_key") || "";
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string>(getStoredToken);
+  const [mcpKey, setMcpKey] = useState<string>(getStoredMcpKey);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = getStoredToken();
-    setToken(t);
+    setToken(getStoredToken());
+    setMcpKey(getStoredMcpKey());
     setIsLoading(false);
   }, []);
 
   const login = useCallback(async (id: string, password: string) => {
     setError(null);
     try {
-      // In User App, we use email/username login
       const isUserApp = window.location.hash.includes("/app") || window.location.pathname.startsWith("/app");
       const data = await apiLogin(id, password, isUserApp);
-      localStorage.setItem("admin_token", (data.api_key || data.access_token || ""));
-      localStorage.setItem("mos_admin_token", (data.api_key || data.access_token || ""));
-      setToken((data.api_key || data.access_token || ""));
+      
+      const jwtToken = (data as any).access_token || (data as any).token || data.api_key || "";
+      const persistentKey = data.api_key || "";
+      
+      localStorage.setItem("admin_token", jwtToken);
+      localStorage.setItem("mos_admin_token", jwtToken);
+      localStorage.setItem("mcp_api_key", persistentKey);
+      
+      setToken(jwtToken);
+      setMcpKey(persistentKey);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "验证失败";
       setError(msg);
@@ -72,13 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("mos_admin_token");
+    localStorage.removeItem("mcp_api_key");
     setToken("");
+    setMcpKey("");
   }, []);
 
   return (
     <AuthContext.Provider
       value={{
         token,
+        mcpKey,
         isAuthenticated: !!token && token.length > 0,
         isLoading,
         login,
