@@ -265,7 +265,30 @@ async def list_all_users(q: str = None, limit: int = 50):
     users = await list_users()
     if q:
         users = [u for u in users if q.lower() in u["username"].lower()]
-    return {"users": users[:limit]}
+    
+    formatted_users = []
+    for u in users:
+        memory_count = 0
+        if _pg_repo:
+            try:
+                memory_count = await _pg_repo.count_by_team(u["team_id"])
+            except Exception:
+                pass
+        
+        formatted_users.append({
+            "user_id": u["username"],  # Map username to user_id for the UI
+            "username": u["username"],
+            "team_id": u["team_id"],
+            "role": u["role"],
+            "created": u["created"],
+            "api_key_prefix": u["api_key_prefix"],
+            "active": u["status"] == "active",  # Map active status to boolean
+            "status": u["status"],
+            "memory_count": memory_count,
+            "token_usage": 0
+        })
+    
+    return {"users": formatted_users[:limit]}
 
 @router.get("/tenants")
 async def list_tenants():
@@ -292,6 +315,24 @@ async def create_new_tenant(data: dict):
         raise HTTPException(400, "Missing required fields")
     await register(team_id, admin_user, admin_pwd, role="admin")
     return {"status": "success", "team_id": team_id}
+
+@router.post("/users/{username}/suspend")
+async def suspend_user_account(username: str):
+    """Suspend a user account."""
+    from backend.auth.accounts import suspend_user
+    ok = await suspend_user(username)
+    if not ok:
+        raise HTTPException(404, f"用户 '{username}' 不存在")
+    return {"username": username, "suspended": True}
+
+@router.post("/users/{username}/activate")
+async def activate_user_account(username: str):
+    """Activate a suspended user account."""
+    from backend.auth.accounts import activate_user
+    ok = await activate_user(username)
+    if not ok:
+        raise HTTPException(404, f"用户 '{username}' 不存在")
+    return {"username": username, "active": True}
 
 @router.post("/users/{username}/revoke")
 async def revoke_user_key(username: str):
@@ -544,40 +585,18 @@ async def configure_providers(data: dict):
         role = {"classifier": "llm", "reflection": "llm", "embedding": "embedding", "rerank": "rerank"}.get(purpose, "llm")
         reg.configs[p_id].enabled_models[role] = m_id
         
-    # Use absolute path for absolute certainty
-    import json
-    from pathlib import Path
-    conf_path = Path("/Users/luolimo/.codex/memory-os/providers.json")
-    conf_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    data_to_save = {
-        k: {
-            "provider_type": v.provider_type,
-            "api_key": v.api_key,
-            "api_base": v.api_base,
-            "enabled_capabilities": [c.value for c in v.enabled_capabilities],
-            "enabled_models": v.enabled_models,
-        }
-        for k, v in reg.configs.items()
-    }
-    with open(conf_path, "w") as f:
-        json.dump(data_to_save, f, indent=2)
+    # 2. Persist using registry's self-contained config save logic
+    reg._save_configs()
         
-    # Update llm_engine.json
-    engine_path = Path("/Users/luolimo/.codex/memory-os/llm_engine.json")
-    engine_data = {}
-    if engine_path.exists():
-        with open(engine_path, "r") as f:
-            engine_data = json.load(f)
-            
+    # 3. Update llm_engine.json
+    engine_data = reg.load_llm_engine_config()
     for c in configs:
         if c["purpose"] in ["classifier", "reflection"]:
             engine_data[c["purpose"]] = {"provider": c["provider"], "model": c["model"]}
             
-    with open(engine_path, "w") as f:
-        json.dump(engine_data, f, indent=2)
+    reg.save_llm_engine_config(engine_data)
         
-    return {"ok": True, "message": "Configuration saved to absolute path"}
+    return {"ok": True, "message": "Configuration saved successfully"}
 
 @router.post("/providers/test")
 async def test_provider_connection(data: dict):
@@ -653,3 +672,25 @@ async def health():
         "status": "ok" if all_ok else "degraded",
         "services": services
     }
+
+@router.get("/graph/summary")
+async def get_graph_summary():
+    """Get the total count of nodes and relationships in the Neo4j graph database."""
+    if not _graph_store or not _graph_store.driver:
+        return {"nodes": 0, "edges": 0, "status": "disconnected"}
+    
+    try:
+        with _graph_store.driver.session() as session:
+            res_nodes = session.run("MATCH (n) RETURN count(n) as node_count;")
+            node_count = res_nodes.single()["node_count"]
+            
+            res_edges = session.run("MATCH ()-[r]->() RETURN count(r) as edge_count;")
+            edge_count = res_edges.single()["edge_count"]
+            
+            return {
+                "nodes": node_count,
+                "edges": edge_count,
+                "status": "connected"
+            }
+    except Exception as e:
+        return {"nodes": 0, "edges": 0, "status": "error", "detail": str(e)}

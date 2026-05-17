@@ -59,15 +59,23 @@ class AlibabaProvider(BaseProvider):
         if not self.config.api_key:
             return {"valid": False, "error": "密钥为空"}
         try:
-            # Use lightweight model list check to avoid rate limit abuse
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"{DASHSCOPE_BASE}/compatible-mode/v1/models",
+                resp = await client.post(
+                    f"{DASHSCOPE_BASE}/compatible-mode/v1/chat/completions",
+                    json={
+                        "model": "qwen-plus",
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_tokens": 1
+                    },
                     headers={"Authorization": f"Bearer {self.config.api_key}"},
                 )
                 if resp.status_code == 200:
                     return {"valid": True}
-                return {"valid": False, "error": f"HTTP {resp.status_code}: {resp.text[:100]}"}
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", resp.text)
+                except Exception:
+                    err_msg = resp.text
+                return {"valid": False, "error": f"HTTP {resp.status_code}: {err_msg[:100]}"}
         except Exception as e:
             err_msg = str(e)
             print(f"DEBUG: Alibaba Validation Failed: {err_msg}", flush=True)

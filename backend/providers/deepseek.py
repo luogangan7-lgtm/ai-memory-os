@@ -39,13 +39,22 @@ class DeepSeekProvider(BaseProvider):
         try:
             base = self.config.api_base or DEEPSEEK_BASE
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"{base}/models",
+                resp = await client.post(
+                    f"{base}/chat/completions",
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_tokens": 1
+                    },
                     headers={"Authorization": f"Bearer {self.config.api_key}"}
                 )
                 if resp.status_code == 200:
                     return {"valid": True}
-                return {"valid": False, "error": f"HTTP {resp.status_code}: {resp.text[:100]}"}
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", resp.text)
+                except Exception:
+                    err_msg = resp.text
+                return {"valid": False, "error": f"HTTP {resp.status_code}: {err_msg[:100]}"}
         except Exception as e:
             return {"valid": False, "error": str(e)}
 

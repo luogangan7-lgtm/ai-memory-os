@@ -9,15 +9,23 @@ class ZhipuProvider(BaseProvider):
         if not self.config.api_key:
             return {"valid": False, "error": "密钥为空"}
         try:
-            # Use lightweight model list check (avoids triggering 429 rate limits)
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    "https://open.bigmodel.cn/api/paas/v4/models",
+                resp = await client.post(
+                    "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                    json={
+                        "model": "glm-4-flash",
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_tokens": 1
+                    },
                     headers={"Authorization": f"Bearer {self.config.api_key}"}
                 )
                 if resp.status_code == 200:
                     return {"valid": True}
-                return {"valid": False, "error": f"HTTP {resp.status_code}"}
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", resp.text)
+                except Exception:
+                    err_msg = resp.text
+                return {"valid": False, "error": f"HTTP {resp.status_code}: {err_msg[:100]}"}
         except Exception as e:
             err_msg = str(e)
             print(f"DEBUG: Zhipu Validation Failed: {err_msg}", flush=True)

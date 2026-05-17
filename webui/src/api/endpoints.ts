@@ -55,6 +55,8 @@ export const getUsers = (q?: string) => {
 };
 export const toggleUserStatus = (userId: string, isActive: boolean) =>
   api.post(`/users/${userId}/${isActive ? "suspend" : "activate"}`);
+export const deleteUser = (username: string) =>
+  api.delete(`/users/${username}`);
 
 // LLM Engine
 export const getLLMEngineConfig = () => api.get<LLMEngineResponse>("/providers/llm-engine");
