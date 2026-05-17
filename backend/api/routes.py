@@ -501,7 +501,7 @@ async def search_memory(
     memory_ids = [r["payload"].get("memory_id", r["id"]) for r in results]
     # Filter: remove other agents personal memories from team results
     if agent_id and agent_id != "default":
-        results = [r for r in results if not r["payload"].get("agent_id") or r["payload"].get("agent_id") == agent_id]
+        results = [r for r in results if not r["payload"].get("agent_id") or r["payload"].get("agent_id") in ("", "default") or r["payload"].get("agent_id") == agent_id]
     # Fetch PG metadata (always)
     pg_rows: dict = {}
     if pg_repo and memory_ids:
