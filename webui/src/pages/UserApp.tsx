@@ -16,9 +16,11 @@ function Dashboard() {
       <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 24 }}>
         <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>知识库</button>
         <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
+        <button className={`btn ${tab === "myllm" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("myllm")}>🤖 我的 LLM</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
       {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
+      {tab === "myllm" && <MyLLMPanel />}
     </div>
   );
 }
@@ -280,7 +282,7 @@ const[baseUrl,setBaseUrl]=useState("");
 const[testResult,setTestResult]=useState("");
 const[loading,setLoading]=useState(false);
 useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setProvider(d.provider||"");setModel(d.model||"");setBaseUrl(d.base_url||"")})},[]);
-useEffect(()=>{if(provider&&!baseUrl){var bases={deepseek:"https://api.deepseek.com/v1",alibaba:"https://dashscope.aliyuncs.com/compatible-mode/v1",openai:"https://api.openai.com/v1",zhipu:"https://open.bigmodel.cn/api/paas/v4",moonshot:"https://api.moonshot.cn/v1"};setBaseUrl(bases[provider]||"")}},[provider]);
+useEffect(()=>{if(provider&&!baseUrl){var bases={deepseek:"https://api.deepseek.com/v1",alibaba:"https://dashscope.aliyuncs.com/compatible-mode/v1",openai:"https://api.openai.com/v1",zhipu:"https://open.bigmodel.cn/api/paas/v4",moonshot:"https://api.moonshot.cn/v1"};setBaseUrl((bases as Record<string,string>)[provider]||"")}},[provider]);
 async function save(){setLoading(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,api_key:apiKey,model,base_url:baseUrl})});setTestResult("已保存")}catch{setTestResult("保存失败")}setLoading(false)}
 async function test(){setLoading(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:apiKey,base_url:baseUrl,model})});const d=await r.json();setTestResult(d.connected?"✅ 连接成功":"❌ 连接失败: "+(d.error||d.status))}catch{setTestResult("测试失败")}setLoading(false)}
 return(<div className="card"><div className="card-title">🤖 我的 LLM</div><div className="card-desc">配置你自己的大模型，驱动记忆管线（L1/L2/L3）</div>
