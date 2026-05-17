@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../api/client';
 
 function Dashboard() {
   const [tab, setTab] = useState<"memory" | "connect">("memory");
@@ -167,11 +168,54 @@ export function LoginOverlay() {
 }
 
 function MemoryPanel(){
-const [memories,setMemories]=useState<{title:string;content:string}[]>([]);
-const [query,setQuery]=useState('');
-const search=useCallback(async()=>{try{const r=await fetch('/memory/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:query||'*',limit:20})});const d=await r.json();setMemories(d.results||d.memories||[])}catch{setMemories([])}},[query]);
-useEffect(()=>{search()},[search]);
-return(<div className='card'><div className='card-title'>🧠 我的记忆</div><div style={{display:'flex',gap:8,marginBottom:12}}><input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/><button className='btn btn-teal' onClick={search}>搜索</button></div><div style={{maxHeight:300,overflow:'auto'}}>{memories.map((m,i)=><div key={i} style={{padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:13}}><div style={{fontWeight:600}}>{m.title||'无标题'}</div><div style={{color:'var(--muted)',fontSize:12,marginTop:2}}>{m.content?.substring(0,150)}</div></div>)}</div></div>)}
+  const [memories,setMemories]=useState<{title:string;content:string;score:number}[]>([]);
+  const [query,setQuery]=useState('');
+  const [loading,setLoading]=useState(false);
+
+  const search=useCallback(async()=>{
+    if(loading)return;
+    setLoading(true);
+    try{
+      const d = await api.post<any[]>('/memory/search', { query: query || "*", top_k: 20 });
+      setMemories(d.map((x:any)=>({
+        title: x.memory?.title || '无标题',
+        content: x.chunk_text || x.memory?.content || '',
+        score: x.score || 0
+      })));
+    }catch(e){
+      console.error(e);
+      setMemories([]);
+    }finally{
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[query]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{search()},[]);
+
+  return(
+    <div className='card'>
+      <div className='card-title'>🧠 我的记忆</div>
+      <div style={{display:'flex',gap:8,marginBottom:12}}>
+        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/>
+        <button className='btn btn-teal' onClick={search} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
+      </div>
+      <div style={{maxHeight:400,overflow:'auto'}}>
+        {memories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无记忆数据或未搜索到结果</div>}
+        {memories.map((m,i)=>(
+          <div key={i} style={{padding:'12px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontWeight:600,color:'var(--teal)'}}>{m.title}</div>
+              <div style={{fontSize:10,color:'var(--muted)'}}>相关度: {(m.score*100).toFixed(1)}%</div>
+            </div>
+            <div style={{color:'var(--text)',fontSize:12,marginTop:6,lineHeight:1.6}}>{m.content}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function ConnectPanel({token:propToken}:{token?:string}){
 
