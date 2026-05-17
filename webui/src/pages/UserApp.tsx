@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 function Dashboard() {
   const [tab, setTab] = useState<"memory" | "connect">("memory");
-  const { logout, token } = useAuth();
+  const { logout, token, mcpKey } = useAuth();
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
       <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -13,11 +13,11 @@ function Dashboard() {
         <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={logout}>退出登录</button>
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 24 }}>
-        <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>🧠 我的记忆</button>
-        <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>🔑 接入配置</button>
+        <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>知识库</button>
+        <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
-      {tab === "connect" && <ConnectPanel token={token} />}
+      {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
     </div>
   );
 }
