@@ -34,6 +34,8 @@ class SQLiteMemoryRepo:
                     importance FLOAT,
                     confidence FLOAT,
                     source_type TEXT,
+                    layer TEXT DEFAULT 'L0',
+                    source_session_id TEXT,
                     source_uri TEXT,
                     tags TEXT, -- JSON array string
                     metadata TEXT, -- JSON object string
