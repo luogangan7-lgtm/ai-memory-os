@@ -1,17 +1,14 @@
 """User Persona API - read L3 user profiles."""
 from fastapi import APIRouter, Depends, HTTPException
 from backend.auth.middleware import get_current_team
-import asyncpg, os
+from backend.api.db_helper import get_db_conn
 
 router = APIRouter(prefix="/persona", tags=["persona"])
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-
-async def get_conn(): return await asyncpg.connect(DATABASE_URL)
 
 @router.get("/default")
 async def get_persona_default(current_team: str = Depends(get_current_team)):
     """Get persona for the authenticated team. No path-param IDOR risk."""
-    conn = await get_conn()
+    conn = await get_db_conn()
     try:
         row = await conn.fetchrow(
             "SELECT * FROM user_persona WHERE team_id=$1", current_team)
@@ -24,7 +21,7 @@ async def get_persona(team_id: str, current_team: str = Depends(get_current_team
     """Get persona by team_id. Validates URL param matches JWT identity."""
     if team_id != current_team:
         raise HTTPException(status_code=403, detail="Access denied: unauthorized team context")
-    conn = await get_conn()
+    conn = await get_db_conn()
     try:
         row = await conn.fetchrow(
             "SELECT * FROM user_persona WHERE team_id=$1", team_id)

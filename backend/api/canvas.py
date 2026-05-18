@@ -1,16 +1,13 @@
 """Task Canvas API - Mermaid-based short-term task state visualization."""
 from fastapi import APIRouter, Depends, HTTPException
 from backend.auth.middleware import get_current_team
-import asyncpg, os
+from backend.api.db_helper import get_db_conn
 
 router = APIRouter(prefix="/canvas", tags=["canvas"])
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-
-async def get_conn(): return await asyncpg.connect(DATABASE_URL)
 
 @router.get("/{task_id}")
 async def get_canvas(task_id: str, team_id: str = Depends(get_current_team)):
-    conn = await get_conn()
+    conn = await get_db_conn()
     try:
         row = await conn.fetchrow(
             "SELECT * FROM task_canvas WHERE team_id=$1 AND task_id=$2", team_id, task_id)
@@ -20,7 +17,7 @@ async def get_canvas(task_id: str, team_id: str = Depends(get_current_team)):
 
 @router.post("/{task_id}")
 async def update_canvas(task_id: str, data: dict, team_id: str = Depends(get_current_team)):
-    conn = await get_conn()
+    conn = await get_db_conn()
     try:
         await conn.execute(
             """INSERT INTO task_canvas (team_id, task_id, task_title, canvas_mermaid, completed_steps, next_steps)
