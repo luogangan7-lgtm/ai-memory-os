@@ -410,14 +410,16 @@ function LLMStatusBar(){
       setLlm({provider:d.provider,model:d.model,connected:true});
     }).catch(()=>setLlm(null));
   },[]);
-  const provName = ALL_PROVIDERS.find(x=>x.id===llm?.provider)?.name || llm?.provider || "";
+  const provInfo = ALL_PROVIDERS.find(x=>x.id===llm?.provider);
+  const provName = provInfo?.name || llm?.provider || "";
+  const regionFlag = provInfo?.region==="cn"?"🇨🇳":provInfo?.region==="intl"?"🌐":"";
   return (
     <div style={{textAlign:"center",marginBottom:16}}>
       {llm ? (
         <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(0,240,212,.06)",border:"1px solid rgba(0,240,212,.15)",borderRadius:10,padding:"8px 18px",fontSize:12}}>
           <div style={{width:6,height:6,borderRadius:"50%",background:llm.connected?"var(--emerald)":"var(--amber)",boxShadow:llm.connected?"0 0 6px var(--emerald)":"0 0 6px var(--amber)"}}/>
           <span style={{color:"var(--muted)"}}>当前 LLM:</span>
-          <span style={{color:"var(--teal)",fontWeight:600}}>{provName} / {llm.model}</span>
+          <span style={{color:"var(--teal)",fontWeight:600}}>{regionFlag} {provName} / {llm.model}</span>
           <span style={{color:llm.connected?"var(--emerald)":"var(--amber)",fontSize:10}}>{llm.connected?"● 在线":"○ 待检测"}</span>
         </div>
       ) : (
