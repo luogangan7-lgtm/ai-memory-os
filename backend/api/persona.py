@@ -8,8 +8,22 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 async def get_conn(): return await asyncpg.connect(DATABASE_URL)
 
+@router.get("/default")
+async def get_persona_default(current_team: str = Depends(get_current_team)):
+    """Get persona for the authenticated team. No path-param IDOR risk."""
+    conn = await get_conn()
+    try:
+        row = await conn.fetchrow(
+            "SELECT * FROM user_persona WHERE team_id=$1", current_team)
+        if not row: raise HTTPException(404, "No persona yet")
+        return dict(row)
+    finally: await conn.close()
+
 @router.get("/{team_id}")
-async def get_persona(team_id: str, _: str = Depends(get_current_team)):
+async def get_persona(team_id: str, current_team: str = Depends(get_current_team)):
+    """Get persona by team_id. Validates URL param matches JWT identity."""
+    if team_id != current_team:
+        raise HTTPException(status_code=403, detail="Access denied: unauthorized team context")
     conn = await get_conn()
     try:
         row = await conn.fetchrow(

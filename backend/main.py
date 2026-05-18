@@ -93,6 +93,10 @@ app.include_router(public_router)
 app.include_router(user_providers_router, prefix="/api")
 app.include_router(admin_router, prefix="/admin")
 app.include_router(mcp_router)
+from backend.api.persona import router as persona_router
+from backend.api.canvas import router as canvas_router
+app.include_router(persona_router)
+app.include_router(canvas_router)
 
 # Favicon fix
 @app.get("/favicon.ico", include_in_schema=False)
