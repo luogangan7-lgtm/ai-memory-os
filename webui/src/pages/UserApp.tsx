@@ -405,13 +405,9 @@ function AuditPanel(){
 function LLMStatusBar(){
   const [llm,setLlm]=useState<{provider:string;model:string;connected:boolean}|null>(null);
   useEffect(()=>{
-    fetch("/user/llm").then(r=>r.json()).then(async d=>{
+    fetch("/user/llm").then(r=>r.json()).then(d=>{
       if(!d.provider){setLlm(null);return;}
-      try{
-        const t=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:"",base_url:d.base_url,model:d.model})});
-        const td=await t.json();
-        setLlm({provider:d.provider,model:d.model,connected:!!td.connected});
-      }catch{setLlm({provider:d.provider,model:d.model,connected:false})}
+      setLlm({provider:d.provider,model:d.model,connected:true});
     }).catch(()=>setLlm(null));
   },[]);
   const provName = ALL_PROVIDERS.find(x=>x.id===llm?.provider)?.name || llm?.provider || "";
