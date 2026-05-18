@@ -1,6 +1,7 @@
 """User Provider API — per-user LLM config for pipeline usage."""
 from fastapi import APIRouter, HTTPException, Depends
 from backend.auth.middleware import get_current_team
+from backend.utils.crypto import encrypt, decrypt
 
 router = APIRouter(prefix="/user/llm", tags=["user_llm"])
 _user_llm_configs: dict[str, dict] = {}
@@ -17,6 +18,7 @@ async def get_user_llm(team_id: str = Depends(get_current_team)):
                     "provider": cfg.get("provider_name", ""),
                     "model": cfg.get("model_name", ""),
                     "has_key": True,
+                    "api_key": decrypt(cfg.get("api_key", "")),
                     "base_url": cfg.get("api_base_url", "")
                 }
     except Exception:
@@ -31,7 +33,7 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
     _user_llm_configs[team_id] = {
         "provider": data.get("provider", ""),
         "model": data.get("model", ""),
-        "api_key": data.get("api_key", ""),
+        "api_key": encrypt(data.get("api_key", "")),
         "base_url": data.get("base_url", ""),
     }
     # Persist to database for proxy gateway
@@ -41,7 +43,7 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
             await pg_repo.save_user_provider_config(
                 user_id=team_id,
                 provider_name=data.get("provider", ""),
-                api_key=data.get("api_key", ""),
+                api_key=encrypt(data.get("api_key", "")),
                 api_base_url=data.get("base_url", ""),
                 model_name=data.get("model", ""),
                 is_active=True
@@ -66,3 +68,23 @@ async def test_user_llm(data: dict, team_id: str = Depends(get_current_team)):
             return {"connected": r.status_code == 200, "status": r.status_code}
     except Exception as e:
         return {"connected": False, "error": str(e)}
+
+async def warm_up_llm_configs():
+    """服务启动时从 DB 加载用户 LLM 配置到内存."""
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        rows = await conn.fetch(
+            "SELECT user_id, provider_name, api_key, model_name, api_base_url "
+            "FROM user_provider_configs WHERE is_active = TRUE")
+        await conn.close()
+        for row in rows:
+            _user_llm_configs[row["user_id"]] = {
+                "provider": row["provider_name"] or "",
+                "api_key": decrypt(row["api_key"] or ""),
+                "model": row["model_name"] or "",
+                "base_url": row.get("api_base_url", "") or "",
+            }
+        print(f"[warm-up] Loaded {len(rows)} user LLM configs into memory")
+    except Exception as e:
+        print(f"[warm-up] Failed: {e}")

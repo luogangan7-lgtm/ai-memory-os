@@ -21,8 +21,22 @@ from backend.reflection.engine import ReflectionEngine
 from backend.scheduler.reflection_scheduler import ReflectionScheduler
 from backend.services.config import settings
 
+# Global PostgreSQL connection pool
+_pg_pool = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _pg_pool
+    # Initialize connection pool for Docker mode
+    if not settings.use_standalone:
+        from backend.api.db_helper import DATABASE_URL
+        import asyncpg as _apg
+        _pg_pool = await _apg.create_pool(
+            DATABASE_URL, min_size=5, max_size=20,
+            command_timeout=30, max_inactive_connection_lifetime=300)
+        print(f"[pool] PostgreSQL connection pool created (min=5, max=20)")
+        from backend.api.user_providers import warm_up_llm_configs
+        await warm_up_llm_configs()
     # Standalone mode detection and initialization
     if settings.use_standalone:
         from backend.memory.sqlite_repo import SQLiteMemoryRepo
@@ -69,6 +83,9 @@ async def lifespan(app: FastAPI):
     app.state.scheduler = sched
     yield
     await sched.stop()
+    if _pg_pool:
+        await _pg_pool.close()
+        print("[pool] PostgreSQL connection pool closed")
     if gs: await gs.close()
     await pg.close()
 

@@ -1,29 +1,27 @@
-# AI Memory OS — Cryptographic Utilities
-import base64
-import hashlib
-from cryptography.fernet import Fernet
-from backend.services.config import settings
+"""API Key encryption/decryption using AES-256-GCM."""
+import os, base64
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-def _get_fernet() -> Fernet:
-    """Derive a 32-byte Fernet-compatible key securely from the configured jwt_secret."""
-    key_hash = hashlib.sha256(settings.jwt_secret.encode()).digest()
-    fernet_key = base64.urlsafe_b64encode(key_hash)
-    return Fernet(fernet_key)
+_MASTER_KEY = os.environ.get("MEMORY_OS_MASTER_KEY", "")
+_key_bytes = base64.b64decode(_MASTER_KEY) if _MASTER_KEY else None
 
-def encrypt_key(plain_text: str) -> str:
-    """Encrypt plain text API key into an AES-encrypted cipher string."""
-    if not plain_text:
-        return ""
-    f = _get_fernet()
-    return f.encrypt(plain_text.encode()).decode()
+def encrypt(plaintext: str) -> str:
+    """Encrypt API key, returns base64(nonce + ciphertext)."""
+    if not plaintext or not _key_bytes:
+        return plaintext
+    aesgcm = AESGCM(_key_bytes)
+    nonce = os.urandom(12)
+    ct = aesgcm.encrypt(nonce, plaintext.encode(), None)
+    return base64.b64encode(nonce + ct).decode()
 
-def decrypt_key(cipher_text: str) -> str:
-    """Decrypt AES-encrypted cipher string back into plain text."""
-    if not cipher_text:
-        return ""
-    f = _get_fernet()
+def decrypt(encoded: str) -> str:
+    """Decrypt API key."""
+    if not encoded or not _key_bytes:
+        return encoded
     try:
-        return f.decrypt(cipher_text.encode()).decode()
+        data = base64.b64decode(encoded)
+        nonce, ct = data[:12], data[12:]
+        aesgcm = AESGCM(_key_bytes)
+        return aesgcm.decrypt(nonce, ct, None).decode()
     except Exception:
-        # Graceful fallback: return as-is if string was stored unencrypted
-        return cipher_text
+        return encoded  # Return as-is if decryption fails (backward compat)

@@ -78,3 +78,17 @@ def start_worker():
     if _background_task is None or _background_task.done():
         _background_task = asyncio.create_task(process_queue())
         logger.info(f"Pipeline worker started (up to {_concurrency} concurrent, per-team serialized)")
+
+
+async def mark_dead(item_id: str, error: str, team_id: str):
+    """Mark a pipeline job as dead after max retries."""
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        await conn.execute(
+            "UPDATE pipeline_queue SET status='dead', error_msg=$1, completed_at=NOW() WHERE id=$2",
+            error, item_id)
+        await conn.close()
+        print(f"[pipeline] DEAD LETTER: job={item_id} team={team_id} error={error}")
+    except Exception as e:
+        print(f"[pipeline] Failed to mark dead: {e}")

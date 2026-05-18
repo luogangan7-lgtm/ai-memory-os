@@ -9,9 +9,10 @@ STANDALONE_DB = str(Path.home() / ".codex" / "memory-os" / "memories.db")
 
 class DBConn:
     """Unified database connection wrapper. Works with both asyncpg and aiosqlite."""
-    def __init__(self, conn, is_standalone: bool):
+    def __init__(self, conn, is_standalone: bool, pool=None):
         self._conn = conn
         self._standalone = is_standalone
+        self._pool = pool
     
     async def fetchrow(self, query: str, *args):
         if self._standalone:
@@ -49,11 +50,21 @@ class DBConn:
             await self._conn.execute(query, *args)
     
     async def close(self):
-        await self._conn.close()
+        if self._standalone:
+            await self._conn.close()
+        elif self._pool:
+            await self._pool.release(self._conn)
+        else:
+            await self._conn.close()
 
 async def get_db_conn() -> DBConn:
     if settings.use_standalone:
         db = await aiosqlite.connect(STANDALONE_DB)
         db.row_factory = aiosqlite.Row
         return DBConn(db, True)
+    # Use global connection pool instead of creating new connections
+    from backend.main import _pg_pool
+    if _pg_pool:
+        conn = await _pg_pool.acquire()
+        return DBConn(conn, False, pool=_pg_pool)
     return DBConn(await asyncpg.connect(DATABASE_URL), False)
