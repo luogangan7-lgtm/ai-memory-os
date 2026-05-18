@@ -3,7 +3,9 @@ import { api } from '../api/client';
 
 export function GraphPage(){
   const cr=useRef<HTMLCanvasElement>(null);
-  const [stats, setStats] = useState({ nodes: 0, edges: 0, status: 'loading' });
+  const [stats, setStats] = useState({ nodes: 0, edges: 0, status: "loading" });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [graphData, setGraphData] = useState<any>(null);
 
   useEffect(() => {
     async function fetchStats() {
@@ -15,19 +17,28 @@ export function GraphPage(){
       }
     }
     fetchStats();
+    fetch("/graph/visualization").then(r=>r.json()).then(setGraphData).catch(()=>{});
   }, []);
 
   useEffect(()=>{
     const c=cr.current;if(!c)return;
     const ctx=c.getContext('2d');if(!ctx)return;
     c.width=c.parentElement!.clientWidth||800;c.height=500;
-    const N=30;
-    const nodes=Array.from({length:N},(_,i)=>({x:Math.random()*c.width,y:Math.random()*c.height,r:6+Math.random()*8,label:'Node '+(i+1),vx:0,vy:0}));
+    const rawNodes = graphData?.nodes || [];
+    const rawEdges = graphData?.edges || [];
+    const cx=c.width/2,cy=c.height/2,r2=Math.min(c.width,c.height)*0.38;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nodes:any[] = rawNodes.length > 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? rawNodes.map((n:any,i:number)=>({x:cx+Math.cos(2*Math.PI*i/rawNodes.length)*r2,y:cy+Math.sin(2*Math.PI*i/rawNodes.length)*r2,r:5+Math.random()*3,label:(n.title||n.name||n.label||n.id||"").slice(0,18),vx:0,vy:0}))
+      : Array.from({length:30},(_,i)=>({x:Math.random()*c.width,y:Math.random()*c.height,r:6+Math.random()*8,label:"Node "+(i+1),vx:0,vy:0}));
     const links:number[][]=[];
-    for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){
-      const dx=nodes[i]!.x-nodes[j]!.x,dy=nodes[i]!.y-nodes[j]!.y;
-      if(Math.sqrt(dx*dx+dy*dy)<120)links.push([i,j])
-    }
+    if(rawEdges.length>0){
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const idMap=new Map(nodes.map((n:any,i:number)=>[n.id,i]));
+      for(const e of rawEdges){const a=idMap.get(e.source),b=idMap.get(e.target);if(a!==null&&b!==null&&a!==b)links.push([a as number,b as number])}
+    } else {for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const dx=Number(nodes[i]!.x)-Number(nodes[j]!.x),dy=Number(nodes[i]!.y)-Number(nodes[j]!.y);if(Math.sqrt(dx*dx+dy*dy)<120)links.push([i,j])}}
     const W=c.width,H=c.height;
     function draw(){
       ctx!.clearRect(0,0,W,H);
@@ -47,6 +58,7 @@ export function GraphPage(){
       requestAnimationFrame(draw)
     }
     draw()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   return (

@@ -734,6 +734,18 @@ async def transition_lifecycle(
     return {"memory_id": req.memory_id, "stage": target.value, "freshness": round(fresh, 4)}
 
 
+
+@router.get("/graph/visualization")
+async def graph_visualization():
+    """Return full Neo4j graph data for visualization."""
+    if not graph_store:
+        raise HTTPException(status_code=503, detail="Graph store not ready")
+    try:
+        data = await graph_store.get_full_graph()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/graph/summary")
 async def graph_summary():
     if not graph_store:
