@@ -1,4 +1,5 @@
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -29,10 +30,10 @@ async def lifespan(app: FastAPI):
     global _pg_pool
     # Initialize connection pool for Docker mode
     if not settings.use_standalone:
-        from backend.api.db_helper import DATABASE_URL
         import asyncpg as _apg
+        db_url = f"postgresql://{settings.pg_user}:{settings.pg_password}@{settings.pg_host}:{settings.pg_port}/{settings.pg_db}"
         _pg_pool = await _apg.create_pool(
-            DATABASE_URL, min_size=5, max_size=20,
+            db_url, min_size=5, max_size=20,
             command_timeout=30, max_inactive_connection_lifetime=300)
         print(f"[pool] PostgreSQL connection pool created (min=5, max=20)")
         from backend.api.user_providers import warm_up_llm_configs

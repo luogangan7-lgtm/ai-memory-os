@@ -25,3 +25,7 @@ def decrypt(encoded: str) -> str:
         return aesgcm.decrypt(nonce, ct, None).decode()
     except Exception:
         return encoded  # Return as-is if decryption fails (backward compat)
+
+# Aliases for backward compatibility
+encrypt_key = encrypt
+decrypt_key = decrypt

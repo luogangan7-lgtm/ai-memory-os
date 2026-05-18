@@ -1,5 +1,6 @@
 # AI Memory OS - Auth Middleware
 from __future__ import annotations
+from starlette.middleware.base import BaseHTTPMiddleware
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
