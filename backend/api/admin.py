@@ -276,28 +276,34 @@ async def list_all_users(q: str = None, limit: int = 50):
     if q:
         users = [u for u in users if q.lower() in u["username"].lower()]
     
-    # Batch fetch token usage for all teams
+    # Batch fetch token usage and memory+document counts for all teams
     token_map: dict = {}
+    knowledge_map: dict = {}
     try:
         from backend.api.db_helper import get_db_conn
         conn = await get_db_conn()
-        rows = await conn.fetch(
-            "SELECT team_id, COALESCE(SUM(total_tokens),0) AS tokens FROM pipeline_usage GROUP BY team_id"
-        )
-        await conn.close()
+        
+        # 1. Fetch Tokens
+        rows = await conn.fetch("SELECT team_id, COALESCE(SUM(total_tokens),0) AS tokens FROM pipeline_usage GROUP BY team_id")
         token_map = {r["team_id"]: int(r["tokens"]) for r in rows}
+        
+        # 2. Fetch Memories + Documents as "Knowledge" count
+        # Combining counts from memories and documents tables
+        k_rows = await conn.fetch("""
+            SELECT team_id, SUM(cnt) as total_knowledge FROM (
+                SELECT team_id, COUNT(*) as cnt FROM memories GROUP BY team_id
+                UNION ALL
+                SELECT team_id, COUNT(*) as cnt FROM documents GROUP BY team_id
+            ) as sub GROUP BY team_id
+        """)
+        knowledge_map = {r["team_id"]: int(r["total_knowledge"]) for r in k_rows}
+        
+        await conn.close()
     except Exception:
         pass
 
     formatted_users = []
     for u in users:
-        memory_count = 0
-        if _pg_repo:
-            try:
-                memory_count = await _pg_repo.count_by_team(u["team_id"])
-            except Exception:
-                pass
-        
         formatted_users.append({
             "user_id": u["username"],  # Map username to user_id for the UI
             "username": u["username"],
@@ -307,28 +313,46 @@ async def list_all_users(q: str = None, limit: int = 50):
             "api_key_prefix": u["api_key_prefix"],
             "active": u["status"] == "active",  # Map active status to boolean
             "status": u["status"],
-            "memory_count": memory_count,
+            "memory_count": knowledge_map.get(u["team_id"], 0),
             "token_usage": token_map.get(u["team_id"], 0)
         })
     
     return {"users": formatted_users[:limit]}
+
 
 @router.get("/tenants")
 async def list_tenants():
     """List all teams (tenants) with metadata."""
     from backend.auth.accounts import list_users
     users = await list_users()
+    # Fetch Memory + Document counts for all teams
+    knowledge_map: dict = {}
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        k_rows = await conn.fetch("""
+            SELECT team_id, SUM(cnt) as total_knowledge FROM (
+                SELECT team_id, COUNT(*) as cnt FROM memories GROUP BY team_id
+                UNION ALL
+                SELECT team_id, COUNT(*) as cnt FROM documents GROUP BY team_id
+            ) as sub GROUP BY team_id
+        """)
+        knowledge_map = {r["team_id"]: int(r["total_knowledge"]) for r in k_rows}
+        await conn.close()
+    except Exception:
+        pass
+
     teams = {}
     for u in users:
         tid = u["team_id"]
         if tid not in teams:
-            memory_count = 0
-            if _pg_repo:
-                try:
-                    memory_count = await _pg_repo.count_by_team(tid)
-                except Exception:
-                    pass
-            teams[tid] = {"team_id": tid, "name": tid, "user_count": 0, "memory_count": memory_count, "active": True}
+            teams[tid] = {
+                "team_id": tid, 
+                "name": tid, 
+                "user_count": 0, 
+                "memory_count": knowledge_map.get(tid, 0), 
+                "active": True
+            }
         teams[tid]["user_count"] += 1
     return {"tenants": list(teams.values())}
 
