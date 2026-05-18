@@ -17,7 +17,7 @@ export function GraphPage(){
       }
     }
     fetchStats();
-    fetch("/graph/visualization").then(r=>r.json()).then(setGraphData).catch(()=>{});
+    api.get<any>("/graph/visualization").then(setGraphData).catch(()=>{});
   }, []);
 
   useEffect(()=>{

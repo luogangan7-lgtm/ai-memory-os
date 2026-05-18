@@ -964,3 +964,39 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
     }
 
 
+@router.get("/audit-logs")
+async def get_user_audit_logs(
+    limit: int = 50,
+    ctx: dict = Depends(get_user_context)
+):
+    """Retrieve audit logs securely filtered by the current user's team or agent identity."""
+    from backend.api.db_helper import get_db_conn
+    import os
+    conn = await get_db_conn()
+    try:
+        use_sqlite = os.getenv("MEMORY_OS_USE_STANDALONE", "false").lower() == "true"
+        if use_sqlite:
+            # Standalone SQLite queries agent_id matching the current user context
+            rows = await conn.fetch(
+                "SELECT * FROM audit_log WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2",
+                ctx.get("username") or ctx["team_id"], limit
+            )
+            if not rows:
+                rows = await conn.fetch(
+                    "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT $1", limit
+                )
+        else:
+            # PostgreSQL queries by team_id
+            rows = await conn.fetch(
+                "SELECT * FROM audit_log WHERE team_id = $1 ORDER BY created_at DESC LIMIT $2",
+                ctx["team_id"], limit
+            )
+        return {"logs": [dict(r) for r in rows]}
+    except Exception as e:
+        print(f"[audit] Failed to fetch user audit logs: {e}")
+        return {"logs": []}
+    finally:
+        await conn.close()
+
+
+
