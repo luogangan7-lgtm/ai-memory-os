@@ -319,11 +319,11 @@ const[p,setP]=useState("");const[k,setK]=useState("");const[m,setM]=useState("")
 const[r,setR]=useState("");const[l,setL]=useState(false);const[stats,setStats]=useState({mem:0,tokens:0,calls:0});
 const prov=PROVIDERS.find(x=>x.id===p);
 useEffect(()=>{fetch("/stats").then(r=>r.json()).then(d=>setStats({mem:d.total_memories||0,tokens:d.total_tokens||0,calls:d.pipeline_calls||0})).catch(()=>{})},[]);
-useEffect(()=>{fetch("/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
+useEffect(()=>{fetch("/api/user/llm").then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(()=>{if(p&&prov){setB(prov.base)}if(!p){setM("")}},[p]);
-async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
-async function test(){setL(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
+async function save(){setL(true);try{await fetch("/api/user/llm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
+async function test(){setL(true);try{const r=await fetch("/api/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
 return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
 <div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}><optgroup label="🇨🇳 中国厂商">
@@ -410,7 +410,7 @@ function AuditPanel(){
 function LLMStatusBar(){
   const [llm,setLlm]=useState<{provider:string;model:string;connected:boolean}|null>(null);
   useEffect(()=>{
-    fetch("/user/llm").then(r=>r.json()).then(d=>{
+    fetch("/api/user/llm").then(r=>r.json()).then(d=>{
       if(!d.provider){setLlm(null);return;}
       setLlm({provider:d.provider,model:d.model,connected:true});
     }).catch(()=>setLlm(null));
