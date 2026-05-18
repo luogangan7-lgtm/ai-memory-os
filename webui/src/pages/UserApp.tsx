@@ -326,7 +326,12 @@ async function save(){setL(true);try{await fetch("/user/llm",{method:"POST",head
 async function test(){setL(true);try{const r=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
 return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-<div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{PROVIDERS.map(x=><option key={x.id} value={x.id}>{x.region==="cn"?"🇨🇳":"🌐"} {x.name} ({x.models.length} models)</option>)}</select></div>
+<div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}><optgroup label="🇨🇳 中国厂商">
+{PROVIDERS.filter(x=>x.region==="cn").map(x=><option key={x.id} value={x.id}>{x.name} ({x.models.length} 模型)</option>)}
+</optgroup>
+<optgroup label="🌐 海外厂商">
+{PROVIDERS.filter(x=>x.region==="intl").map(x=><option key={x.id} value={x.id}>{x.name} ({x.models.length} 模型)</option>)}
+</optgroup></select></div>
 <div className="form-group"><label>模型</label><select value={m} onChange={e=>setM(e.target.value)} disabled={!p} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{prov?.models.map(x=><option key={x} value={x}>{x}</option>)}</select></div></div>
 <div className="form-group"><label>API Key</label><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="sk-..." style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",fontSize:13}}/></div>
 <div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={l}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={l||!k}>🔗 测试连接</button></div>
