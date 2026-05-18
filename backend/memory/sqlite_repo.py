@@ -86,7 +86,7 @@ class SQLiteMemoryRepo:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     team_id TEXT NOT NULL,
                     conversation_id TEXT NOT NULL,
-                    messages_json TEXT DEFAULT '[]',
+                    messages TEXT DEFAULT '[]',
                     started_at TEXT,
                     ended_at TEXT,
                     created_at TEXT DEFAULT (datetime('now'))
@@ -96,7 +96,8 @@ class SQLiteMemoryRepo:
                     team_id TEXT NOT NULL,
                     scenario_id TEXT NOT NULL UNIQUE,
                     title TEXT,
-                    summary_md TEXT,
+                    content_md TEXT,
+                    atom_ids TEXT DEFAULT '[]',
                     source_count INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT (datetime('now'))
                 );
@@ -104,6 +105,8 @@ class SQLiteMemoryRepo:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     team_id TEXT NOT NULL UNIQUE,
                     persona_md TEXT DEFAULT '',
+                    scenario_count INTEGER DEFAULT 0,
+                    version INTEGER DEFAULT 1,
                     updated_at TEXT DEFAULT (datetime('now'))
                 );
                 CREATE TABLE IF NOT EXISTS task_canvas (
@@ -331,6 +334,7 @@ class SQLiteMemoryRepo:
             q = q.replace(f"${i}", "?")
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
+            q = q.replace('NOW()', "datetime('now')")
             cursor = await db.execute(q, args)
             row = await cursor.fetchone()
             await cursor.close()
@@ -343,6 +347,7 @@ class SQLiteMemoryRepo:
             q = q.replace(f"${i}", "?")
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
+            q = q.replace('NOW()', "datetime('now')")
             cursor = await db.execute(q, args)
             rows = await cursor.fetchall()
             await cursor.close()
@@ -354,6 +359,7 @@ class SQLiteMemoryRepo:
         for i in range(len(args), 0, -1):
             q = q.replace(f"${i}", "?")
         async with aiosqlite.connect(self.db_path) as db:
+            q = q.replace('NOW()', "datetime('now')")
             await db.execute(q, args)
             await db.commit()
 
