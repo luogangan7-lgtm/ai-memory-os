@@ -284,9 +284,9 @@ async def mcp_post_handler(
                     result_text = "Reflection engine scheduler is not running."
 
             elif tool_name in ("persona", "memory_get_persona"):
-                import asyncpg, os
+                from backend.api.db_helper import get_db_conn
                 try:
-                    conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
+                    conn = await get_db_conn()
                     row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", team_id)
                     await conn.close()
                     result_text = row["persona_md"] if row and row["persona_md"] else "Persona not yet generated."
@@ -294,10 +294,10 @@ async def mcp_post_handler(
                     result_text = "Persona unavailable."
 
             elif tool_name in ("canvas_get", "memory_task_canvas_get"):
-                import asyncpg, os
+                from backend.api.db_helper import get_db_conn
                 task_id = arguments.get("task_id","")
                 try:
-                    conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
+                    conn = await get_db_conn()
                     row = await conn.fetchrow("SELECT * FROM task_canvas WHERE team_id=$1 AND task_id=$2", team_id, task_id)
                     await conn.close()
                     result_text = f"Canvas: {row['canvas_mermaid']}" if row else f"No canvas for {task_id}"
@@ -305,9 +305,9 @@ async def mcp_post_handler(
                     result_text = "Canvas unavailable."
 
             elif tool_name in ("canvas_update", "memory_task_canvas_update"):
-                import asyncpg, os
+                from backend.api.db_helper import get_db_conn
                 try:
-                    conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
+                    conn = await get_db_conn()
                     await conn.execute("INSERT INTO task_canvas (team_id, task_id, task_title, canvas_mermaid, completed_steps, next_steps) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (team_id, task_id) DO UPDATE SET canvas_mermaid=$4, completed_steps=$5, next_steps=$6, updated_at=NOW()", team_id, arguments.get("task_id",""), arguments.get("task_title",""), arguments.get("mermaid",""), arguments.get("completed",[]), arguments.get("next",[]))
                     await conn.close()
                     result_text = "Canvas updated"
@@ -318,8 +318,8 @@ async def mcp_post_handler(
                 workspace_id = arguments.get("workspace_id", "default")
                 limit = int(arguments.get("limit", 20))
                 try:
-                    import asyncpg, os as _os, json as _json
-                    conn = await asyncpg.connect(_os.getenv("DATABASE_URL", ""))
+                    from backend.api.db_helper import get_db_conn as _os, json as _json
+                    conn = await get_db_conn()
                     rows = await conn.fetch(
                         "SELECT chunk_id, title FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2",
                         team_id, limit)
@@ -332,8 +332,8 @@ async def mcp_post_handler(
             elif tool_name == "memory_delete":
                 memory_id = arguments.get("memory_id", "")
                 try:
-                    import asyncpg, os as _os
-                    conn = await asyncpg.connect(_os.getenv("DATABASE_URL", ""))
+                    from backend.api.db_helper import get_db_conn as _os
+                    conn = await get_db_conn()
                     await conn.execute(
                         "DELETE FROM memories WHERE (chunk_id=$1 OR title=$1) AND team_id=$2",
                         memory_id, team_id)
@@ -344,8 +344,8 @@ async def mcp_post_handler(
 
             elif tool_name == "memory_status":
                 try:
-                    import asyncpg, os as _os
-                    conn = await asyncpg.connect(_os.getenv("DATABASE_URL", ""))
+                    from backend.api.db_helper import get_db_conn as _os
+                    conn = await get_db_conn()
                     row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
                     await conn.close()
                     result_text = f"Memory system online. Total memories: {row['cnt'] if row else 0}. Qdrant: connected. Neo4j: connected."
