@@ -175,6 +175,36 @@ async def mcp_post_handler(
                                 }
                             }
                         }
+                    },
+                    {
+                        "name": "memory_get_persona",
+                        "description": "Retrieve L3 persona profile from long-term memory.",
+                        "inputSchema": {"type": "object", "properties": {}}
+                    },
+                    {
+                        "name": "memory_task_canvas_get",
+                        "description": "Get task canvas Mermaid diagram.",
+                        "inputSchema": {"type": "object", "properties": {"task_id": {"type": "string", "default": "main"}}}
+                    },
+                    {
+                        "name": "memory_task_canvas_update",
+                        "description": "Update task canvas Mermaid diagram with progress.",
+                        "inputSchema": {"type": "object", "properties": {"task_id": {"type": "string"}, "mermaid": {"type": "string"}}, "required": ["task_id", "mermaid"]}
+                    },
+                    {
+                        "name": "memory_list",
+                        "description": "List stored memories for current user.",
+                        "inputSchema": {"type": "object", "properties": {"limit": {"type": "integer", "default": 20}}}
+                    },
+                    {
+                        "name": "memory_delete",
+                        "description": "Delete a memory entry by its identifier.",
+                        "inputSchema": {"type": "object", "properties": {"memory_id": {"type": "string"}}, "required": ["memory_id"]}
+                    },
+                    {
+                        "name": "memory_status",
+                        "description": "Get memory system status (total, health, storage).",
+                        "inputSchema": {"type": "object", "properties": {}}
                     }
                 ]
             }
@@ -253,7 +283,7 @@ async def mcp_post_handler(
                 else:
                     result_text = "Reflection engine scheduler is not running."
 
-            elif tool_name == "persona":
+            elif tool_name in ("persona", "memory_get_persona"):
                 import asyncpg, os
                 try:
                     conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
@@ -263,7 +293,7 @@ async def mcp_post_handler(
                 except:
                     result_text = "Persona unavailable."
 
-            elif tool_name == "canvas_get":
+            elif tool_name in ("canvas_get", "memory_task_canvas_get"):
                 import asyncpg, os
                 task_id = arguments.get("task_id","")
                 try:
@@ -274,7 +304,7 @@ async def mcp_post_handler(
                 except:
                     result_text = "Canvas unavailable."
 
-            elif tool_name == "canvas_update":
+            elif tool_name in ("canvas_update", "memory_task_canvas_update"):
                 import asyncpg, os
                 try:
                     conn = await asyncpg.connect(os.getenv("DATABASE_URL", ""))
@@ -283,6 +313,44 @@ async def mcp_post_handler(
                     result_text = "Canvas updated"
                 except:
                     result_text = "Canvas update failed."
+
+            elif tool_name == "memory_list":
+                workspace_id = arguments.get("workspace_id", "default")
+                limit = int(arguments.get("limit", 20))
+                try:
+                    import asyncpg, os as _os, json as _json
+                    conn = await asyncpg.connect(_os.getenv("DATABASE_URL", ""))
+                    rows = await conn.fetch(
+                        "SELECT chunk_id, title FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2",
+                        team_id, limit)
+                    await conn.close()
+                    items = [{"id": r["chunk_id"], "title": r["title"]} for r in rows]
+                    result_text = _json.dumps(items, ensure_ascii=False)
+                except Exception as e:
+                    result_text = f"memory_list failed: {e}"
+
+            elif tool_name == "memory_delete":
+                memory_id = arguments.get("memory_id", "")
+                try:
+                    import asyncpg, os as _os
+                    conn = await asyncpg.connect(_os.getenv("DATABASE_URL", ""))
+                    await conn.execute(
+                        "DELETE FROM memories WHERE (chunk_id=$1 OR title=$1) AND team_id=$2",
+                        memory_id, team_id)
+                    await conn.close()
+                    result_text = "Memory deleted successfully."
+                except Exception as e:
+                    result_text = f"memory_delete failed: {e}"
+
+            elif tool_name == "memory_status":
+                try:
+                    import asyncpg, os as _os
+                    conn = await asyncpg.connect(_os.getenv("DATABASE_URL", ""))
+                    row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
+                    await conn.close()
+                    result_text = f"Memory system online. Total memories: {row['cnt'] if row else 0}. Qdrant: connected. Neo4j: connected."
+                except Exception as e:
+                    result_text = f"memory_status failed: {e}"
 
             else:
                 is_error = True

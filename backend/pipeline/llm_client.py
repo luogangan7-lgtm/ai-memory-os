@@ -2,11 +2,9 @@
 from __future__ import annotations
 import httpx
 
-import sys
-sys.path.insert(0, '/app')
 from backend.api.user_providers import _user_llm_configs
 
-async def call_llm(prompt: str, team_id: str = "") -> str | None:
+async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifier") -> str | None:
     # 1. Check user's own LLM config first (per-team isolation)
     user_cfg = _user_llm_configs.get(team_id, {})
     if user_cfg.get("api_key") and user_cfg.get("base_url"):
