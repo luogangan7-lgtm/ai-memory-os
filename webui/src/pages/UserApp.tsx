@@ -342,7 +342,7 @@ return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div cla
 <div style={{marginTop:16,borderTop:"1px solid var(--border)",paddingTop:12}}>
 <div style={{fontSize:11,color:"var(--muted)",marginBottom:8}}>📊 使用统计</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-{["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=><div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>{stats.mem}</div></div>)}
+{["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=>{const val=i===0?stats.mem:i===1?stats.tokens:stats.calls;return(<div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>{val}</div></div>)})}
 </div></div>
 </div>)}
 
