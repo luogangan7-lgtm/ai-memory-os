@@ -324,7 +324,7 @@ useEffect(()=>{fetch("/stats").then(r=>r.json()).then(d=>setStats({mem:d.total_m
 // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(()=>{fetch("/api/user/llm",{headers:authHeaders()}).then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(()=>{if(p&&prov){setB(prov.base)}if(!p){setM("")}},[p]);
+useEffect(()=>{if(p&&prov){setB(prov.base);if(!m||!prov.models.includes(m)){setM(prov.models[0]||"")}}if(!p){setM("")}},[p]);
 async function save(){setL(true);try{await fetch("/api/user/llm",{method:"POST",headers:authHeaders(),body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
 async function test(){setL(true);try{const r=await fetch("/api/user/llm/test",{method:"POST",headers:authHeaders(),body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
 return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
