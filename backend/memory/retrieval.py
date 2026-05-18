@@ -98,6 +98,9 @@ class RetrievalPipeline:
             except Exception:
                 for r in deduped:
                     r["graph_context"] = []
+
+        return deduped
+
 async def get_dynamic_top_k(team_id: str) -> int:
     """Auto-adjust rough retrieval count based on memory volume."""
     try:
