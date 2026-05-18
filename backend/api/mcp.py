@@ -295,24 +295,30 @@ async def mcp_post_handler(
 
             elif tool_name in ("canvas_get", "memory_task_canvas_get"):
                 from backend.api.db_helper import get_db_conn
-                task_id = arguments.get("task_id","")
+                task_id = arguments.get("task_id", "main")
+                if not task_id: task_id = "main"
                 try:
                     conn = await get_db_conn()
                     row = await conn.fetchrow("SELECT * FROM task_canvas WHERE team_id=$1 AND task_id=$2", team_id, task_id)
                     await conn.close()
                     result_text = f"Canvas: {row['canvas_mermaid']}" if row else f"No canvas for {task_id}"
-                except:
-                    result_text = "Canvas unavailable."
+                except Exception as e:
+                    result_text = f"Canvas unavailable: {e}"
 
             elif tool_name in ("canvas_update", "memory_task_canvas_update"):
+                import json as _json
                 from backend.api.db_helper import get_db_conn
                 try:
                     conn = await get_db_conn()
-                    await conn.execute("INSERT INTO task_canvas (team_id, task_id, task_title, canvas_mermaid, completed_steps, next_steps) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (team_id, task_id) DO UPDATE SET canvas_mermaid=$4, completed_steps=$5, next_steps=$6, updated_at=NOW()", team_id, arguments.get("task_id",""), arguments.get("task_title",""), arguments.get("mermaid",""), arguments.get("completed",[]), arguments.get("next",[]))
+                    task_id = arguments.get("task_id", "main")
+                    if not task_id: task_id = "main"
+                    comp_str = _json.dumps(arguments.get("completed", []), ensure_ascii=False)
+                    next_str = _json.dumps(arguments.get("next", []), ensure_ascii=False)
+                    await conn.execute("INSERT INTO task_canvas (team_id, task_id, task_title, canvas_mermaid, completed_steps, next_steps) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb) ON CONFLICT (team_id, task_id) DO UPDATE SET canvas_mermaid=$4, completed_steps=$5::jsonb, next_steps=$6::jsonb, updated_at=NOW()", team_id, task_id, arguments.get("task_title",""), arguments.get("mermaid",""), comp_str, next_str)
                     await conn.close()
                     result_text = "Canvas updated"
-                except:
-                    result_text = "Canvas update failed."
+                except Exception as e:
+                    result_text = f"Canvas update failed: {e}"
 
             elif tool_name == "memory_list":
                 workspace_id = arguments.get("workspace_id", "default")
