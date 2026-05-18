@@ -76,7 +76,9 @@ async def lifespan(app: FastAPI):
     from backend.pipeline.runner import init as init_pipeline
     init_pipeline(pg)
     from backend.pipeline.runner import start_worker
+    from backend.scheduler.cleanup_scheduler import start_cleanup_scheduler
     start_worker()
+    asyncio.create_task(start_cleanup_scheduler())
     refl = ReflectionEngine(pg, gs, registry=registry)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()

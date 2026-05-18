@@ -542,7 +542,14 @@ async def get_monitoring():
 
 @router.get("/audit-logs")
 async def get_audit_logs(limit: int = 50):
-    return {"logs": []}
+    from backend.api.db_helper import get_db_conn
+    conn = await get_db_conn()
+    try:
+        rows = await conn.fetch(
+            "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT $1", limit)
+        return {"logs": [dict(r) for r in rows]}
+    finally:
+        await conn.close()
 
 
 @router.get("/settings")
