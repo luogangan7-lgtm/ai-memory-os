@@ -51,3 +51,13 @@ async def require_admin(ctx: dict = Depends(get_user_context)) -> dict:
 async def get_agent_id(ctx: dict = Depends(get_user_context)) -> str:
     return ctx["agent_id"]
 
+
+
+class TraceMiddleware(BaseHTTPMiddleware):
+    """Inject X-Request-ID for distributed tracing."""
+    async def dispatch(self, request, call_next):
+        import uuid
+        trace_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = trace_id
+        return response

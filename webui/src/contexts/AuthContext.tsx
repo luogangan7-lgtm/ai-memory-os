@@ -56,9 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const jwtToken = (data as { access_token?: string; token?: string; api_key?: string }).access_token || (data as { access_token?: string; token?: string; api_key?: string }).token || data.api_key || "";
       const persistentKey = data.api_key || "";
       
-      localStorage.setItem("admin_token", jwtToken);
-      localStorage.setItem("mos_admin_token", jwtToken);
-      localStorage.setItem("mcp_api_key", persistentKey);
+      // Token stored in httpOnly Cookie, kept in memory for API calls
+      // localStorage removed per security audit
+      // mcp_key stored in memory only
       
       setToken(jwtToken);
       setMcpKey(persistentKey);
@@ -82,9 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("admin_token");
-    localStorage.removeItem("mos_admin_token");
-    localStorage.removeItem("mcp_api_key");
+    fetch("/auth/logout", {method:"POST",credentials:"include"});
+    // httpOnly Cookie cleared by backend /auth/logout
     setToken("");
     setMcpKey("");
   }, []);

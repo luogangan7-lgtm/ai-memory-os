@@ -102,6 +102,24 @@ from backend.services.admin_limit import AdminLocalhostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
 app.add_middleware(AdminLocalhostMiddleware)
+from backend.auth.middleware import TraceMiddleware
+app.add_middleware(TraceMiddleware)
+# CSRF protection for state-changing requests
+from starlette.middleware.base import BaseHTTPMiddleware
+class CSRFMiddleware(BaseHTTPMiddleware):
+    SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+    async def dispatch(self, request, call_next):
+        if request.method not in self.SAFE_METHODS:
+            origin = request.headers.get("origin", "")
+            if origin:
+                from urllib.parse import urlparse
+                host = request.headers.get("host", "")
+                parsed = urlparse(origin)
+                if parsed.hostname and parsed.hostname not in ("localhost", "127.0.0.1") and parsed.hostname != host.split(":")[0]:
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse({"detail": "CSRF check failed"}, status_code=403)
+        return await call_next(request)
+app.add_middleware(CSRFMiddleware)
 
 # API routes
 from backend.api.mcp import router as mcp_router

@@ -101,16 +101,38 @@ async def login_endpoint(data: dict):
     try:
         acc = await login(username_or_email, password)
         token = create_access_token(acc["team_id"], role=acc["role"])
-        return {
-            "access_token": token, 
+        from fastapi import Response
+        resp = Response()
+        resp.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=False,  # Set True in production with HTTPS
+            samesite="lax",
+            max_age=86400
+        )
+        resp.headers["Content-Type"] = "application/json"
+        resp.body = __import__("json").dumps({
+            "access_token": token,
             "api_key": acc["api_key"],
-            "team_id": acc["team_id"], 
+            "team_id": acc["team_id"],
             "username": acc["username"]
-        }
+        }).encode()
+        resp.status_code = 200
+        return resp
     except Exception as e:
         raise HTTPException(401, str(e))
 
 
+
+
+
+@router.post("/auth/logout")
+async def logout_endpoint():
+    from fastapi.responses import JSONResponse
+    resp = JSONResponse({"status": "logged_out"})
+    resp.delete_cookie("access_token")
+    return resp
 
 
 @router.post("/memory/promote")

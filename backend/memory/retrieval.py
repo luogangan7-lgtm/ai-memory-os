@@ -1,6 +1,3 @@
-# AI Memory OS — Retrieval Pipeline
-# Blueprint Section 10 / 14 / 15
-
 from __future__ import annotations
 
 from typing import Any, Callable, Optional
@@ -89,7 +86,9 @@ class RetrievalPipeline:
         if use_graph and deduped:
             memory_ids = [r["payload"]["memory_id"] for r in deduped]
             try:
-                graph_ctxs = await self.graph.find_related(memory_ids, top_k=top_k)
+                import asyncio as _asyncio
+                graph_ctxs = await _asyncio.wait_for(
+                    self.graph.find_related(memory_ids, top_k=top_k), timeout=2.0)
                 for r in deduped:
                     r["graph_context"] = [
                         g for g in graph_ctxs
@@ -99,6 +98,22 @@ class RetrievalPipeline:
             except Exception:
                 for r in deduped:
                     r["graph_context"] = []
+async def get_dynamic_top_k(team_id: str) -> int:
+    """Auto-adjust rough retrieval count based on memory volume."""
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
+        await conn.close()
+        count = row["cnt"] if row else 0
+        if count < 500: return 20
+        elif count < 5000: return 50
+        else: return min(count // 100, 200)
+    except Exception:
+        return 50
+
+# AI Memory OS — Retrieval Pipeline
+# Blueprint Section 10 / 14 / 15
 
         # Section 11: Context Engineering - dedup + compress
         from backend.memory.context_engineer import deduplicate
