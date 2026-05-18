@@ -276,6 +276,19 @@ async def list_all_users(q: str = None, limit: int = 50):
     if q:
         users = [u for u in users if q.lower() in u["username"].lower()]
     
+    # Batch fetch token usage for all teams
+    token_map: dict = {}
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        rows = await conn.fetch(
+            "SELECT team_id, COALESCE(SUM(total_tokens),0) AS tokens FROM pipeline_usage GROUP BY team_id"
+        )
+        await conn.close()
+        token_map = {r["team_id"]: int(r["tokens"]) for r in rows}
+    except Exception:
+        pass
+
     formatted_users = []
     for u in users:
         memory_count = 0
@@ -295,7 +308,7 @@ async def list_all_users(q: str = None, limit: int = 50):
             "active": u["status"] == "active",  # Map active status to boolean
             "status": u["status"],
             "memory_count": memory_count,
-            "token_usage": 0
+            "token_usage": token_map.get(u["team_id"], 0)
         })
     
     return {"users": formatted_users[:limit]}
@@ -331,6 +344,29 @@ async def create_new_tenant(data: dict):
         raise HTTPException(400, "Missing required fields")
     await register(team_id, admin_user, admin_pwd, role="admin")
     return {"status": "success", "team_id": team_id}
+
+@router.delete("/tenants/{team_id}")
+async def delete_tenant(team_id: str):
+    """Delete a tenant and all its associated data (memories, accounts, configs)."""
+    if team_id in ("default", "admin"):
+        raise HTTPException(400, "无法删除系统内置租户")
+    from backend.api.db_helper import get_db_conn
+    try:
+        conn = await get_db_conn()
+        await conn.execute("DELETE FROM memories WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM chunks WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM documents WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM user_persona WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM task_canvas WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM pipeline_usage WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM user_provider_configs WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM audit_log WHERE team_id=$1", team_id)
+        await conn.execute("DELETE FROM accounts WHERE team_id=$1", team_id)
+        await conn.close()
+        return {"status": "deleted", "team_id": team_id}
+    except Exception as e:
+        raise HTTPException(500, f"删除失败: {str(e)}")
+
 
 @router.post("/users/{username}/suspend")
 async def suspend_user_account(username: str):

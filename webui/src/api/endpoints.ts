@@ -39,6 +39,7 @@ export const getAuditLogs = (action?: string, user?: string) => {
 
 // Tenants
 export const getTenants = () => api.get<TenantResponse>("/tenants");
+export const deleteTenant = (teamId: string) => api.delete(`/tenants/${teamId}`);
 export const createTenant = (body: {
   team_id: string;
   name: string;
