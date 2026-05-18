@@ -318,7 +318,8 @@ async def mcp_post_handler(
                 workspace_id = arguments.get("workspace_id", "default")
                 limit = int(arguments.get("limit", 20))
                 try:
-                    from backend.api.db_helper import get_db_conn as _os, json as _json
+                    from backend.api.db_helper import get_db_conn
+                    import json as _json
                     conn = await get_db_conn()
                     rows = await conn.fetch(
                         "SELECT id, title FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2",
@@ -332,7 +333,7 @@ async def mcp_post_handler(
             elif tool_name == "memory_delete":
                 memory_id = arguments.get("memory_id", "")
                 try:
-                    from backend.api.db_helper import get_db_conn as _os
+                    from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
                     await conn.execute(
                         "DELETE FROM memories WHERE (id=$1 OR title=$1) AND team_id=$2",
@@ -344,7 +345,7 @@ async def mcp_post_handler(
 
             elif tool_name == "memory_status":
                 try:
-                    from backend.api.db_helper import get_db_conn as _os
+                    from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
                     row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
                     await conn.close()
