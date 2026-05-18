@@ -77,6 +77,33 @@ class GraphStore:
             edges = edges_rec["cnt"] if edges_rec else 0
             return {"nodes": nodes, "edges": edges}
 
+
+    async def get_full_graph(self, limit: int = 200) -> dict[str, list]:
+        """Return all nodes and edges for knowledge graph visualization."""
+        async with self.driver.session() as session:
+            nodes_result = await session.run(
+                "MATCH (n) RETURN n LIMIT $limit", limit=limit)
+            nodes = []
+            node_ids = set()
+            async for record in nodes_result:
+                n = record["n"]
+                node_data = dict(n.items())
+                node_data["id"] = n.element_id
+                nodes.append(node_data)
+                node_ids.add(n.element_id)
+            
+            edges_result = await session.run(
+                "MATCH (a)-[r]->(b) WHERE elementId(a) IN $ids AND elementId(b) IN $ids RETURN elementId(a) AS source, elementId(b) AS target, type(r) AS rel_type LIMIT 500",
+                ids=list(node_ids))
+            edges = []
+            async for record in edges_result:
+                edges.append({
+                    "source": record["source"],
+                    "target": record["target"],
+                    "label": record["rel_type"]
+                })
+            return {"nodes": nodes, "edges": edges}
+
     async def get_relations(
         self, memory_id: str,
         relation_types: Optional[list[str]] = None,

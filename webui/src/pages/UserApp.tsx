@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
 
 function Dashboard() {
-  const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm">("memory");
+  const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm" | "canvas" | "audit">("memory");
   const { logout, token, mcpKey } = useAuth();
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
@@ -19,11 +19,15 @@ function Dashboard() {
         <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
         <button className={`btn ${tab === "myllm" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("myllm")}>🤖 我的 LLM</button>
         <button className={`btn ${tab === "persona" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("persona")}>👤 用户画像</button>
+        <button className={`btn ${tab === "canvas" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("canvas")}>📋 任务画布</button>
+        <button className={`btn ${tab === "audit" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("audit")}>📜 操作记录</button>
       </div>
       {tab === "memory" && <MemoryPanel />}
       {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
       {tab === "myllm" && <MyLLMPanel />}
       {tab === "persona" && <PersonaPanel />}
+      {tab === "canvas" && <CanvasPanel />}
+      {tab === "audit" && <AuditPanel />}
     </div>
   );
 }
@@ -332,3 +336,54 @@ return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div cla
 {["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=><div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>{stats.mem}</div></div>)}
 </div></div>
 </div>)}
+
+function CanvasPanel(){
+  const [canvas,setCanvas]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [taskId,setTaskId]=useState("main");
+  async function load(){
+    setLoading(true);
+    try{
+      const r=await fetch("/canvas/"+taskId);
+      const d=await r.json();
+      setCanvas(d.canvas_mermaid||"暂无任务画布");
+    }catch{setCanvas("加载失败 — 确认已登录")}
+    setLoading(false);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{load()},[taskId]);
+  return(<div className="card"><div className="card-title">📋 任务画布</div>
+    <div style={{display:"flex",gap:8,marginBottom:12}}>
+      <input value={taskId} onChange={e=>setTaskId(e.target.value)} style={{flex:1,background:"rgba(4,8,16,.85)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",color:"var(--text)",fontSize:13}} placeholder="任务ID (默认: main)"/>
+      <button className="btn btn-teal" onClick={load} disabled={loading}>刷新</button>
+    </div>
+    {loading?<div style={{color:"var(--muted)",fontSize:13}}>加载中...</div>:
+    <pre style={{fontSize:12,color:"var(--text)",whiteSpace:"pre-wrap",lineHeight:1.8,fontFamily:"var(--mono)",background:"rgba(0,0,0,.3)",padding:16,borderRadius:10,maxHeight:400,overflow:"auto"}}>{canvas}</pre>}
+    <div style={{fontSize:10,color:"var(--muted)",marginTop:8}}>Agent 通过 memory_task_canvas_update 工具自动更新此画布</div>
+  </div>)
+}
+
+function AuditPanel(){
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [logs,setLogs]=useState<any[]>([]);
+  const [loading,setLoading]=useState(false);
+  async function load(){
+    setLoading(true);
+    try{
+      const r=await fetch("/audit-logs?limit=30");
+      const d=await r.json();
+      setLogs(d.logs||[]);
+    }catch{setLogs([])}
+    setLoading(false);
+  }
+  useEffect(()=>{load()},[]);
+  return(<div className="card"><div className="card-title">📜 操作记录</div>
+    {loading?<div style={{color:"var(--muted)",fontSize:13}}>加载中...</div>:
+    logs.length===0?<div style={{color:"var(--muted)",fontSize:13}}>暂无操作记录</div>:
+    <div style={{maxHeight:400,overflow:"auto"}}>{logs.map((l,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid var(--border)",fontSize:12,fontFamily:"var(--mono)"}}>
+      <span style={{color:"var(--teal)"}}>{l.action||"?"}</span>
+      <span style={{color:"var(--muted)",marginLeft:8}}>{l.created_at||""}</span>
+      {l.target_id&&<span style={{color:"var(--dim)",marginLeft:8}}>{l.target_id.slice(0,20)}</span>}
+    </div>)}</div>}
+  </div>)
+}
