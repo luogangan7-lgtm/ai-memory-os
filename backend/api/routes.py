@@ -733,6 +733,17 @@ async def transition_lifecycle(
 
     return {"memory_id": req.memory_id, "stage": target.value, "freshness": round(fresh, 4)}
 
+
+@router.get("/graph/summary")
+async def graph_summary():
+    if not graph_store:
+        raise HTTPException(status_code=503, detail="Graph store not ready")
+    try:
+        data = await graph_store.get_stats() if hasattr(graph_store, "get_stats") else {"nodes": 0, "edges": 0}
+        return {"nodes": data.get("nodes", 0), "edges": data.get("edges", 0), "status": "ok"}
+    except Exception as e:
+        return {"nodes": 0, "edges": 0, "status": f"error: {e}"}
+
 @router.post("/memory/graph", response_model=GraphResponse)
 async def query_graph(
     req: GraphQueryRequest,

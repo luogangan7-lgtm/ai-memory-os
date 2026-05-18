@@ -65,6 +65,18 @@ class GraphStore:
                 relation_type=relation_type, weight=weight,
             )
 
+
+    async def get_stats(self) -> dict[str, int]:
+        """Return total count of nodes and relationships in Neo4j."""
+        async with self.driver.session() as session:
+            nodes_result = await session.run("MATCH (n) RETURN count(n) AS cnt")
+            nodes_rec = await nodes_result.single()
+            nodes = nodes_rec["cnt"] if nodes_rec else 0
+            edges_result = await session.run("MATCH ()-[r]->() RETURN count(r) AS cnt")
+            edges_rec = await edges_result.single()
+            edges = edges_rec["cnt"] if edges_rec else 0
+            return {"nodes": nodes, "edges": edges}
+
     async def get_relations(
         self, memory_id: str,
         relation_types: Optional[list[str]] = None,
