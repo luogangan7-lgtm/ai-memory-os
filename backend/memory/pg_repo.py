@@ -56,6 +56,8 @@ class MemoryRepo:
                 ALTER TABLE memories ADD COLUMN IF NOT EXISTS metadata JSONB;
                 ALTER TABLE memories ADD COLUMN IF NOT EXISTS agent_id TEXT DEFAULT '';
                 ALTER TABLE memories ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT DEFAULT 'recent';
+                ALTER TABLE memories ADD COLUMN IF NOT EXISTS layer TEXT DEFAULT 'L0';
+                ALTER TABLE memories ADD COLUMN IF NOT EXISTS source_session_id TEXT;
 
                 -- Ensure audit_log table exists
                 CREATE TABLE IF NOT EXISTS audit_log (
@@ -122,6 +124,68 @@ class MemoryRepo:
                 CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents(team_id);
 
                 -- Accounts table (Migrated from JSON for concurrency)
+
+                -- V6.0 Core tables
+                CREATE TABLE IF NOT EXISTS pipeline_conversations (
+                    id SERIAL PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    conversation_id TEXT NOT NULL,
+                    messages JSONB DEFAULT '[]',
+                    started_at TIMESTAMP WITH TIME ZONE,
+                    ended_at TIMESTAMP WITH TIME ZONE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
+                CREATE TABLE IF NOT EXISTS memory_scenarios (
+                    id SERIAL PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    scenario_id TEXT NOT NULL UNIQUE,
+                    title VARCHAR(300) NOT NULL,
+                    content_md TEXT NOT NULL,
+                    atom_ids TEXT[] DEFAULT '{}',
+                    source_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
+                CREATE TABLE IF NOT EXISTS user_persona (
+                    id SERIAL PRIMARY KEY,
+                    team_id TEXT NOT NULL UNIQUE,
+                    persona_md TEXT DEFAULT '',
+                    scenario_count INTEGER DEFAULT 0,
+                    version INTEGER DEFAULT 1,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                );
+                CREATE TABLE IF NOT EXISTS task_canvas (
+                    id SERIAL PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    task_title VARCHAR(300) DEFAULT '',
+                    canvas_mermaid TEXT DEFAULT '',
+                    completed_steps JSONB DEFAULT '[]',
+                    next_steps JSONB DEFAULT '[]',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    UNIQUE(team_id, task_id)
+                );
+                CREATE TABLE IF NOT EXISTS pipeline_usage (
+                    id SERIAL PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    year_month VARCHAR(7) NOT NULL,
+                    l1_calls INTEGER DEFAULT 0,
+                    l2_calls INTEGER DEFAULT 0,
+                    l3_calls INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    UNIQUE(team_id, year_month)
+                );
+                CREATE TABLE IF NOT EXISTS pipeline_queue (
+                    id SERIAL PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    task_type VARCHAR(50) NOT NULL,
+                    payload_json JSONB DEFAULT '{}',
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    started_at TIMESTAMP WITH TIME ZONE,
+                    completed_at TIMESTAMP WITH TIME ZONE
+                );
                 CREATE TABLE IF NOT EXISTS accounts (
                     username TEXT PRIMARY KEY,
                     team_id TEXT NOT NULL,
