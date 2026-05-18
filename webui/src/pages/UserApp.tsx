@@ -12,6 +12,7 @@ function Dashboard() {
         <div className="logo-orb" style={{ margin: "0 auto 16px", width: 56, height: 56, fontSize: 26, borderRadius: 16 }}>🧠</div>
         <div className="page-title" style={{ textAlign: "center" }}>我的记忆空间</div>
         <div className="page-sub" style={{ textAlign: "center" }}>记忆管理 · MCP 接入</div>
+        <LLMStatusBar />
         <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={logout}>退出登录</button>
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 24 }}>
@@ -399,4 +400,33 @@ function AuditPanel(){
       {l.target_id&&<span style={{color:"var(--dim)",marginLeft:8}}>{l.target_id.slice(0,20)}</span>}
     </div>)}</div>}
   </div>)
+}
+
+function LLMStatusBar(){
+  const [llm,setLlm]=useState<{provider:string;model:string;connected:boolean}|null>(null);
+  useEffect(()=>{
+    fetch("/user/llm").then(r=>r.json()).then(async d=>{
+      if(!d.provider){setLlm(null);return;}
+      try{
+        const t=await fetch("/user/llm/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({api_key:"",base_url:d.base_url,model:d.model})});
+        const td=await t.json();
+        setLlm({provider:d.provider,model:d.model,connected:!!td.connected});
+      }catch{setLlm({provider:d.provider,model:d.model,connected:false})}
+    }).catch(()=>setLlm(null));
+  },[]);
+  const provName = ALL_PROVIDERS.find(x=>x.id===llm?.provider)?.name || llm?.provider || "";
+  return (
+    <div style={{textAlign:"center",marginBottom:16}}>
+      {llm ? (
+        <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(0,240,212,.06)",border:"1px solid rgba(0,240,212,.15)",borderRadius:10,padding:"8px 18px",fontSize:12}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:llm.connected?"var(--emerald)":"var(--amber)",boxShadow:llm.connected?"0 0 6px var(--emerald)":"0 0 6px var(--amber)"}}/>
+          <span style={{color:"var(--muted)"}}>当前 LLM:</span>
+          <span style={{color:"var(--teal)",fontWeight:600}}>{provName} / {llm.model}</span>
+          <span style={{color:llm.connected?"var(--emerald)":"var(--amber)",fontSize:10}}>{llm.connected?"● 在线":"○ 待检测"}</span>
+        </div>
+      ) : (
+        <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>window.location.hash="#/app"}>⚡ 未配置 LLM — 点击前往设置</button>
+      )}
+    </div>
+  )
 }
