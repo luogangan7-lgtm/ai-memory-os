@@ -764,3 +764,31 @@ async def get_graph_summary():
             }
     except Exception as e:
         return {"nodes": 0, "edges": 0, "status": "error", "detail": str(e)}
+
+@router.post("/embeddings/rebuild")
+async def trigger_embedding_rebuild(
+    target_version: int,
+    team_id: str = None,
+    batch_size: int = 50
+):
+    """Queue memories with old embedding versions for rebuild."""
+    from backend.api.db_helper import get_db_conn
+    conn = await get_db_conn()
+    try:
+        query = "SELECT id FROM memories WHERE embedding_version IS NULL OR embedding_version < $1"
+        params = [target_version]
+        if team_id:
+            query += " AND team_id = $2"
+            params.append(team_id)
+        rows = await conn.fetch(query, *params)
+        job_ids = [row["id"] for row in rows]
+        # Batch into pipeline_queue
+        for i in range(0, len(job_ids), batch_size):
+            batch = job_ids[i:i+batch_size]
+            await conn.execute(
+                "INSERT INTO pipeline_queue (team_id, task_type, payload_json, status) "
+                "VALUES ($1, 'embedding_rebuild', $2, 'pending')",
+                team_id or "global", __import__("json").dumps({"ids": batch}))
+        return {"queued_count": len(job_ids), "batches": (len(job_ids) + batch_size - 1) // batch_size}
+    finally:
+        await conn.close()

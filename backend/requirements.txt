@@ -22,3 +22,4 @@ netifaces>=0.11.0
 aiosqlite>=0.20.0
 structlog
 prometheus-fastapi-instrumentator
+alembic>=1.13.0
