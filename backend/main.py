@@ -79,6 +79,8 @@ async def lifespan(app: FastAPI):
     from backend.scheduler.cleanup_scheduler import start_cleanup_scheduler
     start_worker()
     asyncio.create_task(start_cleanup_scheduler())
+    from backend.scheduler.freshness_decay import start_decay_scheduler
+    asyncio.create_task(start_decay_scheduler())
     refl = ReflectionEngine(pg, gs, registry=registry)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()
@@ -92,6 +94,10 @@ async def lifespan(app: FastAPI):
     await pg.close()
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
+
+# Prometheus metrics
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 # Hardened CORS: Allow localhost and the current local IP
 ALLOWED_ORIGINS = ["*"]
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])
