@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PROVIDERS as ALL_PROVIDERS } from "../data/models";
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
@@ -302,7 +302,7 @@ return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 
 function PersonaPanel(){
 const [persona,setPersona]=useState("");
-const [loading,setLoading]=useState(false);
+  const [loading,setLoading]=useState(false);
 async function load(){setLoading(true);try{const r=await fetch("/persona/default");const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
 useEffect(()=>{load()},[]);
 return(<div className="card"><div className="card-title">👤 用户画像</div>
@@ -338,16 +338,29 @@ return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div cla
 </div>)}
 
 function CanvasPanel(){
-  const [canvas,setCanvas]=useState("");
+  const [,setCanvas]=useState("");
   const [loading,setLoading]=useState(false);
   const [taskId,setTaskId]=useState("main");
+  const svgRef=useRef<HTMLDivElement>(null);
   async function load(){
     setLoading(true);
     try{
       const r=await fetch("/canvas/"+taskId);
       const d=await r.json();
-      setCanvas(d.canvas_mermaid||"暂无任务画布");
-    }catch{setCanvas("加载失败 — 确认已登录")}
+      const md=d.canvas_mermaid||"graph TD\n  A[暂无任务] --> B[开始使用后自动生成]";
+      setCanvas(md);
+      // Render with mermaid.js
+      setTimeout(async ()=>{
+        if(svgRef.current){
+          try{
+            const mermaid=(await import("mermaid")).default;
+            mermaid.initialize({startOnLoad:false,theme:"dark",themeVariables:{primaryColor:"#00f0d4",primaryTextColor:"#e0e0e0",lineColor:"#4A6080"}});
+            const{svg}=await mermaid.render("mermaid-canvas",md);
+            svgRef.current.innerHTML=svg;
+          }catch{svgRef.current.innerHTML='<div style=color:var(--muted)>图谱渲染失败</div>'}
+        }
+      },100);
+    }catch{setCanvas("加载失败");if(svgRef.current)svgRef.current.innerHTML=''}
     setLoading(false);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,7 +371,7 @@ function CanvasPanel(){
       <button className="btn btn-teal" onClick={load} disabled={loading}>刷新</button>
     </div>
     {loading?<div style={{color:"var(--muted)",fontSize:13}}>加载中...</div>:
-    <pre style={{fontSize:12,color:"var(--text)",whiteSpace:"pre-wrap",lineHeight:1.8,fontFamily:"var(--mono)",background:"rgba(0,0,0,.3)",padding:16,borderRadius:10,maxHeight:400,overflow:"auto"}}>{canvas}</pre>}
+    <div ref={svgRef} style={{background:"rgba(0,0,0,.3)",borderRadius:10,padding:16,minHeight:100,overflow:"auto"}}/>}
     <div style={{fontSize:10,color:"var(--muted)",marginTop:8}}>Agent 通过 memory_task_canvas_update 工具自动更新此画布</div>
   </div>)
 }
