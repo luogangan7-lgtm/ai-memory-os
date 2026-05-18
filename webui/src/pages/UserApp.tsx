@@ -220,7 +220,7 @@ function MemoryPanel(){
             const f=e.target.files?.[0]; if(!f)return;
             setUploading(true);setUploadMsg('');
             try{const fd=new FormData();fd.append('file',f);
-              const r=await fetch('/memory/upload',{method:'POST',body:fd});
+              const r=await fetch('/memory/upload',{method:'POST',headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')},body:fd});
               const d=await r.json();
               setUploadMsg(d.chunks?'✅ OK':'OK');
               if(d.chunks)setTimeout(()=>search(),500);
@@ -305,7 +305,7 @@ return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 function PersonaPanel(){
 const [persona,setPersona]=useState("");
   const [loading,setLoading]=useState(false);
-async function load(){setLoading(true);try{const r=await fetch("/persona/default");const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
+async function load(){setLoading(true);try{const r=await fetch("/persona/default",{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
 useEffect(()=>{load()},[]);
 return(<div className="card"><div className="card-title">👤 用户画像</div>
 {loading?<div style={{color:"var(--muted)",fontSize:13}}>生成中...</div>:
@@ -355,7 +355,7 @@ function CanvasPanel(){
   async function load(){
     setLoading(true);
     try{
-      const r=await fetch("/canvas/"+taskId);
+      const r=await fetch("/canvas/"+taskId,{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});
       const d=await r.json();
       const md=d.canvas_mermaid||"graph TD\n  A[暂无任务] --> B[开始使用后自动生成]";
       setCanvas(md);
@@ -393,7 +393,7 @@ function AuditPanel(){
   async function load(){
     setLoading(true);
     try{
-      const r=await fetch("/audit-logs?limit=30");
+      const r=await fetch("/audit-logs?limit=30",{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});
       const d=await r.json();
       setLogs(d.logs||[]);
     }catch{setLogs([])}
