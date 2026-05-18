@@ -321,10 +321,10 @@ async def mcp_post_handler(
                     from backend.api.db_helper import get_db_conn as _os, json as _json
                     conn = await get_db_conn()
                     rows = await conn.fetch(
-                        "SELECT chunk_id, title FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2",
+                        "SELECT row_id, title FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2",
                         team_id, limit)
                     await conn.close()
-                    items = [{"id": r["chunk_id"], "title": r["title"]} for r in rows]
+                    items = [{"id": r["row_id"], "title": r["title"]} for r in rows]
                     result_text = _json.dumps(items, ensure_ascii=False)
                 except Exception as e:
                     result_text = f"memory_list failed: {e}"
@@ -335,7 +335,7 @@ async def mcp_post_handler(
                     from backend.api.db_helper import get_db_conn as _os
                     conn = await get_db_conn()
                     await conn.execute(
-                        "DELETE FROM memories WHERE (chunk_id=$1 OR title=$1) AND team_id=$2",
+                        "DELETE FROM memories WHERE (row_id=$1 OR title=$1) AND team_id=$2",
                         memory_id, team_id)
                     await conn.close()
                     result_text = "Memory deleted successfully."
