@@ -81,6 +81,63 @@ class SQLiteMemoryRepo:
                 )
             """)
             await db.execute("""
+
+                CREATE TABLE IF NOT EXISTS pipeline_conversations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id TEXT NOT NULL,
+                    conversation_id TEXT NOT NULL,
+                    messages_json TEXT DEFAULT '[]',
+                    started_at TEXT,
+                    ended_at TEXT,
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS memory_scenarios (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id TEXT NOT NULL,
+                    scenario_id TEXT NOT NULL UNIQUE,
+                    title TEXT,
+                    summary_md TEXT,
+                    source_count INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS user_persona (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id TEXT NOT NULL UNIQUE,
+                    persona_md TEXT DEFAULT '',
+                    updated_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS task_canvas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    task_title TEXT DEFAULT '',
+                    canvas_mermaid TEXT DEFAULT '',
+                    completed_steps TEXT DEFAULT '[]',
+                    next_steps TEXT DEFAULT '[]',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(team_id, task_id)
+                );
+                CREATE TABLE IF NOT EXISTS pipeline_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id TEXT NOT NULL,
+                    year_month TEXT NOT NULL,
+                    l1_calls INTEGER DEFAULT 0,
+                    l2_calls INTEGER DEFAULT 0,
+                    l3_calls INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    UNIQUE(team_id, year_month)
+                );
+                CREATE TABLE IF NOT EXISTS pipeline_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id TEXT NOT NULL,
+                    task_type TEXT NOT NULL,
+                    payload_json TEXT DEFAULT '{}',
+                    status TEXT DEFAULT 'pending',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    started_at TEXT,
+                    completed_at TEXT
+                );
                 CREATE TABLE IF NOT EXISTS accounts (
                     username TEXT PRIMARY KEY,
                     team_id TEXT NOT NULL,
@@ -265,6 +322,45 @@ class SQLiteMemoryRepo:
             cursor = await db.execute(q, vals)
             await db.commit()
             return cursor.rowcount > 0
+
+
+    async def fetchrow(self, query: str, *args):
+        """Compatible with PostgreSQL pool.fetchrow."""
+        q = query
+        for i in range(len(args), 0, -1):
+            q = q.replace(f"${i}", "?")
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(q, args)
+            row = await cursor.fetchone()
+            await cursor.close()
+            return row
+
+    async def fetch(self, query: str, *args):
+        """Compatible with PostgreSQL pool.fetch."""
+        q = query
+        for i in range(len(args), 0, -1):
+            q = q.replace(f"${i}", "?")
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(q, args)
+            rows = await cursor.fetchall()
+            await cursor.close()
+            return rows
+
+    async def execute(self, query: str, *args):
+        """Compatible with PostgreSQL pool.execute."""
+        q = query
+        for i in range(len(args), 0, -1):
+            q = q.replace(f"${i}", "?")
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(q, args)
+            await db.commit()
+
+    @property
+    def pool(self):
+        """Compatibility shim: return self so pipeline can call _repo.pool.fetchrow()."""
+        return self
 
     async def delete_account(self, username: str) -> bool:
         import logging
