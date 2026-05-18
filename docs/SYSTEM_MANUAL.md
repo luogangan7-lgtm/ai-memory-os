@@ -282,3 +282,290 @@ python3 run.py
 ---
 
 > **审计最终结论**: 系统已进入极客生产就绪状态 (Production Ready)。无逻辑死锁、无 IDOR 漏洞、无断电丢失、无前端统计错误。双端数据库 100% 对齐，9 MCP 工具全部在线。
+
+
+## 9. 完整源代码索引 (Source Code Index)
+
+### 9.1 项目根目录
+
+| 文件 | 用途 |
+|---|---|
+| `run.py` | 主启动脚本，自动杀端口 8003，打印管理端/用户端 URL |
+| `docker-compose.yml` | Docker 5 服务编排 (PG+Qdrant+Neo4j+Redis+MinIO) |
+| `init_db.py` | PostgreSQL 数据库初始化 |
+| `init_db_v6.sql` | V6.0 建表 SQL (6 张核心表) |
+| `Makefile` | 快捷命令 (dev/build/deploy) |
+| `start.py` | 开发模式启动入口 |
+
+### 9.2 后端核心 (`backend/`)
+
+#### main 入口
+| 文件 | 用途 |
+|---|---|
+| `backend/main.py` | FastAPI 应用工厂，路由注册，lifespan 初始化 |
+| `backend/services/config.py` | 全局配置 (Pydantic Settings)，含 `use_standalone` |
+
+#### API 路由层
+| 文件 | 用途 |
+|---|---|
+| `backend/api/routes.py` | 核心业务路由：认证/记忆 CRUD/图谱/RAG/Reflection |
+| `backend/api/mcp.py` | MCP SSE 服务端，9 工具注册与 JSON-RPC 调用 |
+| `backend/api/user_providers.py` | 用户 LLM 配置持久化 (DB + 内存双写) |
+| `backend/api/persona.py` | 用户画像 API (IDOR 安全防护) |
+| `backend/api/canvas.py` | 任务画布 CRUD |
+| `backend/api/db_helper.py` | 数据库抽象层 (asyncpg/SQLite 多路复用) |
+| `backend/api/proxy.py` | OpenAI 兼容 API 代理网关 |
+| `backend/api/admin.py` | 管理端路由 (路由推荐/测试) |
+
+
+#### AI 蒸馏管线
+| 文件 | 用途 |
+|---|---|
+| `backend/pipeline/l0_recorder.py` | L0: 捕获对话上下文写入 DB |
+| `backend/pipeline/l1_extractor.py` | L1: LLM 提取原子事实 |
+| `backend/pipeline/l2_synthesizer.py` | L2: 归纳事实合成场景块 |
+| `backend/pipeline/l3_persona.py` | L3: 动态生成用户画像 |
+| `backend/pipeline/llm_client.py` | LLM 调用客户端 (用户 Key 优先) |
+| `backend/pipeline/runner.py` | 队列驱动 + 并发控制 + per-team 锁 |
+
+#### 记忆与存储引擎
+| 文件 | 用途 |
+|---|---|
+| `backend/memory/pg_repo.py` | PostgreSQL 数据仓库 (含 V6.0 6 张表建表) |
+| `backend/memory/sqlite_repo.py` | SQLite 数据仓库 (Standalone 模式) |
+| `backend/memory/qdrant_store.py` | Qdrant 向量存储 |
+| `backend/memory/lancedb_store.py` | LanceDB 向量存储 (Standalone) |
+| `backend/memory/ingestion.py` | 文档分块 + 向量化入库 |
+| `backend/memory/retrieval.py` | 混合检索 (向量+图谱+全文) |
+| `backend/memory/context_engineer.py` | 上下文编排 |
+| `backend/memory/minio_store.py` | MinIO 对象存储 |
+| `backend/memory/lifecycle.py` | 记忆生命周期管理 |
+| `backend/memory/file_ingest.py` | 文件摄入 |
+| `backend/memory/ocr.py` | 图片 OCR |
+
+
+#### 图谱与认知引擎
+| 文件 | 用途 |
+|---|---|
+| `backend/graph/neo4j_store.py` | Neo4j 图谱存储 (含 get_stats/get_full_graph) |
+| `backend/reflection/engine.py` | Reflection 认知引擎 |
+| `backend/scheduler/reflection_scheduler.py` | 定时 Reflection 调度器 |
+| `backend/services/classifier.py` | 内容分类器 |
+| `backend/services/context_compiler.py` | 上下文编译器 |
+
+#### 大模型厂商适配
+| 文件 | 用途 |
+|---|---|
+| `backend/providers/base.py` | 厂商基类 |
+| `backend/providers/deepseek.py` | DeepSeek 适配 |
+| `backend/providers/alibaba.py` | 阿里云百炼适配 |
+| `backend/providers/zhipu.py` | 智谱AI 适配 |
+| `backend/providers/openai.py` | OpenAI 适配 |
+| `backend/providers/anthropic.py` | Anthropic 适配 |
+| `backend/providers/moonshot.py` | 月之暗面适配 |
+| `backend/providers/elevenlabs.py` | ElevenLabs 音频适配 |
+| `backend/providers/local.py` | 本地模型 (Ollama/LM Studio) |
+| `backend/providers/ollama_wizard.py` | Ollama 自动检测 |
+| `backend/providers/generic.py` | 通用 OpenAI 兼容适配 |
+| `backend/providers/compat_providers.py` | 兼容性提供商 |
+
+#### 认证与安全
+| 文件 | 用途 |
+|---|---|
+| `backend/auth/middleware.py` | JWT 认证中间件 (get_current_team/get_user_context) |
+| `backend/auth/accounts.py` | 账户管理 |
+| `backend/auth/apikeys.py` | API Key 校验 |
+| `backend/utils/crypto.py` | 加密工具 |
+
+#### 限速与运维
+| 文件 | 用途 |
+|---|---|
+| `backend/services/rate_limit.py` | API 限速 |
+| `backend/services/admin_limit.py` | 管理端限速 |
+| `backend/services/metrics.py` | 监控指标 |
+| `backend/services/logging.py` | 日志服务 |
+| `backend/services/cost_tracker.py` | Token 成本追踪 |
+| `backend/services/resilience.py` | 熔断/重试 |
+
+
+### 9.3 前端源码 (`webui/`)
+
+#### 入口与应用壳
+| 文件 | 用途 |
+|---|---|
+| `webui/index.html` | SPA 入口 |
+| `webui/src/main.tsx` | React 挂载 + 路由重定向 |
+| `webui/src/App.tsx` | 应用壳 (HashRouter + AuthProvider + ToastProvider) |
+| `webui/src/index.css` | 全局样式 (Neural Void Glassmorphism 主题) |
+| `webui/src/css/login.css` | 登录页专属暗黑风格 |
+
+#### 组件
+| 文件 | 用途 |
+|---|---|
+| `webui/src/components/Layout.tsx` | 管理端布局 (侧边栏 + 内容区) |
+| `webui/src/components/Sidebar.tsx` | 侧边导航 (总览/配置/管理/认知调优) |
+| `webui/src/components/Topbar.tsx` | 顶栏 (面包屑 + 用户菜单) |
+| `webui/src/contexts/AuthContext.tsx` | 认证上下文 (JWT 存储/登录/登出) |
+| `webui/src/contexts/ToastContext.tsx` | Toast 通知上下文 |
+| `webui/src/api/client.ts` | API 客户端 (fetch 封装) |
+| `webui/src/api/endpoints.ts` | 类型化 API 端点定义 |
+| `webui/src/api/types.ts` | API 响应类型定义 |
+
+#### 管理端页面
+| 文件 | 用途 |
+|---|---|
+| `webui/src/pages/Dashboard.tsx` | 控制台 (统计卡片/吞吐图/服务健康/模型状态诊断) |
+| `webui/src/pages/Monitoring.tsx` | 监控面板 |
+| `webui/src/pages/AuditLogs.tsx` | 审计日志 (all/store/delete/login 筛选) |
+| `webui/src/pages/Providers.tsx` | 模型配置中心 (4 管线 + 推荐 + 厂商清单 + 本地检测) |
+| `webui/src/pages/Tenants.tsx` | 多租户管理 |
+| `webui/src/pages/Users.tsx` | 用户管理 |
+| `webui/src/pages/Reflection.tsx` | 知识整合 (Global Reflection 触发) |
+| `webui/src/pages/Graph.tsx` | 知识图谱 (Neo4j 真实数据 Canvas 力导向图) |
+| `webui/src/pages/Config.tsx` | 系统参数 (RAG/安全/限速) |
+
+
+#### 用户端页面
+| 文件 | 用途 |
+|---|---|
+| `webui/src/pages/UserApp.tsx` | 用户端全部组件：登录注册/Dashboard 含 7 面板 |
+| 组件 → LoginOverlay | 登录/注册覆盖层 (Premium 暗黑风格) |
+| 组件 → Dashboard | 用户空间主界面 |
+| 组件 → LLMStatusBar | 实时 LLM 检测状态栏 (厂商/模型/在线) |
+| 组件 → MemoryPanel | 知识库 (记忆搜索 + 文档上传) |
+| 组件 → ConnectPanel | 接入大模型 (7 Agent 配置 + Token + Prompt) |
+| 组件 → MyLLMPanel | 我的 LLM (厂商分区下拉 + 测试 + 统计) |
+| 组件 → PersonaPanel | 用户画像 |
+| 组件 → CanvasPanel | 任务画布 (Mermaid.js SVG 渲染) |
+| 组件 → AuditPanel | 操作记录 |
+
+#### 数据与配置
+| 文件 | 用途 |
+|---|---|
+| `webui/src/data/models.ts` | 21 厂商 100+ 模型数据库 (含价格/上下文/能力标签) |
+| `webui/package.json` | 前端依赖 (React/Three.js/Mermaid/GSAP/Framer Motion) |
+| `webui/vite.config.ts` | Vite 构建配置 |
+| `webui/tailwind.config.js` | TailwindCSS 配置 |
+| `webui/tsconfig.json` | TypeScript 配置 |
+| `webui/.eslintrc.cjs` | ESLint 规则 |
+| `webui/.prettierrc` | Prettier 格式化规则 |
+
+### 9.4 其他工具
+| 文件 | 用途 |
+|---|---|
+| `desktop/` | Electron 桌面端打包 |
+| `scripts/` | 运维脚本 (备份/清理/健康检查) |
+| `sdk/` | Python SDK (`openclaw` 客户端) |
+| `agent-daemon/` | Agent 守护进程 |
+| `.github/workflows/release.yml` | GitHub Actions 发布流水线 |
+
+
+
+### 9.5 关键代码片段
+
+#### 数据库抽象层 (`backend/api/db_helper.py`)
+```python
+from pathlib import Path
+STANDALONE_DB = str(Path.home() / ".codex" / "memory-os" / "memories.db")
+
+class DBConn:
+    """统一数据库连接包装。自动 asyncpg / aiosqlite 多路复用。"""
+    async def fetchrow(self, query, *args):
+        if self._standalone:
+            q = query
+            for i in range(len(args), 0, -1): q = q.replace(f"${i}", "?")
+            cursor = await self._conn.execute(q, args)
+            row = await cursor.fetchone()
+            await cursor.close()
+            return row
+        return await self._conn.fetchrow(query, *args)
+
+async def get_db_conn() -> DBConn:
+    if settings.use_standalone:
+        db = await aiosqlite.connect(STANDALONE_DB)
+        db.row_factory = aiosqlite.Row
+        return DBConn(db, True)
+    return DBConn(await asyncpg.connect(DATABASE_URL), False)
+```
+
+#### LLM 客户端 (`backend/pipeline/llm_client.py`)
+```python
+async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifier") -> str | None:
+    # 1. 优先用户自己的 LLM Key (per-team 隔离)
+    user_cfg = _user_llm_configs.get(team_id, {})
+    if user_cfg.get("api_key") and user_cfg.get("base_url"):
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(user_cfg["base_url"] + "/chat/completions",
+                json={"model": user_cfg.get("model"), "messages": [...], "temperature": 0.3},
+                headers={"Authorization": f"Bearer {user_cfg['api_key']}"})
+            return resp.json()["choices"][0]["message"]["content"]
+    # 2. Fallback 管理员 ModelRegistry
+    # ...
+```
+
+#### 画像安全防护 (`backend/api/persona.py`)
+```python
+@router.get("/default")
+async def get_persona_default(current_team: str = Depends(get_current_team)):
+    """JWT 自动提取，无 IDOR 风险"""
+    conn = await get_db_conn()
+    row = await conn.fetchrow("SELECT * FROM user_persona WHERE team_id=$1", current_team)
+    ...
+
+@router.get("/{team_id}")
+async def get_persona(team_id: str, current_team: str = Depends(get_current_team)):
+    """URL team_id 强制与 JWT identity 一致"""
+    if team_id != current_team:
+        raise HTTPException(status_code=403, detail="Access denied")
+    ...
+```
+
+
+#### LLM 配置持久化 (`backend/api/user_providers.py`)
+```python
+@router.post("")
+async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
+    # 内存双写 (供 pipeline 读取)
+    _user_llm_configs[team_id] = data
+    # 数据库持久化 (供 proxy 网关 + 重启恢复)
+    from backend.api.routes import pg_repo
+    await pg_repo.save_user_provider_config(
+        user_id=team_id, provider_name=data.get("provider",""),
+        api_key=data.get("api_key",""), model_name=data.get("model",""), is_active=True)
+    return {"status": "saved", "team_id": team_id}
+```
+
+#### 模型数据库片段 (`webui/src/data/models.ts`)
+```typescript
+export interface ModelInfo {
+  id: string; name: string; type: 'chat'|'embedding'|'rerank'|'vision'|'reasoning'|'audio';
+  recommended?: boolean; ctx?: number; price?: string;
+}
+export const PROVIDERS: ProviderInfo[] = [
+  {id:'deepseek', name:'DeepSeek', nameZh:'深度求索', region:'cn',
+   baseUrl:'https://api.deepseek.com/v1', features:['Chat','Reasoning'],
+   models:[{id:'deepseek-v4-flash', name:'DeepSeek V4 Flash', type:'chat', price:'¥1.0/M'}, ...]},
+  {id:'openai', name:'OpenAI', region:'intl', baseUrl:'https://api.openai.com/v1', ...},
+  // 共 21 家厂商, 100+ 模型
+];
+```
+
+#### MCP 工具注册 (`backend/api/mcp.py`)
+```python
+"tools": [
+    {"name":"memory_search", "description":"混合稠密-稀疏向量+图谱检索", ...},
+    {"name":"memory_store", "description":"长期事实持久化", ...},
+    {"name":"memory_reflect", "description":"手动触发认知优化", ...},
+    {"name":"memory_get_persona", ...},
+    {"name":"memory_task_canvas_get", ...},
+    {"name":"memory_task_canvas_update", ...},
+    {"name":"memory_list", ...},
+    {"name":"memory_delete", ...},
+    {"name":"memory_status", ...}
+]
+# 兼容别名路由: persona → memory_get_persona, canvas_get → memory_task_canvas_get
+```
+
+---
+
+> **文档版本**: V6.0 | **最后更新**: 2026-05-18 | **文件数**: 144 个源文件 | **表数**: PostgreSQL 16 + SQLite 16
