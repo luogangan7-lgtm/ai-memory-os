@@ -325,7 +325,7 @@ async def mcp_post_handler(
                         "SELECT id, title FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2",
                         team_id, limit)
                     await conn.close()
-                    items = [{"id": r["id"], "title": r["title"]} for r in rows]
+                    items = [{"id": str(r["id"]), "title": r["title"] or ""} for r in rows]
                     result_text = _json.dumps(items, ensure_ascii=False)
                 except Exception as e:
                     result_text = f"memory_list failed: {e}"
@@ -349,7 +349,8 @@ async def mcp_post_handler(
                     conn = await get_db_conn()
                     row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
                     await conn.close()
-                    result_text = f"Memory system online. Total memories: {row['cnt'] if row else 0}. Qdrant: connected. Neo4j: connected."
+                    cnt = int(row["cnt"]) if row and row["cnt"] is not None else 0
+                    result_text = f"Memory system online. Total memories: {cnt}. Qdrant: connected. Neo4j: connected."
                 except Exception as e:
                     result_text = f"memory_status failed: {e}"
 
