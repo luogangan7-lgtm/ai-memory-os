@@ -1,10 +1,11 @@
 """Shared database helper - auto-detects Docker vs Standalone mode."""
 from __future__ import annotations
 import os, asyncpg, aiosqlite
+from pathlib import Path
 from backend.services.config import settings
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
-STANDALONE_DB = "memory_os.db"
+STANDALONE_DB = str(Path.home() / ".codex" / "memory-os" / "memories.db")
 
 class DBConn:
     """Unified database connection wrapper. Works with both asyncpg and aiosqlite."""
