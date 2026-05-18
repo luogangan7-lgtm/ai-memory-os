@@ -496,7 +496,7 @@ async def search_memory(
         top_k=req.top_k, use_rerank=req.use_rerank,
         rerank_fn=registry.rerank if req.use_rerank and registry else None,
         use_graph=req.use_graph, min_confidence=req.min_confidence,
-    )
+    ) or []
 
     # Phase 2: Personal memory search (if agent_id is set)
     if agent_id and agent_id != "default":
@@ -506,7 +506,7 @@ async def search_memory(
             top_k=min(req.top_k, 5), use_rerank=req.use_rerank,
             rerank_fn=registry.rerank if req.use_rerank and registry else None,
             min_confidence=req.min_confidence,
-        )
+        ) or []
         # Fuse: interleave personal memories with team results
         fused = []
         pi, ki = 0, 0
