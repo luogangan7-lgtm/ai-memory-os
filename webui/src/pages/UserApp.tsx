@@ -295,21 +295,49 @@ function MemoryPanel(){
         <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&fetchMemories()}/>
         <button className='btn btn-teal' onClick={fetchMemories} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
         <label className='btn btn-ghost' style={{cursor:'pointer',fontSize:12,padding:'10px 14px',whiteSpace:'nowrap'}}>
-          📄 上传
-          <input type='file' accept='.txt,.md,.pdf' style={{display:'none'}} onChange={async(e)=>{
-            const f=e.target.files?.[0]; if(!f)return;
-            setUploading(true);setUploadMsg('');
-            try{const fd=new FormData();fd.append('file',f);
-              const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
-              const r=await fetch('/memory/upload',{method:'POST',headers:{"Authorization":"Bearer "+tokenHeader},body:fd});
-              const d=await r.json();
-              setUploadMsg(d.id ? '✅ 上传成功并智能分类' : '❌ 上传失败');
-              if(d.id) setTimeout(()=>fetchMemories(), 500);
-            }catch{setUploadMsg('❌ 失败')}finally{setUploading(false);e.target.value='';}
+          📄 批量上传
+          <input type='file' accept='.txt,.md,.pdf' multiple style={{display:'none'}} onChange={async(e)=>{
+            const files = Array.from(e.target.files || []);
+            if (files.length === 0) return;
+            setUploading(true);
+            setUploadMsg(`📤 准备上传 ${files.length} 个文件...`);
+            const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+              const f = files[i];
+              if (!f) continue;
+              setUploadMsg(`📤 正在解析并分类 (${i + 1}/${files.length}): ${f.name}...`);
+              try {
+                const fd = new FormData();
+                fd.append('file', f);
+                const r = await fetch('/memory/upload', {
+                  method: 'POST',
+                  headers: { "Authorization": "Bearer " + tokenHeader },
+                  body: fd
+                });
+                const d = await r.json();
+                if (d.id) {
+                  successCount++;
+                } else {
+                  failCount++;
+                }
+              } catch (err) {
+                console.error(err);
+                failCount++;
+              }
+            }
+            
+            setUploadMsg(`✅ 成功导入 ${successCount} 个文件` + (failCount > 0 ? `，❌ 失败 ${failCount} 个` : ''));
+            setTimeout(() => fetchMemories(), 500);
+            setUploading(false);
+            e.target.value = '';
           }}/>
         </label>
       </div>
-      {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('✅')?'var(--emerald)':'var(--crimson)'}}>{uploading?'📤 正在解析并智能分类...':uploadMsg}</div>}
+      {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('❌')?'var(--crimson)':uploadMsg.includes('✅')?'var(--emerald)':'var(--text)'}}>{uploadMsg}</div>}
 
       {/* Category Tabs */}
       <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10}}>
