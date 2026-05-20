@@ -342,7 +342,30 @@ class ModelRegistry:
         if not hasattr(target_provider, 'chat'):
             raise ValueError(f"服务商 {target_provider.config.provider_type} 不支持对话功能")
             
-        return await target_provider.chat(messages, stream=stream, **kwargs)
+        res = await target_provider.chat(messages, stream=stream, **kwargs)
+        
+        # Token usage logging (direct await with guard)
+        if not stream:
+            from backend.services.cost_tracker import CostTracker
+            prompt_str = str(messages)
+            prompt_tok = CostTracker.estimate_tokens(prompt_str)
+            comp_tok = CostTracker.estimate_tokens(str(res))
+            
+            from backend.api.routes import pg_repo
+            if pg_repo and hasattr(pg_repo, 'insert_user_token_usage'):
+                team_id = kwargs.get("team_id", "default")
+                try:
+                    await pg_repo.insert_user_token_usage(
+                        user_id=team_id,
+                        provider_name=target_provider.config.provider_type,
+                        model_name=target_model_id,
+                        prompt_tokens=prompt_tok,
+                        completion_tokens=comp_tok,
+                        total_tokens=prompt_tok + comp_tok
+                    )
+                except Exception as e:
+                    print(f"[token-log] warning: {e}")
+        return res
 
     async def add_message(self, role: str, content: str, team_id: str = "default", agent_id: str = ""):
         """Centralized method to archive message and trigger ingestion."""
@@ -369,6 +392,21 @@ class ModelRegistry:
                 )
             except Exception as e:
                 print(f"Failed to ingest chat message: {e}")
+                
+        # 3. Trigger L1-L3 cognitive pipeline task
+        try:
+            from backend.pipeline.runner import enqueue as enqueue_pipeline
+            import asyncio
+            asyncio.create_task(
+                enqueue_pipeline(
+                    team_id=team_id,
+                    session_id=agent_id or "default",
+                    messages=[{"role": role, "content": content}]
+                )
+            )
+        except Exception as pe:
+            print(f"[pipeline-trigger] Failed to trigger L1-L3 pipeline: {pe}")
+            
         return mid
 
     # ── Environment detection ──
@@ -511,5 +549,28 @@ class ModelRegistry:
             return await self.chat(messages, **kwargs)
         prov = cls(prov_cfg)
         prov.config.enabled_models["llm"] = model_name
-        return await prov.chat(messages, **kwargs)
+        res = await prov.chat(messages, **kwargs)
+        
+        # Token usage logging (direct await with guard)
+        if not kwargs.get("stream"):
+            from backend.services.cost_tracker import CostTracker
+            prompt_str = str(messages)
+            prompt_tok = CostTracker.estimate_tokens(prompt_str)
+            comp_tok = CostTracker.estimate_tokens(str(res))
+            
+            from backend.api.routes import pg_repo
+            if pg_repo and hasattr(pg_repo, 'insert_user_token_usage'):
+                team_id = kwargs.get("team_id", "default")
+                try:
+                    await pg_repo.insert_user_token_usage(
+                        user_id=team_id,
+                        provider_name=provider_name,
+                        model_name=model_name,
+                        prompt_tokens=prompt_tok,
+                        completion_tokens=comp_tok,
+                        total_tokens=prompt_tok + comp_tok
+                    )
+                except Exception as e:
+                    print(f"[token-log] warning: {e}")
+        return res
 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { triggerReflection, saveReflectionConfig } from '../api/endpoints';
+import { useState, useEffect } from 'react';
+import { triggerReflection, saveReflectionConfig, getReflectionConfig } from '../api/endpoints';
 import { useToast } from '../contexts/ToastContext';
 
 export function ReflectionPage() {
@@ -9,6 +9,22 @@ export function ReflectionPage() {
   const [decay, setDecay] = useState(0.05);
   const [quality, setQuality] = useState(0.2);
   const [intervalH, setIntervalH] = useState(24);
+
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const cfg = await getReflectionConfig();
+        if (cfg) {
+          setDecay(cfg.decay_rate);
+          setQuality(cfg.quality_threshold);
+          setIntervalH(cfg.interval_hours);
+        }
+      } catch (e) {
+        console.error('Failed to load reflection config', e);
+      }
+    }
+    loadConfig();
+  }, []);
 
   async function trigger() {
     setLoading(true); setStatus('running...');

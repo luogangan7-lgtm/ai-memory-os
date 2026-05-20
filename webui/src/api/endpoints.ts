@@ -16,6 +16,7 @@ import type {
   SecurityConfig,
   ReflectionConfig,
   ReflectionTriggerResponse,
+  PipelineStatus,
 } from "./types";
 
 // Health
@@ -83,10 +84,13 @@ export const saveRerankConfig = (body: {
 export const detectLocalModels = () => api.post<{ detected: { name: string; url: string; models: string[] }[] }>("/providers/detect-local");
 
 // RAG & Security Config
+export const getRAGConfig = () => api.get<RAGConfig>("/config/rag");
 export const saveRAGConfig = (body: RAGConfig) => api.post("/config/rag", body);
+export const getSecurityConfig = () => api.get<SecurityConfig>("/config/security");
 export const saveSecurityConfig = (body: SecurityConfig) => api.post("/config/security", body);
 
 // Reflection
+export const getReflectionConfig = () => api.get<ReflectionConfig>("/reflection/config");
 export const triggerReflection = () => api.post<ReflectionTriggerResponse>("/reflection/trigger");
 export const saveReflectionConfig = (body: ReflectionConfig) => api.post("/reflection/config", body);
 
@@ -113,3 +117,7 @@ export const getRouting = () => api.get<any>("/routing");
 export const getProviders = () => api.get<any>("/providers");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const testEngine = (engineType: string) => api.get<any>(`/routing/test/${engineType}`);
+
+// User-side pipeline status
+export const getUserPipelineStatus = () =>
+  api.get<PipelineStatus>("/api/user/llm/pipeline/status");

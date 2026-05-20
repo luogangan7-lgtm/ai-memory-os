@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { saveRAGConfig, saveSecurityConfig } from '../api/endpoints';
+import { useState, useEffect } from 'react';
+import { saveRAGConfig, saveSecurityConfig, getRAGConfig, getSecurityConfig } from '../api/endpoints';
 import { useToast } from '../contexts/ToastContext';
 
 export function ConfigPage() {
@@ -12,6 +12,34 @@ export function ConfigPage() {
   const [rateRead, setRateRead] = useState(120);
   const [maxMemLen, setMaxMemLen] = useState(10000);
   const [jwtExpire, setJwtExpire] = useState(43200);
+
+  useEffect(() => {
+    async function loadConfigs() {
+      try {
+        const rag = await getRAGConfig();
+        if (rag) {
+          setTopk(rag.top_k);
+          setSim(rag.min_similarity);
+          setCtxTokens(rag.max_context_tokens);
+          setHistory(rag.history_count);
+        }
+      } catch (e) {
+        console.error('Failed to load RAG config', e);
+      }
+      try {
+        const sec = await getSecurityConfig();
+        if (sec) {
+          setRateWrite(sec.rate_write);
+          setRateRead(sec.rate_read);
+          setMaxMemLen(sec.max_mem_len);
+          setJwtExpire(sec.jwt_expire);
+        }
+      } catch (e) {
+        console.error('Failed to load security config', e);
+      }
+    }
+    loadConfigs();
+  }, []);
 
   async function saveRAG() {
     try { await saveRAGConfig({ top_k: topk, min_similarity: sim, max_context_tokens: ctxTokens, history_count: history }); toast('保存成功'); }

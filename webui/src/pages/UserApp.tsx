@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PROVIDERS as ALL_PROVIDERS } from "../data/models";
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
+import { getUserPipelineStatus } from '../api/endpoints';
+import type { PipelineStatus, PipelineJob } from '../api/types';
 
 function Dashboard() {
   const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm" | "canvas" | "audit">("memory");
@@ -319,9 +321,8 @@ const PROVIDERS = ALL_PROVIDERS.filter(x=>!x.region||x.region!=="local").map(x=>
 
 
 const[p,setP]=useState("");const[k,setK]=useState("");const[m,setM]=useState("");const[b,setB]=useState("");
-const[r,setR]=useState("");const[l,setL]=useState(false);const[stats,setStats]=useState({mem:0,tokens:0,calls:0});
+const[r,setR]=useState("");const[l,setL]=useState(false);
 const prov=PROVIDERS.find(x=>x.id===p);
-useEffect(()=>{api.get<any>("/stats").then(d=>setStats({mem:d.total_memories||0,tokens:d.total_tokens||0,calls:d.pipeline_calls||0})).catch(()=>{})},[]);
 // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(()=>{fetch("/api/user/llm",{headers:authHeaders()}).then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,12 +341,135 @@ return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div cla
 <div className="form-group"><label>API Key</label><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="sk-..." style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",fontSize:13}}/></div>
 <div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={l}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={l||!k}>🔗 测试连接</button></div>
 {r&&<div style={{marginTop:12,fontSize:12,color:r.includes("✅")?"var(--emerald)":"var(--crimson)"}}>{r}</div>}
-<div style={{marginTop:16,borderTop:"1px solid var(--border)",paddingTop:12}}>
-<div style={{fontSize:11,color:"var(--muted)",marginBottom:8}}>📊 使用统计</div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-{["💾 记忆","🔢 Token","🔄 管线"].map((l,i)=>{const val=i===0?stats.mem:i===1?stats.tokens:stats.calls;return(<div key={i} style={{background:"rgba(0,0,0,.2)",padding:"10px",borderRadius:8,textAlign:"center"}}><div style={{fontSize:10,color:"var(--muted)"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--teal)"}}>{val}</div></div>)})}
-</div></div>
+<PipelineStatusPanel />
 </div>)}
+
+function fmtTime(s: string|null): string {
+  if(!s) return "-";
+  const d = new Date(s);
+  if(isNaN(d.getTime())) return s;
+  return d.toLocaleString();
+}
+
+function fmtDuration(start: string|null, end: string|null): string {
+  if(!start || !end) return "-";
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  if(isNaN(ms) || ms < 0) return "-";
+  if(ms < 1000) return ms + "ms";
+  if(ms < 60_000) return (ms/1000).toFixed(1) + "s";
+  return Math.round(ms/1000) + "s";
+}
+
+function StatusBadge({status}:{status:string}){
+  const map: Record<string,{label:string;color:string;bg:string}> = {
+    pending:    {label:"⏳ 等待", color:"#facc15", bg:"rgba(250,204,21,.12)"},
+    processing: {label:"🔄 处理中", color:"#38bdf8", bg:"rgba(56,189,248,.12)"},
+    done:       {label:"✅ 完成", color:"var(--emerald)", bg:"rgba(34,197,94,.12)"},
+    failed:     {label:"❌ 失败", color:"var(--crimson)", bg:"rgba(248,113,113,.12)"},
+    dead:       {label:"💀 死信", color:"#f87171", bg:"rgba(248,113,113,.18)"},
+  };
+  const s = map[status] || {label: status, color: "var(--muted)", bg: "rgba(255,255,255,.06)"};
+  return <span style={{display:"inline-block",padding:"2px 8px",borderRadius:6,fontSize:10,color:s.color,background:s.bg,fontFamily:"var(--mono)"}}>{s.label}</span>;
+}
+
+function PipelineStatusPanel(){
+  const [data,setData]=useState<PipelineStatus|null>(null);
+  const [err,setErr]=useState<string>("");
+  const [expanded,setExpanded]=useState(false);
+
+  const refresh = useCallback(async ()=>{
+    try {
+      const d = await getUserPipelineStatus();
+      setData(d);
+      setErr("");
+    } catch(e:unknown) {
+      setErr(e instanceof Error ? e.message : "加载失败");
+    }
+  },[]);
+
+  useEffect(()=>{
+    refresh();
+    const id = setInterval(refresh, 5000);
+    return ()=>clearInterval(id);
+  },[refresh]);
+
+  const c = data?.counts || {pending:0,processing:0,done:0,failed:0,dead:0};
+  const inFlight = data?.in_flight ?? 0;
+  const recent: PipelineJob[] = data?.recent || [];
+
+  return (
+    <div style={{marginTop:16,borderTop:"1px solid var(--border)",paddingTop:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{fontSize:11,color:"var(--muted)"}}>🔄 记忆管线状态（24h，每 5s 自动刷新）</div>
+        <button className="btn btn-ghost btn-sm" style={{fontSize:10}} onClick={refresh}>↻ 立即刷新</button>
+      </div>
+
+      {!data?.configured && (
+        <div style={{padding:"10px 12px",background:"rgba(255,179,71,.08)",border:"1px solid rgba(255,179,71,.2)",borderRadius:8,fontSize:11,color:"var(--amber)",marginBottom:10}}>
+          ⚠️ 尚未保存自己的 LLM 配置，管线将无法运行 — 先保存上方的厂商/Key/模型再触发记忆写入。
+        </div>
+      )}
+
+      {err && <div style={{fontSize:11,color:"var(--crimson)",marginBottom:8}}>⚠️ {err}</div>}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:10}}>
+        {[
+          {key:"pending",label:"等待",color:"#facc15"},
+          {key:"processing",label:"处理中",color:"#38bdf8"},
+          {key:"done",label:"完成",color:"var(--emerald)"},
+          {key:"failed",label:"失败",color:"var(--crimson)"},
+          {key:"dead",label:"死信",color:"#f87171"},
+        ].map(s=>(
+          <div key={s.key} style={{background:"rgba(0,0,0,.2)",padding:"8px",borderRadius:8,textAlign:"center"}}>
+            <div style={{fontSize:9,color:"var(--muted)"}}>{s.label}</div>
+            <div style={{fontSize:16,fontWeight:700,color:s.color}}>{(c as Record<string,number>)[s.key] ?? 0}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:"var(--muted)",marginBottom:10}}>
+        <div>当前在途: <span style={{color:inFlight>0?"#38bdf8":"var(--muted)",fontWeight:600}}>{inFlight}</span></div>
+        <div>上次成功: <span style={{color:"var(--text)"}}>{fmtTime(data?.last_completed_at||null)}</span></div>
+        {data?.last_failed_at && <div>上次失败: <span style={{color:"var(--crimson)"}}>{fmtTime(data.last_failed_at)}</span></div>}
+      </div>
+
+      <button className="btn btn-ghost btn-sm" style={{fontSize:10,marginBottom:8}} onClick={()=>setExpanded(v=>!v)}>
+        {expanded ? "▼ 收起" : "▶ 展开"} 最近 {recent.length} 条任务
+      </button>
+
+      {expanded && (
+        recent.length === 0 ? (
+          <div style={{padding:"10px",color:"var(--muted)",fontSize:12,textAlign:"center"}}>暂无管线任务记录</div>
+        ) : (
+          <div style={{maxHeight:260,overflow:"auto",background:"rgba(0,0,0,.25)",borderRadius:8,padding:"4px 8px"}}>
+            <table style={{width:"100%",fontSize:11,fontFamily:"var(--mono)",borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{color:"var(--muted)",textAlign:"left"}}>
+                  <th style={{padding:"6px 4px"}}>状态</th>
+                  <th style={{padding:"6px 4px"}}>类型</th>
+                  <th style={{padding:"6px 4px"}}>创建时间</th>
+                  <th style={{padding:"6px 4px"}}>耗时</th>
+                  <th style={{padding:"6px 4px"}}>错误</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map(j=>(
+                  <tr key={j.id} style={{borderTop:"1px solid var(--border)"}}>
+                    <td style={{padding:"6px 4px"}}><StatusBadge status={j.status}/></td>
+                    <td style={{padding:"6px 4px",color:"var(--text)"}}>{j.task_type}</td>
+                    <td style={{padding:"6px 4px",color:"var(--muted)"}}>{fmtTime(j.created_at)}</td>
+                    <td style={{padding:"6px 4px",color:"var(--text)"}}>{fmtDuration(j.started_at, j.completed_at)}</td>
+                    <td style={{padding:"6px 4px",color:"var(--crimson)",maxWidth:240,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} title={j.error_msg||""}>{j.error_msg||"-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 function CanvasPanel(){
   const [,setCanvas]=useState("");

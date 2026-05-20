@@ -383,7 +383,12 @@ async def delete_tenant(team_id: str):
         await conn.execute("DELETE FROM user_persona WHERE team_id=$1", team_id)
         await conn.execute("DELETE FROM task_canvas WHERE team_id=$1", team_id)
         await conn.execute("DELETE FROM pipeline_usage WHERE team_id=$1", team_id)
-        await conn.execute("DELETE FROM user_provider_configs WHERE team_id=$1", team_id)
+        # Resolve team accounts to delete their provider configs
+        rows = await conn.fetch("SELECT username FROM accounts WHERE team_id=$1", team_id)
+        from backend.memory.pg_repo import safe_uuid
+        uids = [safe_uuid(r["username"]) for r in rows]
+        if uids:
+            await conn.execute("DELETE FROM user_provider_configs WHERE user_id = ANY($1)", uids)
         await conn.execute("DELETE FROM audit_log WHERE team_id=$1", team_id)
         await conn.execute("DELETE FROM accounts WHERE team_id=$1", team_id)
         await conn.close()
@@ -548,9 +553,20 @@ async def get_dashboard_stats():
     
     total_memories = 0
     total_teams = 0
+    pipeline_calls = 0
+    total_tokens = summary.get("total_tokens", 0)
+    
     if _pg_repo:
         total_memories = await _pg_repo.get_total_memory_count()
         total_teams = await _pg_repo.get_total_team_count()
+        async with _pg_repo.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT SUM(l1_calls + l2_calls + l3_calls) as calls FROM pipeline_usage")
+            if row and row["calls"]:
+                pipeline_calls = int(row["calls"])
+            
+            row2 = await conn.fetchrow("SELECT SUM(total_tokens) as tokens FROM user_token_usage")
+            if row2 and row2["tokens"]:
+                total_tokens += int(row2["tokens"])
 
     # Calculate today's writes from history
     import time
@@ -559,9 +575,12 @@ async def get_dashboard_stats():
 
     return {
         "total": total_memories,
+        "total_memories": total_memories,
+        "total_tokens": total_tokens,
+        "pipeline_calls": pipeline_calls,
         "active_users": total_teams,
         "today_writes": today_writes,
-        "tokens_saved": int(summary.get("total_tokens", 0) * 0.4),
+        "tokens_saved": int(total_tokens * 0.4),
         "memory_growth": "+0%" # Future: compute from history
     }
 
@@ -569,11 +588,7 @@ async def get_dashboard_stats():
 async def get_throughput():
     """Return throughput timeline for Chart.js."""
     import datetime
-    from backend.services.cost_tracker import CostTracker
-    summary = CostTracker.summary()
-    history = summary.get("history", [])
-    
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(datetime.timezone.utc)
     labels = []
     values = []
     
@@ -581,23 +596,96 @@ async def get_throughput():
         target_time = now - datetime.timedelta(hours=11-i)
         label = target_time.strftime("%H:00")
         labels.append(label)
+        values.append(0)
         
-        # Count tokens/writes in this hour
-        hour_start = int(target_time.replace(minute=0, second=0, microsecond=0).timestamp())
-        hour_end = hour_start + 3600
-        hour_sum = sum(h.get("input_tokens",0) + h.get("output_tokens",0) for h in history if hour_start <= h["ts"] < hour_end)
-        values.append(hour_sum)
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        start_time = now - datetime.timedelta(hours=12)
+        rows = await conn.fetch("""
+            SELECT EXTRACT(HOUR FROM created_at) as hr, EXTRACT(DAY FROM created_at) as dy, SUM(total_tokens) as tokens
+            FROM user_token_usage
+            WHERE created_at >= $1
+            GROUP BY dy, hr
+        """, start_time)
         
+        for row in rows:
+            hr = int(row["hr"])
+            dy = int(row["dy"])
+            for i in range(12):
+                target_time = now - datetime.timedelta(hours=11-i)
+                if target_time.hour == hr and target_time.day == dy:
+                    values[i] += int(row["tokens"] or 0)
+        await conn.close()
+    except Exception as e:
+        print("Throughput error:", e)
+
     return {"labels": labels, "values": values}
 
 @router.get("/stats/monitoring")
 async def get_monitoring():
-    """Detailed monitoring data."""
+    """Detailed monitoring data: token usage, write throughput, top tenants."""
+    import datetime
+    tp = await get_throughput()
+    labels = tp["labels"]
+    writes_values = [0] * len(labels)
+    top_tenants = []
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        try:
+            start_time = now - datetime.timedelta(hours=12)
+            rows = await conn.fetch("""
+                SELECT EXTRACT(HOUR FROM created_at) as hr,
+                       EXTRACT(DAY FROM created_at) as dy,
+                       COUNT(*) as writes
+                FROM memories
+                WHERE created_at >= $1
+                GROUP BY dy, hr
+            """, start_time)
+            for row in rows:
+                hr = int(row["hr"])
+                dy = int(row["dy"])
+                for i in range(len(labels)):
+                    t = now - datetime.timedelta(hours=len(labels) - 1 - i)
+                    if t.hour == hr and t.day == dy:
+                        writes_values[i] += int(row["writes"] or 0)
+
+            tenant_rows = await conn.fetch("""
+                SELECT m.team_id,
+                       COUNT(*) as memory_count,
+                       COALESCE(SUM(u.tokens), 0) as token_usage
+                FROM memories m
+                LEFT JOIN (
+                    SELECT user_id::text as user_id, SUM(total_tokens) as tokens
+                    FROM user_token_usage
+                    GROUP BY user_id
+                ) u ON u.user_id = m.team_id
+                WHERE m.team_id IS NOT NULL AND m.team_id <> ''
+                GROUP BY m.team_id
+                ORDER BY memory_count DESC
+                LIMIT 10
+            """)
+            for r in tenant_rows:
+                top_tenants.append({
+                    "team_id": r["team_id"],
+                    "memory_count": int(r["memory_count"] or 0),
+                    "token_usage": int(r["token_usage"] or 0),
+                })
+        finally:
+            await conn.close()
+    except Exception as e:
+        print("Monitoring error:", e)
+
     return {
-        "token_labels": [], "token_values": [],
-        "writes_labels": [], "writes_values": [],
-        "latency_buckets": [120, 450, 800, 1200],
-        "top_tenants": []
+        "token_labels": labels,
+        "token_values": tp["values"],
+        "writes_labels": labels,
+        "writes_values": writes_values,
+        "latency_buckets": [],
+        "top_tenants": top_tenants,
     }
 
 @router.get("/audit-logs")
@@ -607,7 +695,18 @@ async def get_audit_logs(limit: int = 50):
     try:
         rows = await conn.fetch(
             "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT $1", limit)
-        return {"logs": [dict(r) for r in rows]}
+        logs = []
+        for r in rows:
+            logs.append({
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "username": r["agent_id"],
+                "team_id": r.get("team_id", "-") if "team_id" in r else "-",
+                "action": r["action"],
+                "target_id": r["memory_id"],
+                "ip_address": "-",
+                "success": True
+            })
+        return {"logs": logs}
     finally:
         await conn.close()
 
@@ -752,6 +851,87 @@ async def test_provider_connection(data: dict):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+
+@router.get("/config/rag")
+async def get_rag_config():
+    from backend.services.config import load_system_config
+    cfg = load_system_config()
+    return cfg.get("rag", { "top_k": 5, "min_similarity": 0.60, "max_context_tokens": 2000, "history_count": 10 })
+
+@router.post("/config/rag")
+async def save_rag_config(data: dict):
+    from backend.services.config import load_system_config, save_system_config
+    cfg = load_system_config()
+    cfg["rag"] = {
+        "top_k": int(data.get("top_k", 5)),
+        "min_similarity": float(data.get("min_similarity", 0.60)),
+        "max_context_tokens": int(data.get("max_context_tokens", 2000)),
+        "history_count": int(data.get("history_count", 10))
+    }
+    save_system_config(cfg)
+    return {"ok": True, "message": "RAG configuration saved successfully"}
+
+@router.get("/config/security")
+async def get_security_config():
+    from backend.services.config import load_system_config
+    cfg = load_system_config()
+    return cfg.get("security", { "rate_write": 60, "rate_read": 120, "max_mem_len": 10000, "jwt_expire": 43200 })
+
+@router.post("/config/security")
+async def save_security_config(data: dict):
+    from backend.services.config import load_system_config, save_system_config
+    cfg = load_system_config()
+    cfg["security"] = {
+        "rate_write": int(data.get("rate_write", 60)),
+        "rate_read": int(data.get("rate_read", 120)),
+        "max_mem_len": int(data.get("max_mem_len", 10000)),
+        "jwt_expire": int(data.get("jwt_expire", 43200))
+    }
+    save_system_config(cfg)
+    return {"ok": True, "message": "Security configuration saved successfully"}
+
+@router.get("/reflection/config")
+async def get_reflection_config():
+    from backend.services.config import load_system_config
+    cfg = load_system_config()
+    return cfg.get("reflection", { "decay_rate": 0.05, "quality_threshold": 0.80, "interval_hours": 24 })
+
+@router.post("/reflection/config")
+async def save_reflection_config(data: dict):
+    from backend.services.config import load_system_config, save_system_config
+    cfg = load_system_config()
+    cfg["reflection"] = {
+        "decay_rate": float(data.get("decay_rate", 0.05)),
+        "quality_threshold": float(data.get("quality_threshold", 0.80)),
+        "interval_hours": int(data.get("interval_hours", 24))
+    }
+    save_system_config(cfg)
+    return {"ok": True, "message": "Reflection configuration saved successfully"}
+
+async def _run_background_reflection(teams: list[str]):
+    from backend.reflection.engine import ReflectionEngine
+    from backend.manager.registry import ModelRegistry
+    reg = ModelRegistry.get_instance()
+    engine = ReflectionEngine(_pg_repo, _graph_store, registry=reg)
+    for team_id in teams:
+        try:
+            await engine.reflect_all(team_id)
+        except Exception as e:
+            print(f"[reflection] background run failed for team {team_id}: {e}")
+
+@router.post("/reflection/trigger")
+async def trigger_reflection(background_tasks: BackgroundTasks):
+    if not _pg_repo:
+        raise HTTPException(500, "Database not connected")
+    async with _pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch("SELECT DISTINCT team_id FROM memories")
+        teams = [r["team_id"] for r in rows]
+        if "default" not in teams:
+            teams.append("default")
+    background_tasks.add_task(_run_background_reflection, teams)
+    return {"status": "initiated", "message": f"Reflection cycle triggered for {len(teams)} tenants"}
+
+
 @router.get("/health")
 async def health():
     """Real health check for all core services."""
@@ -841,7 +1021,7 @@ async def trigger_embedding_rebuild(
             query += " AND team_id = $2"
             params.append(team_id)
         rows = await conn.fetch(query, *params)
-        job_ids = [row["id"] for row in rows]
+        job_ids = [str(row["id"]) for row in rows]
         # Batch into pipeline_queue
         for i in range(0, len(job_ids), batch_size):
             batch = job_ids[i:i+batch_size]

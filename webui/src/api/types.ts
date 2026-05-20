@@ -161,3 +161,23 @@ export interface ReflectionTriggerResponse {
 export interface ApiError {
   detail: string;
 }
+
+export interface PipelineJob {
+  id: string;
+  status: "pending" | "processing" | "done" | "failed" | "dead" | string;
+  task_type: string;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_msg: string | null;
+}
+
+export interface PipelineStatus {
+  counts: { pending: number; processing: number; done: number; failed: number; dead: number };
+  recent: PipelineJob[];
+  last_completed_at: string | null;
+  last_failed_at: string | null;
+  in_flight: number;
+  configured: boolean;
+  error?: string;
+}

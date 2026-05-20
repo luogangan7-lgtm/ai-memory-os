@@ -19,8 +19,10 @@ async def synthesize(team_id: str, atom_ids: list[str] | None = None) -> str | N
     prompt = PROMPT + "\n\n" + facts
     
     result = await call_llm(prompt, team_id, "reflection")
+    import uuid
+    scenario_id = str(uuid.uuid4())
     await _repo.pool.execute(
-        """INSERT INTO memory_scenarios (team_id, title, content_md, atom_ids)
-           VALUES ($1, $2, $3, $4)""",
-        team_id, result[:100], result, atom_ids or [])
+        """INSERT INTO memory_scenarios (team_id, scenario_id, title, content_md, atom_ids)
+           VALUES ($1, $2, $3, $4, $5)""",
+        team_id, scenario_id, result[:100], result, atom_ids or [])
     return result

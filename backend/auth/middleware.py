@@ -10,7 +10,13 @@ from backend.services.config import settings
 security = HTTPBearer(auto_error=False)
 
 def create_access_token(team_id: str, role: str = "user") -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
+    try:
+        from backend.services.config import load_system_config
+        sys_config = load_system_config()
+        expire_minutes = sys_config.get("security", {}).get("jwt_expire", settings.jwt_expire_minutes)
+    except Exception:
+        expire_minutes = settings.jwt_expire_minutes
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
     return jwt.encode({"sub": team_id, "team_id": team_id, "role": role, "exp": expire}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 async def get_user_context(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> dict:
@@ -32,10 +38,13 @@ async def get_user_context(credentials: HTTPAuthorizationCredentials | None = De
     # 2. Check JWT (Legacy/Internal)
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        team_id = payload.get("team_id", "default")
+        role = payload.get("role", "user")
         return {
-            "team_id": payload.get("team_id", "default"),
-            "agent_id": "system",
-            "role": "admin"
+            "team_id": team_id,
+            # Use team_id as agent_id so users see their own memories (not "system")
+            "agent_id": team_id if role != "admin" else "system",
+            "role": role
         }
     except JWTError as e:
         print(f"get_user_context: JWT decode failed for token '{token[:15]}...': {e}", flush=True)

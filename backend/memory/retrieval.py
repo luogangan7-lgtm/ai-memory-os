@@ -23,6 +23,12 @@ class RetrievalPipeline:
         min_confidence: float = 0.0,
         source_type_filter: str = None,
     ) -> list[dict[str, Any]]:
+        from backend.services.config import load_system_config
+        sys_config = load_system_config()
+        rag_cfg = sys_config.get("rag", {})
+        top_k = rag_cfg.get("top_k", top_k)
+        min_similarity = rag_cfg.get("min_similarity", 0.60)
+
         query_vector = await embedding_fn(query)
 
         # Phase 1: Hybrid retrieval (overfetch for rerank)
@@ -46,13 +52,14 @@ class RetrievalPipeline:
         deduped = sorted(seen.values(), key=lambda x: x["score"], reverse=True)
 
         # Phase 2: Cross-encoder reranker (replaces simple boost)
+        is_reranked = False
         if use_rerank and rerank_fn is not None and len(deduped) > 0:
             try:
                 docs = [r["payload"].get("text", "") for r in deduped]
                 import logging
                 _log = logging.getLogger(__name__)
                 _log.info(f"Reranking {len(docs)} docs with query: {query[:50]}")
-                reranked = await rerank_fn(query, docs, top_n=min(top_k, len(docs)))
+                reranked = await rerank_fn(query, docs, top_n=len(docs))
                 _log.info(f"Reranked: {[(r['index'], round(r['score'], 3)) for r in reranked]}")
                 # Map reranker results back
                 rerank_map = {item["index"]: item["score"] for item in reranked}
@@ -60,6 +67,7 @@ class RetrievalPipeline:
                     if i in rerank_map:
                         r["score"] = rerank_map[i]
                 deduped.sort(key=lambda x: x["score"], reverse=True)
+                is_reranked = True
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).warning(f"Reranker failed: {e}")
@@ -67,6 +75,13 @@ class RetrievalPipeline:
                 pass
 
         deduped = deduped[:top_k]
+
+        # Similarity threshold filter (only apply if NOT reranked and score is cosine similarity)
+        if not is_reranked:
+            deduped = [
+                r for r in deduped
+                if float(r.get("score", 0.0)) >= (min_similarity if float(r.get("score", 0.0)) > 0.5 else 0.0)
+            ]
 
         # Confidence threshold filter
         deduped = [

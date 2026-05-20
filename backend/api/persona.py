@@ -38,7 +38,16 @@ async def get_persona_default(current_team: str = Depends(get_current_team)):
         row = await conn.fetchrow(
             "SELECT * FROM user_persona WHERE team_id=$1", current_team)
         if not row:
-            raise HTTPException(404, "No persona yet")
+            default_persona_md = "## 用户画像\n\n系统正在从您的交互记录和存储记忆中构建画像，请继续与 AI 对话以丰富个人档案。"
+            await conn.execute(
+                """INSERT INTO user_persona (team_id, persona_md, scenario_count, version)
+                   VALUES ($1, $2, 0, 1)
+                   ON CONFLICT (team_id) DO NOTHING""",
+                current_team, default_persona_md
+            )
+            row = await conn.fetchrow(
+                "SELECT * FROM user_persona WHERE team_id=$1", current_team)
+        
         result = dict(row)
         
         # 3. Write to cache
@@ -60,7 +69,15 @@ async def get_persona(team_id: str, current_team: str = Depends(get_current_team
         row = await conn.fetchrow(
             "SELECT * FROM user_persona WHERE team_id=$1", team_id)
         if not row:
-            raise HTTPException(404, "No persona yet")
+            default_persona_md = "## 用户画像\n\n系统正在从您的交互记录和存储记忆中构建画像，请继续与 AI 对话以丰富个人档案。"
+            await conn.execute(
+                """INSERT INTO user_persona (team_id, persona_md, scenario_count, version)
+                   VALUES ($1, $2, 0, 1)
+                   ON CONFLICT (team_id) DO NOTHING""",
+                team_id, default_persona_md
+            )
+            row = await conn.fetchrow(
+                "SELECT * FROM user_persona WHERE team_id=$1", team_id)
         return dict(row)
     finally:
         await conn.close()

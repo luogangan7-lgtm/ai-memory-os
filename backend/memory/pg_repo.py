@@ -272,14 +272,24 @@ class MemoryRepo:
             await conn.execute("UPDATE memories SET access_count=access_count+1, updated_at=$2 WHERE id=$1", mid, datetime.now(timezone.utc))
 
     
-    async def audit(self, memory_id: str, agent_id: str, action: str, details: dict = None):
-        """Record an audit log entry."""
+    async def audit(self, memory_id: str, agent_id: str, action: str, details: dict = None, team_id: str = "default"):
+        """Record an audit log entry mapping to DB schema."""
         import json
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO audit_log (memory_id, agent_id, action, details) VALUES ($1,$2,$3,$4)",
-                memory_id, agent_id, action, json.dumps(details or {})
-            )
+        import uuid
+        try:
+            res_id = None
+            if memory_id:
+                try:
+                    res_id = uuid.UUID(memory_id)
+                except ValueError:
+                    pass
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO audit_log (team_id, user_id, action, resource_type, resource_id, details) VALUES ($1,$2,$3,$4,$5,$6)",
+                    team_id, agent_id, action, "memory", res_id, json.dumps(details or {})
+                )
+        except Exception as e:
+            print(f"[pg_repo.audit] Failed to record audit log: {e}")
 
     async def list_recent(self, team_id, limit=20, filter="all"):
         async with self.pool.acquire() as conn:
@@ -396,6 +406,22 @@ class MemoryRepo:
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
             """, uuid.uuid4(), safe_uuid(user_id), provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate)
 
+    async def increment_pipeline_usage(self, team_id: str, layer: str, tokens: int = 0):
+        ym = datetime.now(timezone.utc).strftime("%Y-%m")
+        l1 = 1 if layer == 'L1' else 0
+        l2 = 1 if layer == 'L2' else 0
+        l3 = 1 if layer == 'L3' else 0
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO pipeline_usage (team_id, year_month, l1_calls, l2_calls, l3_calls, total_tokens)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (team_id, year_month) DO UPDATE SET
+                    l1_calls = pipeline_usage.l1_calls + EXCLUDED.l1_calls,
+                    l2_calls = pipeline_usage.l2_calls + EXCLUDED.l2_calls,
+                    l3_calls = pipeline_usage.l3_calls + EXCLUDED.l3_calls,
+                    total_tokens = pipeline_usage.total_tokens + EXCLUDED.total_tokens
+            """, team_id, ym, l1, l2, l3, tokens)
+
     # --- Account Management Methods ---
     async def get_account(self, username: str) -> Optional[dict]:
         async with self.pool.acquire() as conn:
@@ -464,7 +490,7 @@ class MemoryRepo:
             async with conn.transaction():
                 await conn.execute("DELETE FROM user_provider_configs WHERE user_id=$1", safe_uuid(username))
                 await conn.execute("DELETE FROM user_token_usage WHERE user_id=$1", safe_uuid(username))
-                await conn.execute("DELETE FROM audit_log WHERE agent_id=$1", username)
+                await conn.execute("DELETE FROM audit_log WHERE user_id=$1", username)
                 await conn.execute("DELETE FROM memories WHERE team_id=$1", team_id)
                 r = await conn.execute("DELETE FROM accounts WHERE username=$1", username)
                 

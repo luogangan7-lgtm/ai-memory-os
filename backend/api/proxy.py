@@ -51,8 +51,15 @@ async def chat_completions(
     knowledge_context = ""
     
     try:
-        # A. Fetch chronological history (Last 10 turns for continuity)
-        rows = await pg_repo.list_recent(team_id, limit=10, filter="agent")
+        from backend.services.config import load_system_config
+        sys_config = load_system_config()
+        rag_cfg = sys_config.get("rag", {})
+        history_limit = rag_cfg.get("history_count", 10)
+        top_k = rag_cfg.get("top_k", 3)
+        max_context_tokens = rag_cfg.get("max_context_tokens", 2000)
+
+        # A. Fetch chronological history (continuity limit)
+        rows = await pg_repo.list_recent(team_id, limit=history_limit, filter="agent")
         for row in reversed(rows):
             role = "assistant" if row["source_type"] == "agent" else "user"
             history_to_inject.append({"role": role, "content": row["content"]})
@@ -61,10 +68,10 @@ async def chat_completions(
         if user_msg and retrieval and registry:
             results = await retrieval.search(
                 query=user_msg, embedding_fn=registry.embed_single,
-                team_id=team_id, top_k=3
+                team_id=team_id, top_k=top_k
             )
             from backend.services.context_compiler import ContextCompiler
-            knowledge_context = ContextCompiler.compile_context(results, user_msg)
+            knowledge_context = ContextCompiler.compile_context(results, user_msg, max_tokens=max_context_tokens)
     except Exception as e:
         print(f"[Memory OS] Background memory retrieval failed: {e}")
 
@@ -116,16 +123,35 @@ async def chat_completions(
                 c_tok = usage.get("completion_tokens", count_tokens(assistant_msg))
                 
                 if assistant_msg:
-                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "user", user_msg))
-                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "assistant", assistant_msg))
-                    asyncio.create_task(pg_repo.insert_user_token_usage(
-                        user_id=team_id,
-                        provider_name=provider_name,
-                        model_name=model_name,
-                        prompt_tokens=p_tok,
-                        completion_tokens=c_tok,
-                        total_tokens=p_tok + c_tok
-                    ))
+                    await pg_repo.add_message(team_id, agent_id, "user", user_msg)
+                    await pg_repo.add_message(team_id, agent_id, "assistant", assistant_msg)
+                    try:
+                        await pg_repo.insert_user_token_usage(
+                            user_id=team_id,
+                            provider_name=provider_name,
+                            model_name=model_name,
+                            prompt_tokens=p_tok,
+                            completion_tokens=c_tok,
+                            total_tokens=p_tok + c_tok
+                        )
+                    except Exception as e:
+                        print(f"[token-log] warning: {e}")
+                    
+                    # Trigger L1-L3 memory extraction pipeline
+                    try:
+                        from backend.pipeline.runner import enqueue as enqueue_pipeline
+                        asyncio.create_task(
+                            enqueue_pipeline(
+                                team_id=team_id,
+                                session_id=agent_id or "default",
+                                messages=[
+                                    {"role": "user", "content": user_msg},
+                                    {"role": "assistant", "content": assistant_msg}
+                                ]
+                            )
+                        )
+                    except Exception as pe:
+                        print(f"[pipeline-trigger] warn: {pe}")
                 return resp_json
         except Exception as e:
             raise HTTPException(500, f"Upstream connection failed: {str(e)}")
@@ -155,19 +181,38 @@ async def chat_completions(
                             except Exception:
                                 pass
                 
-                # Asynchronously commit text to knowledge memories and user billing log
+                # Commit text to knowledge memories and user billing log
                 if completion_text:
                     completion_tokens = count_tokens(completion_text)
-                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "user", user_msg))
-                    asyncio.create_task(pg_repo.add_message(team_id, agent_id, "assistant", completion_text))
-                    asyncio.create_task(pg_repo.insert_user_token_usage(
-                        user_id=team_id,
-                        provider_name=provider_name,
-                        model_name=model_name,
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        total_tokens=prompt_tokens + completion_tokens
-                    ))
+                    await pg_repo.add_message(team_id, agent_id, "user", user_msg)
+                    await pg_repo.add_message(team_id, agent_id, "assistant", completion_text)
+                    try:
+                        await pg_repo.insert_user_token_usage(
+                            user_id=team_id,
+                            provider_name=provider_name,
+                            model_name=model_name,
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
+                            total_tokens=prompt_tokens + completion_tokens
+                        )
+                    except Exception as e:
+                        print(f"[token-log] warning: {e}")
+                    
+                    # Trigger L1-L3 memory extraction pipeline
+                    try:
+                        from backend.pipeline.runner import enqueue as enqueue_pipeline
+                        asyncio.create_task(
+                            enqueue_pipeline(
+                                team_id=team_id,
+                                session_id=agent_id or "default",
+                                messages=[
+                                    {"role": "user", "content": user_msg},
+                                    {"role": "assistant", "content": completion_text}
+                                ]
+                            )
+                        )
+                    except Exception as pe:
+                        print(f"[pipeline-trigger] warn: {pe}")
             except Exception as stream_err:
                 print(f"[Memory OS] Upstream streaming failed: {stream_err}")
 

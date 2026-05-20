@@ -4,6 +4,23 @@ import httpx
 
 from backend.api.user_providers import _user_llm_configs
 
+_DEFAULT_BASES = {
+    "openai": "https://api.openai.com/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "anthropic": "https://api.anthropic.com/v1",
+    "zhipu": "https://bigmodel.cn/api/paas/v4",
+    "google": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "cohere": "https://api.cohere.com/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "mistral": "https://api.mistral.ai/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "ollama": "http://localhost:11434/v1",
+    "omlx": "http://host.docker.internal:7749/v1",
+}
+
+def get_default_base(provider_name: str) -> str:
+    return _DEFAULT_BASES.get(provider_name, "")
+
 async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifier") -> str | None:
     # 1. Check user's own LLM config first (per-team isolation)
     user_cfg = _user_llm_configs.get(team_id, {})
@@ -11,7 +28,7 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 resp = await client.post(
-                    user_cfg["base_url"] + "/chat/completions",
+                    user_cfg["base_url"].rstrip("/") + "/chat/completions",
                     json={"model": user_cfg.get("model", "deepseek-chat"), "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
                     headers={"Authorization": f"Bearer {user_cfg['api_key']}"})
                 return resp.json()["choices"][0]["message"]["content"]
@@ -24,7 +41,7 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
     
     # Get user's engine config
     engine_data = reg.load_llm_engine_config()
-    cfg = engine_data.get("classifier") or engine_data.get("reflection") or {}
+    cfg = engine_data.get(engine_type) or engine_data.get("reflection") or engine_data.get("classifier") or {}
     provider_name = cfg.get("provider", "")
     model_name = cfg.get("model", "")
     
@@ -37,7 +54,6 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
     
     base_url = provider.api_base or ""
     if not base_url:
-        from backend.providers.base import get_default_base
         base_url = get_default_base(provider_name)
     model = model_name or provider.enabled_models.get("llm", "")
     if not model:

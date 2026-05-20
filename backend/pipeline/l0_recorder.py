@@ -14,8 +14,8 @@ async def record_conversation(team_id: str, session_id: str, messages: list[dict
     if _repo is None: return None
     msg_json = json.dumps(messages, ensure_ascii=False)
     result = await _repo.pool.fetchrow(
-        """INSERT INTO pipeline_conversations (team_id, session_id, agent_id, messages)
-           VALUES ($1, $2, $3, $4::jsonb) RETURNING id""",
-        team_id, session_id, agent_id, msg_json
+        """INSERT INTO pipeline_conversations (team_id, conversation_id, messages)
+           VALUES ($1, $2, $3::jsonb) RETURNING id""",
+        team_id, session_id, msg_json
     )
     return str(result["id"]) if result else None

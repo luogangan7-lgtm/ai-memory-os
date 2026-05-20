@@ -33,15 +33,47 @@ class ReflectionScheduler:
             self._task = None
 
     async def _loop(self):
+        import time
+        last_executed = time.time()
         while True:
-            await asyncio.sleep(self.interval * 60)
+            await asyncio.sleep(60)
             try:
-                import logging
-                log = logging.getLogger(__name__)
-                log.info("Scheduled reflection starting...")
-                report = await self.engine.reflect_all()
-                self.last_run = datetime.now(timezone.utc).isoformat()
-                log.info(f"Reflection done: {report}")
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Reflection error: {e}")
+                from backend.services.config import load_system_config
+                sys_config = load_system_config()
+                interval_hours = sys_config.get("reflection", {}).get("interval_hours", 24)
+            except Exception:
+                interval_hours = 24
+
+            if interval_hours <= 0:
+                continue
+
+            now = time.time()
+            if now - last_executed >= interval_hours * 3600:
+                try:
+                    import logging
+                    log = logging.getLogger(__name__)
+                    log.info("Scheduled reflection starting...")
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    try:
+                        rows = await conn.fetch("SELECT DISTINCT team_id FROM memories")
+                        teams = [r["team_id"] for r in rows]
+                        if "default" not in teams:
+                            teams.append("default")
+                    finally:
+                        await conn.close()
+
+                    for team_id in teams:
+                        try:
+                            log.info(f"Scheduled reflection running for team: {team_id}")
+                            report = await self.engine.reflect_all(team_id)
+                            log.info(f"Reflection for team {team_id} done: {report}")
+                        except Exception as te:
+                            log.error(f"Reflection failed for team {team_id}: {te}")
+
+                    self.last_run = datetime.now(timezone.utc).isoformat()
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"Scheduled reflection general error: {e}")
+                finally:
+                    last_executed = time.time()

@@ -46,17 +46,17 @@ T("login correct", R("POST","/admin/auth/login", json={"username":USER,"password
 T("login wrong pw", R("POST","/admin/auth/login", json={"username":USER,"password":"wrong"}).status_code == 401)
 
 # Store
-time.sleep(1.5)
+time.sleep(3.5)
 r = R("POST","/memory/store", headers=AH, json={"title":"Qdrant Guide","content":"Qdrant uses cosine distance.","category":"AI","importance":0.9,"confidence":0.95})
 T("store memory", r.status_code == 200)
 MID = r.json().get("id","") if r.status_code == 200 else ""
 
 # Remember
-time.sleep(1.5)
+time.sleep(3.5)
 T("agent remember", R("POST","/memory/remember", headers=AH, json={"title":"Remember","content":"Agent fact.","category":"AI"}).status_code == 200)
 
 # Search
-time.sleep(1.5)
+time.sleep(3.5)
 r = R("POST","/memory/search", headers=AH, json={"query":"vector similarity","top_k":3})
 T("search returns results", r.status_code == 200 and len(r.json()) > 0)
 

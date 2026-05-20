@@ -220,14 +220,6 @@ async def list_recent_memories(
     rows = await pg_repo.list_recent(team_id, limit, filter)
     return rows
 
-@router.post("/memory/store")
-async def quick_store_alias(
-    req: MemoryStoreRequest,
-    team_id: str = Depends(get_current_team),
-    agent_id: str = Depends(get_agent_id),
-):
-    """Alias for /memory/remember used by V6 UI."""
-    return await remember(req, team_id, agent_id)
 
 @router.patch("/memory/{memory_id}")
 async def update_memory(
@@ -343,12 +335,34 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
     """Get stats for the current team's dashboard."""
     if not pg_repo: raise HTTPException(503)
     total = await pg_repo.count_by_team(team_id)
-    agent_total = await pg_repo.count_by_team(team_id, source_type="agent")
-    tokens_saved = total * 500 # Rough estimate
+
+    # Fetch real token usage from DB
+    total_tokens = 0
+    pipeline_calls = 0
+    try:
+        from backend.memory.pg_repo import safe_uuid
+        async with pg_repo.pool.acquire() as conn:
+            tok_row = await conn.fetchrow(
+                "SELECT COALESCE(SUM(total_tokens), 0) as t FROM user_token_usage WHERE user_id = $1",
+                safe_uuid(team_id)
+            )
+            total_tokens = int(tok_row["t"]) if tok_row else 0
+
+            pipe_row = await conn.fetchrow(
+                "SELECT COALESCE(SUM(l1_calls + l2_calls + l3_calls), 0) as p FROM pipeline_usage WHERE team_id = $1",
+                team_id
+            )
+            pipeline_calls = int(pipe_row["p"]) if pipe_row else 0
+    except Exception as e:
+        print(f"[stats] warn: {e}")
+
     return {
         "total": total,
-        "agent": agent_total,
-        "tokens_saved": tokens_saved
+        "total_memories": total,
+        "total_tokens": total_tokens,
+        "pipeline_calls": pipeline_calls,
+        "tokens_saved": total_tokens // 5,
+        "agent": 0,
     }
 
 @router.post("/memory/store", response_model=MemoryResponse)
@@ -359,6 +373,13 @@ async def store_memory(
 ):
     memory_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+
+    # Enforce max memory length from security config
+    from backend.services.config import load_system_config
+    sys_config = load_system_config()
+    max_mem_len = sys_config.get("security", {}).get("max_mem_len", 10000)
+    if req.content and len(req.content) > max_mem_len:
+        req.content = req.content[:max_mem_len]
 
     # Auto-classify if category not provided
     auto_category = req.category
@@ -376,6 +397,23 @@ async def store_memory(
 
     # Determine actual agent_id: payload > token > "default"
     final_agent_id = req.agent_id if req.agent_id else (agent_id if agent_id else "default")
+
+    # Check for active LLM configuration
+    has_llm = False
+    if pg_repo:
+        try:
+            cfg = await pg_repo.get_active_user_provider_config(team_id)
+            if cfg and cfg.get("api_key"):
+                has_llm = True
+        except Exception:
+            pass
+
+    # Set pending_pipeline flag if human/chat memory and no LLM config
+    if (req.source_type == "human" or req.memory_type == "chat") and not has_llm:
+        if req.metadata is None:
+            req.metadata = {}
+        req.metadata["pending_pipeline"] = True
+
 
     # Persist metadata to PostgreSQL (primary source of truth)
     if pg_repo:
@@ -440,7 +478,26 @@ async def store_memory(
             logging.getLogger(__name__).warning(
                 f"Graph store failed for {memory_id}: {e}"
             )
-    if pg_repo: await pg_repo.audit(memory_id, final_agent_id, "store", {"title": req.title})
+    if pg_repo: await pg_repo.audit(memory_id, final_agent_id, "store", {"title": req.title}, team_id=team_id)
+
+    # Trigger L1-L3 memory extraction pipeline for raw user chats
+    if (req.source_type == "human" or req.memory_type == "chat") and has_llm:
+        try:
+            from backend.pipeline.runner import enqueue as enqueue_pipeline
+            import asyncio
+            asyncio.create_task(
+                enqueue_pipeline(
+                    team_id=team_id,
+                    session_id=final_agent_id or "default",
+                    messages=[
+                        {"role": "user", "content": req.content}
+                    ]
+                )
+            )
+        except Exception as e:
+            print(f"[pipeline-trigger] warn: {e}")
+            print(f"[pipeline-trigger] warn: {e}")
+
     return MemoryResponse(
         id=memory_id, team_id=team_id, workspace_id=req.workspace_id,
         agent_id=final_agent_id,
@@ -464,12 +521,15 @@ async def search_memory(
     if not retrieval:
         raise HTTPException(status_code=503, detail="Retrieval engine not ready")
 
-    if not req.query or not req.query.strip():
-        # If query is empty, just return the most recent memories from Postgres
+    if not req.query or not req.query.strip() or req.query.strip() == "*":
+        # If query is empty or wildcard, return the most recent memories from Postgres
         if pg_repo:
             async with pg_repo.pool.acquire() as conn:
-                if agent_id and agent_id != "default":
-                    rows = await conn.fetch("SELECT * FROM memories WHERE team_id=$1 AND (agent_id='' OR agent_id=$2) ORDER BY created_at DESC LIMIT $3", team_id, agent_id, req.top_k)
+                if agent_id and agent_id not in ("default", "system"):
+                    rows = await conn.fetch(
+                        "SELECT * FROM memories WHERE team_id=$1 AND (agent_id IS NULL OR agent_id='' OR agent_id='default' OR agent_id=$2) ORDER BY created_at DESC LIMIT $3",
+                        team_id, agent_id, req.top_k
+                    )
                 else:
                     rows = await conn.fetch("SELECT * FROM memories WHERE team_id=$1 ORDER BY created_at DESC LIMIT $2", team_id, req.top_k)
                 
@@ -477,14 +537,24 @@ async def search_memory(
                 for r in rows:
                     m = dict(r)
                     m["id"] = str(m["id"])
-                    m["memory_type"] = m["memory_type"] or "general"
-                    m["created_at"] = m["created_at"].isoformat() if m["created_at"] else "2026-05-01T00:00:00Z"
-                    m["updated_at"] = m["updated_at"].isoformat() if m["updated_at"] else "2026-05-01T00:00:00Z"
+                    m["category"] = m.get("category") or "general"
+                    m["title"] = m.get("title") or "Untitled"
+                    m["content"] = m.get("content") or ""
+                    m["memory_type"] = m.get("memory_type") or "general"
+                    m["importance"] = float(m.get("importance") if m.get("importance") is not None else 0.5)
+                    m["confidence"] = float(m.get("confidence") if m.get("confidence") is not None else 0.5)
+                    m["embedding_model"] = m.get("embedding_model") or "text-embedding-v3"
+                    m["agent_id"] = m.get("agent_id") or ""
+                    m["lifecycle_stage"] = m.get("lifecycle_stage") or "recent"
+                    m["source_type"] = m.get("source_type") or "human"
+                    m["tags"] = m.get("tags") or []
+                    m["created_at"] = m["created_at"].isoformat() if m.get("created_at") else "2026-05-01T00:00:00Z"
+                    m["updated_at"] = m["updated_at"].isoformat() if m.get("updated_at") else "2026-05-01T00:00:00Z"
                     out.append({
                         "id": str(r["id"]),
                         "score": 1.0,
                         "memory": m,
-                        "chunk_text": r["content"]
+                        "chunk_text": r["content"] or ""
                     })
                 return out
         return []
@@ -527,7 +597,7 @@ async def search_memory(
     pg_rows: dict = {}
     if pg_repo and memory_ids:
         rows = await pg_repo.get_by_ids(memory_ids)
-        pg_rows = {row["id"]: dict(row) for row in rows}
+        pg_rows = {str(row["id"]): dict(row) for row in rows}
 
     out = []
     for r in results:
@@ -540,17 +610,17 @@ async def search_memory(
                 workspace_id=req.workspace_id,
                 category=pg.get("category") or r["payload"].get("category") or "general",
                 title=pg.get("title") or r["payload"].get("title") or "Untitled",
-                content=pg.get("content", r["payload"].get("text", "")),
-                memory_type=pg.get("memory_type", r["payload"].get("memory_type", "general")),
-                importance=float(pg.get("importance", r["payload"].get("importance", 0.5))),
-                confidence=float(pg.get("confidence", r["payload"].get("confidence", 0.5))),
-                embedding_model=pg.get("embedding_model", "text-embedding-v3"),
-                agent_id=pg.get("agent_id", r["payload"].get("agent_id", "")),
-                lifecycle_stage=pg.get("lifecycle_stage", "recent"),
-                source_type=pg.get("source_type", "human"),
-                tags=pg.get("tags", r["payload"].get("tags", [])),
-                created_at=str(pg.get("created_at", "2026-05-01T00:00:00Z")),
-                updated_at=str(pg.get("updated_at", "2026-05-01T00:00:00Z")),
+                content=pg.get("content") or r["payload"].get("text") or "",
+                memory_type=pg.get("memory_type") or r["payload"].get("memory_type") or "general",
+                importance=float(pg.get("importance") if pg.get("importance") is not None else r["payload"].get("importance", 0.5)),
+                confidence=float(pg.get("confidence") if pg.get("confidence") is not None else r["payload"].get("confidence", 0.5)),
+                embedding_model=pg.get("embedding_model") or r["payload"].get("embedding_model") or "text-embedding-v3",
+                agent_id=pg.get("agent_id") or r["payload"].get("agent_id") or "",
+                lifecycle_stage=pg.get("lifecycle_stage") or "recent",
+                source_type=pg.get("source_type") or "human",
+                tags=pg.get("tags") or r["payload"].get("tags") or [],
+                created_at=str(pg.get("created_at") or "2026-05-01T00:00:00Z"),
+                updated_at=str(pg.get("updated_at") or "2026-05-01T00:00:00Z"),
             ),
             score=r["score"],
             chunk_text=r["payload"].get("text"),
@@ -991,7 +1061,16 @@ async def get_user_audit_logs(
                 "SELECT * FROM audit_log WHERE team_id = $1 ORDER BY created_at DESC LIMIT $2",
                 ctx["team_id"], limit
             )
-        return {"logs": [dict(r) for r in rows]}
+        logs = []
+        for r in rows:
+            d = dict(r)
+            # Map resource_id to target_id for V6 UI compatibility
+            d["target_id"] = str(d.get("resource_id") or "")
+            # Ensure created_at is converted to ISO string
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].isoformat()
+            logs.append(d)
+        return {"logs": logs}
     except Exception as e:
         print(f"[audit] Failed to fetch user audit logs: {e}")
         return {"logs": []}
