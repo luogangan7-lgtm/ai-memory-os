@@ -1032,3 +1032,85 @@ async def trigger_embedding_rebuild(
         return {"queued_count": len(job_ids), "batches": (len(job_ids) + batch_size - 1) // batch_size}
     finally:
         await conn.close()
+
+
+@router.get("/memories")
+async def list_all_memories(
+    team_id: str = None,
+    category: str = None,
+    source_type: str = None,
+    q: str = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """List and search all memories across all users/tenants (Admin view)."""
+    if not _pg_repo:
+        raise HTTPException(503, "Database not ready")
+        
+    async with _pg_repo.pool.acquire() as conn:
+        query_parts = ["WHERE 1=1"]
+        params = []
+        
+        if team_id:
+            params.append(team_id)
+            query_parts.append(f"AND team_id = ${len(params)}")
+        if category:
+            params.append(category)
+            query_parts.append(f"AND category = ${len(params)}")
+        if source_type:
+            params.append(source_type)
+            query_parts.append(f"AND source_type = ${len(params)}")
+        if q:
+            params.append(f"%{q}%")
+            query_parts.append(f"AND (title ILIKE ${len(params)} OR content ILIKE ${len(params)})")
+            
+        where_clause = " ".join(query_parts)
+        
+        # Get count
+        count_q = f"SELECT COUNT(*) FROM memories {where_clause}"
+        total = await conn.fetchval(count_q, *params)
+        
+        # Get list
+        params.append(limit)
+        limit_param = f"${len(params)}"
+        params.append(offset)
+        offset_param = f"${len(params)}"
+        
+        list_q = f"SELECT * FROM memories {where_clause} ORDER BY created_at DESC LIMIT {limit_param} OFFSET {offset_param}"
+        rows = await conn.fetch(list_q, *params)
+        
+    memories = []
+    for r in rows:
+        d = dict(r)
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        if d.get("updated_at"):
+            d["updated_at"] = d["updated_at"].isoformat()
+        memories.append(d)
+        
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "memories": memories
+    }
+
+
+@router.delete("/memories/{memory_id}")
+async def delete_memory_admin(memory_id: str):
+    """Admin endpoint to delete any memory from PG and Qdrant."""
+    if not _pg_repo:
+        raise HTTPException(503, "Database not ready")
+        
+    # Get memory first to find team_id
+    memory = await _pg_repo.get(memory_id)
+    if not memory:
+        raise HTTPException(404, "Memory not found")
+        
+    team_id = memory["team_id"]
+    ok = await _pg_repo.delete(memory_id, team_id)
+    if _qdrant_store and ok:
+        await _qdrant_store.delete(memory_id, team_id=team_id)
+        
+    return {"deleted": ok}
+

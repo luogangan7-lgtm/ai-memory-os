@@ -121,3 +121,44 @@ export const testEngine = (engineType: string) => api.get<any>(`/routing/test/${
 // User-side pipeline status
 export const getUserPipelineStatus = () =>
   api.get<PipelineStatus>("/api/user/llm/pipeline/status");
+
+export interface AdminMemory {
+  id: string;
+  team_id: string;
+  category: string;
+  subcategory: string;
+  topic: string;
+  title: string;
+  content: string;
+  source_type: string;
+  created_at: string;
+}
+
+export interface AdminMemoriesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  memories: AdminMemory[];
+}
+
+export const getAdminMemories = (params: {
+  team_id?: string;
+  category?: string;
+  source_type?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) => {
+  const urlParams = new URLSearchParams();
+  if (params.team_id) urlParams.set("team_id", params.team_id);
+  if (params.category) urlParams.set("category", params.category);
+  if (params.source_type) urlParams.set("source_type", params.source_type);
+  if (params.q) urlParams.set("q", params.q);
+  if (params.limit !== undefined) urlParams.set("limit", String(params.limit));
+  if (params.offset !== undefined) urlParams.set("offset", String(params.offset));
+  return api.get<AdminMemoriesResponse>(`/admin/memories?${urlParams.toString()}`);
+};
+
+export const deleteAdminMemory = (memoryId: string) =>
+  api.delete<{ deleted: boolean }>(`/admin/memories/${memoryId}`);
+

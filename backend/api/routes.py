@@ -236,12 +236,13 @@ async def update_memory(
 @router.post("/memory/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    chunk_size: int = Form(512),
-    chunk_overlap: int = Form(64),
+    category: str = Form(None),
+    source_type: str = Form("document"),
+    importance: float = Form(0.5),
     tags: str = Form(""),
     team_id: str = Depends(get_current_team),
 ):
-    """Upload a document, split into chunks, and ingest into memory."""
+    """Upload a document, split/parse, classify, insert into memories & documents, and ingest into memory."""
     if not ingestion or not pg_repo:
         raise HTTPException(status_code=503, detail="Not ready")
 
@@ -268,22 +269,24 @@ async def upload_file(
     finally:
         if os.path.exists(tmp_path): os.unlink(tmp_path)
 
-    # 3. Simple Chunking (In production, use a more sophisticated recursive character splitter)
+    # 3. Classify Memory
     from backend.services.classifier import classify_memory
-    clf = await classify_memory(text[:2000], file.filename, registry)
-    
-    # 4. Ingest Chunks
-    # For now, we ingest the whole text as one memory if it's small, 
-    # or implement a loop if we want real chunking. 
-    # V6.0 simple impl:
-    await ingestion.ingest(
-        content=text, memory_id=memory_id,
-        team_id=team_id, workspace_id="default",
-        embedding_fn=registry.embed_single,
-        title=file.filename, category=clf["category"], source_type="document",
+    clf = await classify_memory(text, file.filename, registry)
+    final_category = category if category else clf["category"]
+
+    # 4. Store in Postgres memories table (so it is searchable/viewable as a memory)
+    await pg_repo.insert(
+        id=memory_id, team_id=team_id, workspace_id="default",
+        category=final_category, subcategory=clf["subcategory"], topic=clf["topic"],
+        title=file.filename, content=text,
+        embedding_model="text-embedding-v3",
+        importance=importance, confidence=0.9,
+        source_type=source_type, source_uri=source_uri,
+        tags=tags.split(",") if tags else [],
+        metadata={"filename": file.filename, "size": len(text)},
     )
-    
-    # 5. Record Document Meta
+
+    # 5. Record Document Meta in Postgres documents table (for file tracking)
     await pg_repo.insert_document(
         team_id=team_id,
         filename=file.filename,
@@ -293,7 +296,20 @@ async def upload_file(
         tags=tags.split(",") if tags else []
     )
 
-    return {"id": memory_id, "filename": file.filename, "status": "processed"}
+    # 6. Ingest chunks into Qdrant for RAG search
+    await ingestion.ingest(
+        content=text, memory_id=memory_id,
+        team_id=team_id, workspace_id="default",
+        embedding_fn=registry.embed_single,
+        title=file.filename, category=final_category, source_type=source_type,
+    )
+
+    return {
+        "id": memory_id,
+        "filename": file.filename,
+        "category": final_category,
+        "status": "processed"
+    }
 
 @router.get("/memory/documents")
 async def list_documents(team_id: str = Depends(get_current_team)):
@@ -724,75 +740,6 @@ async def upload_image(
     )
     return {"id": memory_id, "title": title, "ocr_text": text[:200] + "..." if len(text) > 200 else text}
 
-@router.post("/memory/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    category: str = Form("general"),
-    source_type: str = Form("agent"),
-    importance: float = Form(0.5),
-    team_id: str = Depends(get_current_team),
-):
-
-    """Upload a PDF/Markdown/Text file and ingest its content."""
-    if not ingestion or not pg_repo:
-        raise HTTPException(status_code=503, detail="Not ready")
-
-    memory_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    import urllib.parse
-    title = urllib.parse.unquote(file.filename) if file.filename else "Uploaded file"
-
-    # Read file content
-    file_bytes = await file.read()
-
-    # Save to MinIO
-    object_name = f"{team_id}/{memory_id}{Path(file.filename).suffix if file.filename else '.txt'}"
-    try:
-        minio = MinIOStore()
-        minio.upload(object_name, file_bytes, file.content_type or "application/octet-stream")
-        source_uri = f"minio://{object_name}"
-    except Exception:
-        source_uri = file.filename
-
-    # Extract text (write to temp for PDF parsing)
-    import tempfile
-    suffix = Path(file.filename).suffix if file.filename else ".txt"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(file_bytes)
-        tmp_path = tmp.name
-    try:
-        text = extract_text(tmp_path)
-    except Exception:
-        text = "(extraction failed)"
-    finally:
-        os.unlink(tmp_path)
-
-    title = urllib.parse.unquote(file.filename) if file.filename else "Uploaded file"
-
-    # Auto-classify based on extracted text
-    from backend.services.classifier import classify_memory
-    clf = await classify_memory(text, title, registry)
-
-    # Store metadata
-    await pg_repo.insert(
-        id=memory_id, team_id=team_id, workspace_id="default",
-        category=clf["category"], subcategory=clf["subcategory"], topic=clf["topic"],
-        title=title, content=text,
-        embedding_model="text-embedding-v3",
-        importance=importance, confidence=0.9,
-        source_type=source_type, source_uri=source_uri or file.filename,
-        tags=[], metadata={"filename": file.filename, "size": len(text)},
-    )
-
-    # Ingest into Qdrant
-    await ingestion.ingest(
-        content=text, memory_id=memory_id,
-        team_id=team_id, workspace_id="default",
-        embedding_fn=registry.embed_single,
-        title=title, category=clf["category"], source_type=source_type,
-    )
-
-    return {"id": memory_id, "title": title, "category": clf["category"], "chars": len(text)}
 
 
 @router.post("/memory/lifecycle")

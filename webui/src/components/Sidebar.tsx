@@ -21,6 +21,7 @@ const NAV_SECTIONS = [
     items: [
       { to: "/tenants", label: "租户管理", icon: "🏢" },
       { to: "/users", label: "用户管理", icon: "👤" },
+      { to: "/memories", label: "记忆管理", icon: "🧠" },
     ],
   },
   {

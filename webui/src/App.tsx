@@ -12,6 +12,7 @@ import { ReflectionPage } from "./pages/Reflection";
 import { LoginOverlay } from './pages/UserApp';
 import { GraphPage } from "./pages/Graph";
 import { ConfigPage } from "./pages/Config";
+import { MemoriesPage } from "./pages/Memories";
 
 function AdminRoutes() {
   const { isAuthenticated } = useAuth();
@@ -27,6 +28,7 @@ function AdminRoutes() {
         <Route path="/providers" element={<ModelConfigPage />} />
         <Route path="/tenants" element={<TenantsPage />} />
         <Route path="/users" element={<UsersPage />} />
+        <Route path="/memories" element={<MemoriesPage />} />
         <Route path="/reflection" element={<ReflectionPage />} />
         <Route path="/graph" element={<GraphPage />} />
         <Route path="/config" element={<ConfigPage />} />

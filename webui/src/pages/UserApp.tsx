@@ -179,25 +179,60 @@ export function LoginOverlay() {
   );
 }
 
+interface UserMemory {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  subcategory: string;
+  topic: string;
+  source_type: string;
+  created_at: string;
+  score?: number;
+}
+
 function MemoryPanel(){
-  const [memories,setMemories]=useState<{title:string;content:string;score:number}[]>([]);
+  const [memories,setMemories]=useState<UserMemory[]>([]);
   const [query,setQuery]=useState('');
   const [loading,setLoading]=useState(false);
   const [uploading,setUploading]=useState(false);
   const [uploadMsg,setUploadMsg]=useState('');
+  const [activeCategory,setActiveCategory]=useState('全部');
 
-  const search=useCallback(async()=>{
+  const categories = ['全部', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
+
+  const fetchMemories = useCallback(async()=>{
     if(loading)return;
     setLoading(true);
     try{
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = await api.post<any[]>('/memory/search', { query: query || "*", top_k: 20 });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMemories(d.map((x: any)=>({
-        title: x.memory?.title || '无标题',
-        content: x.chunk_text || x.memory?.content || '',
-        score: x.score || 0
-      })));
+      if (query.trim() === '') {
+        // Query recent memories
+        const d = await api.get<any[]>('/memory/recent?limit=50');
+        setMemories(d.map((x: any)=>({
+          id: x.id,
+          title: x.title || '无标题',
+          content: x.content || '',
+          category: x.category || '未分类',
+          subcategory: x.subcategory || '',
+          topic: x.topic || '',
+          source_type: x.source_type || 'chat',
+          created_at: x.created_at || '',
+        })));
+      } else {
+        // Semantic search
+        const d = await api.post<any[]>('/memory/search', { query, top_k: 20 });
+        setMemories(d.map((x: any)=>({
+          id: x.memory?.id || '',
+          title: x.memory?.title || x.chunk_text?.slice(0, 20) || '无标题',
+          content: x.chunk_text || x.memory?.content || '',
+          category: x.memory?.category || '未分类',
+          subcategory: x.memory?.subcategory || '',
+          topic: x.memory?.topic || '',
+          source_type: x.memory?.source_type || 'chat',
+          created_at: x.memory?.created_at || '',
+          score: x.score || 0
+        })));
+      }
     }catch(e){
       console.error(e);
       setMemories([]);
@@ -208,38 +243,113 @@ function MemoryPanel(){
   },[query]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{search()},[]);
+  useEffect(()=>{fetchMemories()},[]);
+
+  const handleDelete = async (id: string) => {
+    if (!id) return;
+    if (!window.confirm('确定要删除这条记忆吗？')) return;
+    try {
+      await api.delete(`/memory/${id}`);
+      fetchMemories();
+    } catch (e) {
+      console.error(e);
+      alert('删除失败');
+    }
+  };
+
+  const getSourceBadge = (source: string) => {
+    switch (source) {
+      case 'document':
+        return <span className="badge badge-emerald" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>📄 文档</span>;
+      case 'human':
+        return <span className="badge badge-teal" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>💬 聊天</span>;
+      case 'agent':
+        return <span className="badge badge-violet" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>🤖 AI/MCP</span>;
+      case 'image':
+        return <span className="badge badge-amber" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>🖼️ OCR</span>;
+      default:
+        return <span className="badge badge-ghost" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>💬 {source}</span>;
+    }
+  };
+
+  // Filter memories by category
+  const filteredMemories = memories.filter(m => {
+    if (activeCategory === '全部') return true;
+    if (activeCategory === '其他') {
+      return !['工程技术', '个人记忆', '自然科学', '社会科学'].includes(m.category);
+    }
+    return m.category === activeCategory;
+  });
 
   return(
     <div className='card'>
       <div className='card-title'>🧠 我的记忆</div>
-      <div style={{display:'flex',gap:8,marginBottom:12}}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&search()}/>
-        <button className='btn btn-teal' onClick={search} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&fetchMemories()}/>
+        <button className='btn btn-teal' onClick={fetchMemories} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
         <label className='btn btn-ghost' style={{cursor:'pointer',fontSize:12,padding:'10px 14px',whiteSpace:'nowrap'}}>
           📄 上传
           <input type='file' accept='.txt,.md,.pdf' style={{display:'none'}} onChange={async(e)=>{
             const f=e.target.files?.[0]; if(!f)return;
             setUploading(true);setUploadMsg('');
             try{const fd=new FormData();fd.append('file',f);
-              const r=await fetch('/memory/upload',{method:'POST',headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')},body:fd});
+              const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+              const r=await fetch('/memory/upload',{method:'POST',headers:{"Authorization":"Bearer "+tokenHeader},body:fd});
               const d=await r.json();
-              setUploadMsg(d.chunks?'✅ OK':'OK');
-              if(d.chunks)setTimeout(()=>search(),500);
+              setUploadMsg(d.id ? '✅ 上传成功并智能分类' : '❌ 上传失败');
+              if(d.id) setTimeout(()=>fetchMemories(), 500);
             }catch{setUploadMsg('❌ 失败')}finally{setUploading(false);e.target.value='';}
           }}/>
         </label>
       </div>
-      {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('✅')?'var(--emerald)':'var(--crimson)'}}>{uploading?'📤...':uploadMsg}</div>}
-      <div style={{maxHeight:400,overflow:'auto'}}>
-        {memories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无记忆数据或未搜索到结果</div>}
-        {memories.map((m,i)=>(
-          <div key={i} style={{padding:'12px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div style={{fontWeight:600,color:'var(--teal)'}}>{m.title}</div>
-              <div style={{fontSize:10,color:'var(--muted)'}}>相关度: {(m.score*100).toFixed(1)}%</div>
+      {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('✅')?'var(--emerald)':'var(--crimson)'}}>{uploading?'📤 正在解析并智能分类...':uploadMsg}</div>}
+
+      {/* Category Tabs */}
+      <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10}}>
+        {categories.map(c => (
+          <button 
+            key={c} 
+            className={`btn ${activeCategory === c ? 'btn-teal' : 'btn-ghost'}`} 
+            style={{padding: '4px 10px', fontSize: 11, minWidth: 'auto', height: 'auto'}}
+            onClick={() => setActiveCategory(c)}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <div style={{maxHeight:450,overflow:'auto'}}>
+        {filteredMemories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无该类别的记忆数据</div>}
+        {filteredMemories.map((m,i)=>(
+          <div key={i} style={{padding:'14px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4}}>
+                  <span style={{fontWeight:600,color:'var(--teal)',fontSize:13}}>{m.title}</span>
+                  {getSourceBadge(m.source_type)}
+                  <span className="badge badge-violet" style={{fontSize: 10, padding: '2px 6px'}}>{m.category}</span>
+                  {m.subcategory && <span className="badge badge-ghost" style={{fontSize: 10, padding: '2px 6px'}}>{m.subcategory}</span>}
+                  {m.topic && <span style={{fontSize: 10, color: 'var(--muted)', marginLeft: 4}}>#{m.topic}</span>}
+                </div>
+              </div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                {m.score !== undefined && <div style={{fontSize:10,color:'var(--muted)'}}>相关度: {(m.score*100).toFixed(1)}%</div>}
+                <button 
+                  onClick={() => handleDelete(m.id)} 
+                  style={{
+                    background: 'none', 
+                    border: 'none', 
+                    color: 'var(--crimson)', 
+                    fontSize: 11, 
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  删除
+                </button>
+              </div>
             </div>
-            <div style={{color:'var(--text)',fontSize:12,marginTop:6,lineHeight:1.6}}>{m.content}</div>
+            <div style={{color:'var(--text)',fontSize:12,marginTop:6,lineHeight:1.6,whiteSpace: 'pre-wrap'}}>{m.content}</div>
           </div>
         ))}
       </div>
