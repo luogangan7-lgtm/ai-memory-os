@@ -213,12 +213,15 @@ async def remember(
 async def list_recent_memories(
     team_id: str = Depends(get_current_team),
     limit: int = 24,
-    filter: str = "all"
+    filter: str = "all",
+    category: str = None,
+    source_type: str = None,
 ):
     """List recent memories with optional filtering."""
     if not pg_repo: raise HTTPException(503)
-    rows = await pg_repo.list_recent(team_id, limit, filter)
+    rows = await pg_repo.list_recent(team_id, limit, filter, category, source_type)
     return rows
+
 
 
 @router.patch("/memory/{memory_id}")

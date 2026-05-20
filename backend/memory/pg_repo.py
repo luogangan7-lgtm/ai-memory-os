@@ -291,15 +291,36 @@ class MemoryRepo:
         except Exception as e:
             print(f"[pg_repo.audit] Failed to record audit log: {e}")
 
-    async def list_recent(self, team_id, limit=20, filter="all"):
+    async def list_recent(self, team_id, limit=20, filter="all", category=None, source_type=None):
         async with self.pool.acquire() as conn:
-            q = "SELECT * FROM memories WHERE team_id=$1"
-            if filter == "agent": q += " AND (source_type='agent' OR source_type='human' OR source_type IS NULL)"
-            elif filter == "knowledge": q += " AND source_type='knowledge'"
-            q += " ORDER BY created_at DESC LIMIT $2"
-            rows = await conn.fetch(q, team_id, limit)
+            query_parts = ["WHERE team_id = $1"]
+            params = [team_id]
+            
+            if category:
+                if category == "其他":
+                    query_parts.append("AND category NOT IN ('工程技术', '个人记忆', '自然科学', '社会科学')")
+                else:
+                    params.append(category)
+                    query_parts.append(f"AND category = ${len(params)}")
+            elif filter == "knowledge":
+                query_parts.append("AND (source_type='knowledge' OR source_type='document' OR category='knowledge')")
+            
+            if source_type:
+                params.append(source_type)
+                query_parts.append(f"AND source_type = ${len(params)}")
+            elif filter == "agent" and not category:
+                query_parts.append("AND (source_type='agent' OR source_type='human' OR source_type IS NULL)")
+                
+            where_clause = " ".join(query_parts)
+            
+            params.append(limit)
+            limit_param = f"${len(params)}"
+            
+            q = f"SELECT * FROM memories {where_clause} ORDER BY created_at DESC LIMIT {limit_param}"
+            rows = await conn.fetch(q, *params)
 
         return [dict(r) for r in rows]
+
 
 
     async def count_by_team(self, team_id, source_type=None):

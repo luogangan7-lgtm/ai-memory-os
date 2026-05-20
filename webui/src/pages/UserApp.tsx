@@ -199,7 +199,7 @@ function MemoryPanel(){
   const [uploadMsg,setUploadMsg]=useState('');
   const [activeCategory,setActiveCategory]=useState('全部');
 
-  const categories = ['全部', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
+  const categories = ['全部', '文档知识', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
 
   const fetchMemories = useCallback(async()=>{
     if(loading)return;
@@ -207,7 +207,13 @@ function MemoryPanel(){
     try{
       if (query.trim() === '') {
         // Query recent memories
-        const d = await api.get<any[]>('/memory/recent?limit=50');
+        let url = '/memory/recent?limit=100';
+        if (activeCategory === '文档知识') {
+          url += '&source_type=document';
+        } else if (activeCategory !== '全部') {
+          url += `&category=${encodeURIComponent(activeCategory)}`;
+        }
+        const d = await api.get<any[]>(url);
         setMemories(d.map((x: any)=>({
           id: x.id,
           title: x.title || '无标题',
@@ -240,10 +246,10 @@ function MemoryPanel(){
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[query]);
+  },[query, activeCategory]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{fetchMemories()},[]);
+  useEffect(()=>{fetchMemories()},[fetchMemories]);
 
   const handleDelete = async (id: string) => {
     if (!id) return;
@@ -275,6 +281,7 @@ function MemoryPanel(){
   // Filter memories by category
   const filteredMemories = memories.filter(m => {
     if (activeCategory === '全部') return true;
+    if (activeCategory === '文档知识') return true;
     if (activeCategory === '其他') {
       return !['工程技术', '个人记忆', '自然科学', '社会科学'].includes(m.category);
     }
