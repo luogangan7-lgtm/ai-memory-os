@@ -8,12 +8,12 @@ import { CortexMark } from '../components/CortexMark';
 
 type DashTab = "overview" | "memory" | "connect" | "myllm" | "canvas" | "persona";
 const DASH_TABS: { id: DashTab; label: string }[] = [
-  { id: "overview", label: "概览" },
-  { id: "memory", label: "知识库" },
-  { id: "connect", label: "接入" },
-  { id: "myllm", label: "LLM" },
-  { id: "canvas", label: "画布" },
-  { id: "persona", label: "画像" },
+  { id: "overview", label: "概览 Overview" },
+  { id: "memory",   label: "知识库 Library" },
+  { id: "connect",  label: "接入 Connect" },
+  { id: "myllm",    label: "LLM 模型" },
+  { id: "canvas",   label: "画布 Canvas" },
+  { id: "persona",  label: "画像 Persona" },
 ];
 
 function Dashboard() {
@@ -134,8 +134,8 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
 
       <div className="v6-card__head" style={{ position: 'relative', zIndex: 1 }}>
         <div className="v6-card__title">
-          系统概览
-          <span className="v6-card__title-hint">每 5 秒刷新</span>
+          系统概览 Overview
+          <span className="v6-card__title-hint">每 5 秒自动刷新</span>
         </div>
         <button className="v6-btn v6-btn--xs" onClick={refresh}>刷新</button>
       </div>
@@ -178,24 +178,24 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
           {/* ── 4 个核心指标 ── */}
           <div className="v6-metric-grid">
             <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
-              <div className="v6-metric-tile__label">总记忆</div>
+              <div className="v6-metric-tile__label">总记忆 Memories</div>
               <div className="v6-metric-tile__value">{fmt(stats?.total_memories ?? 0)}</div>
               <div className="v6-metric-tile__sub">{fmt(stats?.total_documents ?? 0)} 份文档</div>
             </div>
             <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
-              <div className="v6-metric-tile__label">今日新增</div>
+              <div className="v6-metric-tile__label">今日新增 Today</div>
               <div className="v6-metric-tile__value v6-metric-tile__value--accent">{fmt(stats?.new_today ?? 0)}</div>
               <div className="v6-metric-tile__sub">过去 24 小时</div>
             </div>
             <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
-              <div className="v6-metric-tile__label">活跃 Agent</div>
+              <div className="v6-metric-tile__label">活跃 Agents</div>
               <div className="v6-metric-tile__value">{agentCount}</div>
               <div className="v6-metric-tile__sub">
                 {agentCount > 0 ? stats.active_agents.slice(0, 2).join(' · ') : '7 天内暂无'}
               </div>
             </div>
             <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
-              <div className="v6-metric-tile__label">管线完成</div>
+              <div className="v6-metric-tile__label">管线完成 Done</div>
               <div className="v6-metric-tile__value v6-metric-tile__value--done">
                 {fmt((pipelineCounts as Record<string, number>)['done'] ?? 0)}
               </div>
@@ -210,7 +210,7 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
 
           {/* ── 管线任务列表 ── */}
           <div className="v6-section-label" style={{ marginBottom: 10 }}>
-            <span>记忆管线 Pipeline</span>
+            <span>记忆管线 · Pipeline</span>
             <span className="v6-section-label__count">
               {pipeline?.in_flight ?? 0} 正在处理
             </span>
@@ -235,7 +235,7 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
           )}
 
           {/* ── 系统健康 ── */}
-          <div className="v6-section-label"><span>系统健康</span></div>
+          <div className="v6-section-label"><span>系统健康 · Health</span></div>
           <div className="v6-health-list">
             <div className="v6-health-item">
               <span className={`v6-health-item__dot ${llmOk ? 'v6-health-item__dot--ok' : 'v6-health-item__dot--warn'}`} />
@@ -719,9 +719,9 @@ function MemoryPanel() {
     <div className="v6-card">
       <div className="v6-card__head">
         <div className="v6-card__title">
-          {subTab === 'memories' ? 'Memories' : 'Files'}
+          {subTab === 'memories' ? '知识库 Memories' : '文档库 Files'}
           <span className="v6-card__title-hint">
-            {subTab === 'memories' ? `${filteredMemories.length} items` : `${documents.length} files`}
+            {subTab === 'memories' ? `${filteredMemories.length} 条` : `${documents.length} 份`}
           </span>
         </div>
         <div className="v6-subtabs" role="tablist">
@@ -992,8 +992,8 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
     <div className="v6-card">
       <div className="v6-card__head">
         <div className="v6-card__title">
-          Connect
-          <span className="v6-card__title-hint">MCP gateway for agents</span>
+          接入配置 Connect
+          <span className="v6-card__title-hint">MCP 网关 · 连接你的 AI Agent</span>
         </div>
         <span className="v6-llmpill">
           <span className={`v6-llmpill__dot ${status.cls}`} />
@@ -1003,21 +1003,21 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
 
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
-          MCP Token
+          MCP Token 凭证
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
           <code style={{ flex: 1, minWidth: 0, background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)', padding: '10px 14px', fontSize: 12.5, fontFamily: 'var(--v6-font-mono)', wordBreak: 'break-all', color: 'var(--v6-fg)' }}>
             {token}
           </code>
           <button className="v6-btn" onClick={() => copy('token', token)}>
-            {copiedKey === 'token' ? 'Copied' : 'Copy'}
+            {copiedKey === 'token' ? '已复制 ✓' : '复制 Copy'}
           </button>
         </div>
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
-          Target agent
+          选择 Agent 客户端
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {AGENTS.map((a) => (
@@ -1039,7 +1039,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
             {FILE_PATHS[agent] || 'N/A'}
           </span>
           <button className="v6-btn v6-btn--xs" onClick={() => copy('config', configs[agent] || '')}>
-            {copiedKey === 'config' ? 'Copied' : 'Copy config'}
+            {copiedKey === 'config' ? '已复制 ✓' : '复制配置 Copy'}
           </button>
         </div>
         <pre style={{ margin: 0, background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)', padding: 14, fontSize: 11.5, fontFamily: 'var(--v6-font-mono)', color: 'var(--v6-fg)', whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto' }}>
@@ -1049,7 +1049,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
 
       <div style={{ marginBottom: 24, padding: '14px 16px', background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)' }}>
         <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
-          Setup
+          接入步骤 Setup
         </div>
         <ol style={{ paddingLeft: 18, margin: 0, fontSize: 12.5, color: 'var(--v6-fg)', lineHeight: 1.75 }}>
           {SETUP_STEPS[agent]?.map((s, i) => (
@@ -1061,7 +1061,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
       <div style={{ borderTop: '1px solid var(--v6-border)', paddingTop: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            System prompt
+            系统提示词 System Prompt
           </span>
           <div className="v6-subtabs">
             {(['standard', 'concise', 'dev'] as const).map((k) => (
@@ -1080,7 +1080,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
           {SYSTEM_PROMPTS[pType]}
         </pre>
         <button className="v6-btn v6-btn--xs" onClick={() => copy('prompt', SYSTEM_PROMPTS[pType] || '')}>
-          {copiedKey === 'prompt' ? 'Copied' : 'Copy prompt'}
+          {copiedKey === 'prompt' ? '已复制 ✓' : '复制提示词 Copy'}
         </button>
       </div>
     </div>
@@ -1107,14 +1107,14 @@ function PersonaPanel() {
   return (
     <div className="v6-card">
       <div className="v6-card__title">
-        Persona
-        <span className="v6-card__title-hint">long-term user profile</span>
+        用户画像 Persona
+        <span className="v6-card__title-hint">长期用户档案 · long-term profile</span>
       </div>
       <div className="v6-card__body">
         {loading ? <div style={{ color: "var(--v6-fg-muted)" }}>Loading…</div> : <pre>{persona}</pre>}
       </div>
       <div className="v6-card__actions">
-        <button className="v6-btn" onClick={load}>Refresh</button>
+        <button className="v6-btn" onClick={load}>刷新 Refresh</button>
       </div>
     </div>
   );
@@ -1165,8 +1165,8 @@ function MyLLMPanel() {
         headers: authHeaders(),
         body: JSON.stringify({ provider: p, api_key: k, model: m, base_url: b }),
       });
-      setMsg('Saved');
-    } catch { setMsg('Save failed'); }
+      setMsg('已保存 Saved');
+    } catch { setMsg('保存失败 Save failed'); }
     setBusy(false);
   }
   async function test() {
@@ -1178,12 +1178,12 @@ function MyLLMPanel() {
         body: JSON.stringify({ api_key: k, base_url: b, model: m }),
       });
       const d = await r.json();
-      setMsg(d.connected ? 'Connection OK · key reaches the provider' : 'Failed: ' + (d.error || d.status));
+      setMsg(d.connected ? '连接成功 Connected ✓' : '连接失败 Failed: ' + (d.error || d.status));
     } catch { setMsg('Test failed'); }
     setBusy(false);
   }
 
-  const msgKind = msg === 'Saved' || msg.startsWith('Connection OK') ? 'ok' : msg ? 'err' : '';
+  const msgKind = msg.startsWith('已保存') || msg.startsWith('连接成功') ? 'ok' : msg ? 'err' : '';
   const cnProviders = PROVIDERS.filter((x) => x.region === 'cn');
   const intlProviders = PROVIDERS.filter((x) => x.region === 'intl');
 
@@ -1191,8 +1191,8 @@ function MyLLMPanel() {
     <div className="v6-card">
       <div className="v6-card__head">
         <div className="v6-card__title">
-          LLM provider
-          <span className="v6-card__title-hint">your key, your bill</span>
+          LLM 大模型配置
+          <span className="v6-card__title-hint">你的 Key，你的账单 · BYOK</span>
         </div>
       </div>
 
@@ -1208,7 +1208,7 @@ function MyLLMPanel() {
 
       {/* Provider grid — China */}
       <div className="v6-section-label">
-        <span>中国厂商</span>
+        <span>中国厂商 · China</span>
         <span className="v6-section-label__count">{cnProviders.length}</span>
       </div>
       <div className="v6-provider-grid">
@@ -1244,7 +1244,7 @@ function MyLLMPanel() {
 
       {/* Provider grid — Intl */}
       <div className="v6-section-label">
-        <span>海外厂商</span>
+        <span>海外厂商 · International</span>
         <span className="v6-section-label__count">{intlProviders.length}</span>
       </div>
       <div className="v6-provider-grid">
@@ -1316,7 +1316,7 @@ function MyLLMPanel() {
       {prov && (
         <>
           <div className="v6-section-label">
-            <span>API key</span>
+            <span>API Key 密钥</span>
           </div>
           <input
             className="v6-input-global"
@@ -1328,10 +1328,10 @@ function MyLLMPanel() {
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="v6-btn v6-btn--primary" onClick={save} disabled={busy || !m}>
-              {busy ? '…' : 'Save'}
+              {busy ? '…' : '保存 Save'}
             </button>
             <button className="v6-btn" onClick={test} disabled={busy || !k || !m}>
-              Test connection
+              测试连接 Test
             </button>
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 11.5, fontFamily: 'var(--v6-font-mono)', color: 'var(--v6-fg-muted)', alignSelf: 'center' }}>
@@ -1372,27 +1372,27 @@ function UsagePanel() {
   return (
     <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--v6-border)' }}>
       <div className="v6-section-label">
-        <span>Usage & billing (all time)</span>
+        <span>用量与计费 · Usage & Billing（累计）</span>
         <span className="v6-section-label__count" style={{ fontWeight: 400 }}>
-          costs paid directly to provider
+          费用直接结算给 provider
         </span>
       </div>
 
       <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
         <div className="v6-metric-tile">
-          <div className="v6-metric-tile__label">Prompt tokens</div>
+          <div className="v6-metric-tile__label">输入 Prompt Tokens</div>
           <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>
         </div>
         <div className="v6-metric-tile">
-          <div className="v6-metric-tile__label">Completion tokens</div>
+          <div className="v6-metric-tile__label">输出 Completion Tokens</div>
           <div className="v6-metric-tile__value">{fmt(totalCompletion)}</div>
         </div>
         <div className="v6-metric-tile">
-          <div className="v6-metric-tile__label">Est. cost</div>
+          <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
           <div className="v6-metric-tile__value">
             {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
           </div>
-          <div className="v6-metric-tile__sub">billing directly to provider</div>
+          <div className="v6-metric-tile__sub">直接结算给 provider</div>
         </div>
       </div>
 
@@ -1503,15 +1503,15 @@ export function PipelineStatusPanel() {
     <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--v6-border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div className="v6-card__title" style={{ marginBottom: 0 }}>
-          Pipeline
-          <span className="v6-card__title-hint">24h · auto-refresh 5s</span>
+          管线状态 Pipeline
+          <span className="v6-card__title-hint">24h · 每 5 秒自动刷新</span>
         </div>
-        <button className="v6-btn v6-btn--xs" onClick={refresh}>Refresh</button>
+        <button className="v6-btn v6-btn--xs" onClick={refresh}>刷新 Refresh</button>
       </div>
 
       {!data?.configured && (
         <div className="v6-statusbar v6-statusbar--err" style={{ marginBottom: 12 }}>
-          No LLM configured — save provider/key/model above before the pipeline can run.
+          尚未配置 LLM — 请先在上方选择厂商并保存 API Key，才能运行记忆管线。
         </div>
       )}
       {err && (
@@ -1542,12 +1542,12 @@ export function PipelineStatusPanel() {
       </div>
 
       <button className="v6-btn v6-btn--xs" onClick={() => setExpanded((v) => !v)} style={{ marginBottom: 10 }}>
-        {expanded ? 'Hide' : 'Show'} recent {recent.length} jobs
+        {expanded ? '收起' : '展开'} 最近 {recent.length} 条任务
       </button>
 
       {expanded &&
         (recent.length === 0 ? (
-          <div className="v6-empty">No pipeline jobs yet.</div>
+          <div className="v6-empty">暂无管线任务 · No pipeline jobs yet</div>
         ) : (
           <div style={{ maxHeight: 260, overflow: 'auto' }}>
             <table className="v6-table">
@@ -1652,8 +1652,8 @@ function CanvasPanel() {
     <div className="v6-card">
       <div className="v6-card__head">
         <div className="v6-card__title">
-          Task canvas
-          <span className="v6-card__title-hint">multi-agent collaboration view</span>
+          任务画布 Canvas
+          <span className="v6-card__title-hint">多 Agent 协作视图 · multi-agent</span>
         </div>
       </div>
 
@@ -1665,7 +1665,7 @@ function CanvasPanel() {
           placeholder="task id (default: main)"
         />
         <button className="v6-btn" onClick={load} disabled={loading}>
-          {loading ? '…' : 'Refresh'}
+          {loading ? '…' : '刷新 Refresh'}
         </button>
       </div>
 
@@ -1727,13 +1727,13 @@ export function AuditPanel() {
   return (
     <div className="v6-card">
       <div className="v6-card__title">
-        Activity
-        <span className="v6-card__title-hint">latest 30 events</span>
+        操作记录 Activity
+        <span className="v6-card__title-hint">最近 30 条 · latest events</span>
       </div>
       {loading ? (
         <div className="v6-empty">Loading…</div>
       ) : logs.length === 0 ? (
-        <div className="v6-empty">No activity yet.</div>
+        <div className="v6-empty">暂无操作记录 · No activity yet</div>
       ) : (
         <div style={{ maxHeight: 480, overflow: "auto" }}>
           <table className="v6-table">
