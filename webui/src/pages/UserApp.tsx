@@ -40,35 +40,31 @@ import "../css/login.css";
 
 export function LoginOverlay() {
   const { login, signup, error: authError, isAuthenticated } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
-  
+  const isUserApp = window.location.hash.includes("/app") || window.location.pathname.startsWith("/app");
+  const [mode, setMode] = useState<"landing" | "signin" | "signup">(isUserApp ? "landing" : "signin");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const isUserApp = window.location.hash.includes("/app") || window.location.pathname.startsWith("/app");
-
-  if (isAuthenticated) { return (<Dashboard />); }
+  if (isAuthenticated) return <Dashboard />;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLocalError(null);
     setLoading(true);
-    
     try {
-      if (isRegister) {
+      if (mode === "signup") {
         if (!email || !username || !password) {
           setLocalError("请填写所有字段");
           setLoading(false);
           return;
         }
         await signup(username, email, password);
-        setIsRegister(false);
         setLocalError(null);
-        alert("注册成功！请使用邮箱登录。验证码已发送至控制台。");
+        alert("注册成功！请使用邮箱登录。");
+        setMode("signin");
       } else {
         const id = isUserApp ? email : "admin";
         if (!id || !password) {
@@ -77,7 +73,6 @@ export function LoginOverlay() {
           return;
         }
         await login(id, password);
-        // Precise redirect for immediate access
         window.location.href = isUserApp ? "/app/#/app" : "/manage/#/";
       }
     } catch (err: unknown) {
@@ -88,92 +83,191 @@ export function LoginOverlay() {
   }
 
   return (
-    <div className="login-overlay">
-      <div className="login-box">
-        <div className="login-logo">🧠</div>
-        <div className="login-title">
-          {isUserApp ? (isRegister ? "创建数字凭证" : "验证记忆权限") : "管理中心授权"}
-        </div>
-        <div className="login-sub">
-          {isUserApp 
-            ? (isRegister ? "正在为您建立个人记忆隔离区..." : "正在尝试连接您的加密记忆节点...")
-            : "请输入管理员指令集以进入 Command Deck"}
-        </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-5 mt-8">
-          {isUserApp && isRegister && (
-            <div className="form-group">
-              <label>Node Identity (用户名)</label>
-              <div className="input-wrapper">
-                <span className="input-icon">👤</span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="User_Name..."
-                  className="form-input"
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-          )}
-          
-          {isUserApp && (
-            <div className="form-group">
-              <label>Communication Link (电子邮箱)</label>
-              <div className="input-wrapper">
-                <span className="input-icon">📧</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="mail@memory-os.com"
-                  className="form-input"
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label>Security Key (访问密码)</label>
-            <div className="input-wrapper">
-              <span className="input-icon">🔐</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="form-input"
-              />
-            </div>
+    <div className="v6-auth">
+      <div className="v6-auth__page">
+        <nav className="v6-nav">
+          <div className="v6-nav__brand">
+            <span className="v6-nav__dot" aria-hidden="true" />
+            <span>AI MEMORY OS · V6</span>
           </div>
+          <div className="v6-nav__actions">
+            {isUserApp ? (
+              <>
+                {mode !== "signin" && (
+                  <button className="v6-btn v6-btn--ghost" onClick={() => setMode("signin")}>
+                    Sign in
+                  </button>
+                )}
+                {mode !== "signup" && (
+                  <button className="v6-btn v6-btn--primary" onClick={() => setMode("signup")}>
+                    Sign up
+                  </button>
+                )}
+                {mode !== "landing" && (
+                  <button className="v6-btn v6-btn--ghost" onClick={() => setMode("landing")}>
+                    ← Home
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className="v6-btn v6-btn--ghost" style={{ pointerEvents: "none" }}>
+                Command Deck
+              </span>
+            )}
+          </div>
+        </nav>
 
-          <button
-            type="submit"
-            className="btn btn-premium w-full py-4 text-sm tracking-widest mt-2"
-            disabled={loading}
-          >
-            {loading ? "AUTHENTICATING..." : (isRegister ? "INITIALIZE NODE" : "ESTABLISH LINK")}
-          </button>
-        </form>
+        {mode === "landing" && (
+          <>
+            <section className="v6-hero">
+              <span className="v6-hero__tag">multi-agent · long-term memory · v6</span>
+              <h1 className="v6-hero__title">
+                Give your AI agents <em>memory that lasts</em>.
+              </h1>
+              <p className="v6-hero__sub">
+                通过 MCP 协议，让 Cursor / Claude Desktop / Cline 等 AI Agent 共享一个永久的、加密的、可检索的记忆库。
+              </p>
+              <div className="v6-hero__cta">
+                <button className="v6-btn v6-btn--primary" onClick={() => setMode("signup")}>
+                  Get started →
+                </button>
+                <button className="v6-btn" onClick={() => setMode("signin")}>
+                  I have an account
+                </button>
+              </div>
+            </section>
+            <section className="v6-features">
+              <article className="v6-feature">
+                <div className="v6-feature__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 17H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4M15 7h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-4M9 12h6" />
+                  </svg>
+                </div>
+                <h3 className="v6-feature__title">Cross-Agent MCP Gateway</h3>
+                <p className="v6-feature__desc">
+                  兼容 Anthropic MCP 协议。一键接入 Cursor / Claude Desktop / Cline / Continue 等 AI 智能体。
+                </p>
+              </article>
+              <article className="v6-feature">
+                <div className="v6-feature__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <circle cx="6" cy="6" r="2" />
+                    <circle cx="18" cy="6" r="2" />
+                    <circle cx="6" cy="18" r="2" />
+                    <circle cx="18" cy="18" r="2" />
+                    <path d="M8 7l3 3M16 7l-3 3M8 17l3-3M16 17l-3-3" />
+                  </svg>
+                </div>
+                <h3 className="v6-feature__title">Hybrid Retrieval & Reflection</h3>
+                <p className="v6-feature__desc">
+                  向量 + 知识图谱 + BM25 三位一体混合检索；L0→L3 反射引擎自动整合长期记忆。
+                </p>
+              </article>
+              <article className="v6-feature">
+                <div className="v6-feature__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </div>
+                <h3 className="v6-feature__title">Encrypted Multi-Tenancy</h3>
+                <p className="v6-feature__desc">
+                  每个租户的向量集合物理隔离；Provider API Key 通过 AES-256-GCM 加密落盘存储。
+                </p>
+              </article>
+            </section>
+          </>
+        )}
 
-        {isUserApp && (
-          <div className="mt-6 text-center">
-            <button 
-              className="text-muted hover:text-teal-400 transition-colors text-xs font-mono uppercase tracking-tighter"
-              onClick={() => setIsRegister(!isRegister)}
-            >
-              {isRegister ? "// ALREADY HAVE ACCESS" : "// NEED NEW CREDENTIALS"}
-            </button>
+        {(mode === "signin" || mode === "signup") && (
+          <div className="v6-authcard-wrap">
+            <div className="v6-authcard">
+              <h2 className="v6-authcard__title">
+                {mode === "signup" ? "Create your account" : isUserApp ? "Welcome back" : "Admin sign in"}
+              </h2>
+              <p className="v6-authcard__sub">
+                {mode === "signup"
+                  ? "注册账号以使用 Memory Workspace"
+                  : isUserApp
+                  ? "使用邮箱和密码登录你的记忆空间"
+                  : "使用管理员账户登录 Command Deck"}
+              </p>
+              <form onSubmit={handleSubmit}>
+                {mode === "signup" && (
+                  <div className="v6-field">
+                    <label className="v6-field__label">用户名</label>
+                    <input
+                      className="v6-input"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="your_username"
+                      autoComplete="username"
+                    />
+                  </div>
+                )}
+                <div className="v6-field">
+                  <label className="v6-field__label">{isUserApp ? "邮箱" : "管理员账号"}</label>
+                  <input
+                    className="v6-input"
+                    type={isUserApp ? "email" : "text"}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={isUserApp ? "mail@example.com" : "admin"}
+                    autoComplete={isUserApp ? "email" : "username"}
+                  />
+                </div>
+                <div className="v6-field">
+                  <label className="v6-field__label">密码</label>
+                  <input
+                    className="v6-input"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  />
+                </div>
+                <button type="submit" className="v6-btn v6-btn--primary v6-btn--block" disabled={loading}>
+                  {loading ? "..." : mode === "signup" ? "Create account" : "Sign in"}
+                </button>
+              </form>
+              {isUserApp && (
+                <div className="v6-authcard__switch">
+                  {mode === "signup" ? (
+                    <>
+                      Already have an account?
+                      <button onClick={() => setMode("signin")}>Sign in</button>
+                    </>
+                  ) : (
+                    <>
+                      Don&apos;t have an account?
+                      <button onClick={() => setMode("signup")}>Sign up</button>
+                    </>
+                  )}
+                </div>
+              )}
+              {(localError || authError) && (
+                <div className="v6-authcard__error">{localError || authError}</div>
+              )}
+            </div>
           </div>
         )}
 
-        {(localError || authError) && (
-          <div className="login-error mt-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-mono animate-pulse">
-            [ERROR]: {localError || authError}
-          </div>
-        )}
+        <footer className="v6-foot">
+          <span>
+            backend healthy ·{" "}
+            <a href="/health" target="_blank" rel="noreferrer">
+              /health
+            </a>
+          </span>
+          <span>
+            <a href="https://github.com/luogangan7-lgtm/ai-memory-os" target="_blank" rel="noreferrer">
+              source
+            </a>
+          </span>
+        </footer>
       </div>
     </div>
   );

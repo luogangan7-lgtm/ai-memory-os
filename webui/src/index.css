@@ -1,7 +1,50 @@
 @import "./css/layout.css";
+@import "./css/login-v2.css";
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── v6 design tokens (Linear matte). New components use .v6-* class names which
+   read these vars; old pages keep their cyberpunk Tailwind colors untouched. ── */
+:root {
+  --v6-bg: #FCFCFD;
+  --v6-bg-elev: #FFFFFF;
+  --v6-bg-sunken: #F4F4F5;
+  --v6-fg: #0D0D10;
+  --v6-fg-muted: #6F6F76;
+  --v6-fg-faint: #A1A1A8;
+  --v6-border: #E6E6E9;
+  --v6-border-strong: #D4D4D8;
+  --v6-accent: #6E56CF;
+  --v6-accent-hover: #5D45BD;
+  --v6-accent-soft: rgba(110, 86, 207, 0.10);
+  --v6-danger: #E5484D;
+  --v6-grain-opacity: 0.025;
+  --v6-radius-sm: 6px;
+  --v6-radius-md: 8px;
+  --v6-radius-lg: 12px;
+  --v6-radius-xl: 16px;
+  --v6-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --v6-font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v6-font-mono: 'Geist Mono', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --v6-bg: #08080B;
+    --v6-bg-elev: #101013;
+    --v6-bg-sunken: #050507;
+    --v6-fg: #ECECF0;
+    --v6-fg-muted: #7A7A82;
+    --v6-fg-faint: #4E4E55;
+    --v6-border: #1A1A1F;
+    --v6-border-strong: #26262C;
+    --v6-accent: #9E8AE5;
+    --v6-accent-hover: #B5A4ED;
+    --v6-accent-soft: rgba(158, 138, 229, 0.10);
+    --v6-grain-opacity: 0.05;
+  }
+}
 
 *,
 *::before,
