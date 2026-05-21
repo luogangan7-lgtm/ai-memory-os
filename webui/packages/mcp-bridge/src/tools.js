@@ -4,6 +4,10 @@ export const TOOLS = [
   { name:'memory_list', description:'列出最近存入的记忆。', inputSchema:{ type:'object', properties:{ limit:{ type:'integer',default:10 }, offset:{ type:'integer',default:0 } } } },
   { name:'memory_delete', description:'删除指定 ID 的记忆。', inputSchema:{ type:'object', properties:{ memory_id:{ type:'string',description:'记忆 ID' } }, required:['memory_id'] } },
   { name:'memory_status', description:'查询知识库统计：总记忆数、最后更新时间。', inputSchema:{ type:'object', properties:{} } },
+  { name:'memory_reflect', description:'手动触发后台认知优化：自动晋升、衰减、去重、记忆整合。', inputSchema:{ type:'object', properties:{} } },
+  { name:'memory_get_persona', description:'获取 Persona 配置信息', inputSchema:{ type:'object', properties:{} } },
+  { name:'memory_task_canvas_get', description:'获取 Task Canvas 的 Mermaid 图', inputSchema:{ type:'object', properties:{ task_id:{ type:'string', default:'main' }, agent_id:{ type:'string', description:'Agent 标识' } }, required:['agent_id'] } },
+  { name:'memory_task_canvas_update', description:'更新 Task Canvas 的 Mermaid 图与进度', inputSchema:{ type:'object', properties:{ task_id:{ type:'string' }, agent_id:{ type:'string', description:'Agent 标识' }, mermaid:{ type:'string' }, title:{ type:'string' }, completed:{ type:'array', items:{ type:'string' } }, next:{ type:'array', items:{ type:'string' } } }, required:['task_id', 'agent_id', 'mermaid'] } },
 ];
 
 function fmtSearch(d) {
@@ -16,8 +20,10 @@ function fmtSearch(d) {
   }).join('\n\n---\n\n');
 }
 function fmtStore(d) { return `Stored. ID: ${d?.id||d?.memory_id||'N/A'}`; }
-function fmtList(d) { const m = d?.memories||[]; return m.length ? m.map((x,i) => `[${i+1}] ${x.title} | ID:${x.id}`).join('\n') : 'Empty.'; }
+function fmtList(d) { const m = Array.isArray(d) ? d : (d?.memories||[]); return m.length ? m.map((x,i) => `[${i+1}] ${x.title||'Untitled'} | ID:${x.id}`).join('\n') : 'Empty.'; }
 function fmtStatus(d) { return `Total: ${d?.total_memories||0} | Docs: ${d?.total_documents||0} | Updated: ${d?.last_updated||'N/A'}`; }
+function fmtPersona(d) { return d?.persona_md || '用户画像尚未生成，请继续与 AI 对话以积累更多记忆。'; }
+function fmtCanvas(d) { return d?.canvas_mermaid ? `Canvas: ${d.canvas_mermaid}` : 'No canvas found.'; }
 
 export async function executeTool(name, args, client) {
   try {
@@ -27,6 +33,10 @@ export async function executeTool(name, args, client) {
       case 'memory_list': return { content: [{ type:'text', text: fmtList(await client.list(args)) }] };
       case 'memory_delete': await client.delete(args); return { content: [{ type:'text', text: `Deleted ${args.memory_id}` }] };
       case 'memory_status': return { content: [{ type:'text', text: fmtStatus(await client.status()) }] };
+      case 'memory_reflect': await client.reflect(); return { content: [{ type:'text', text: '后台认知优化已触发：自动晋升、衰减、去重任务已启动。' }] };
+      case 'memory_get_persona': return { content: [{ type:'text', text: fmtPersona(await client.getPersona()) }] };
+      case 'memory_task_canvas_get': return { content: [{ type:'text', text: fmtCanvas(await client.getCanvas(args)) }] };
+      case 'memory_task_canvas_update': await client.updateCanvas(args); return { content: [{ type:'text', text: 'Canvas updated' }] };
       default: throw new Error(`Unknown tool: ${name}`);
     }
   } catch (err) { return { content: [{ type:'text', text: `Error: ${err.message}` }], isError: true }; }

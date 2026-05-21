@@ -1,12 +1,26 @@
 {
-  "name": "@ai-memory-os/mcp",
-  "version": "1.0.0",
-  "description": "AI Memory OS MCP Server — 为任意 AI Agent 提供长期记忆能力",
+  "name": "ai-memory-os-mcp",
+  "version": "1.0.1",
+  "description": "AI Memory OS MCP Server \u2014 \u4e3a\u4efb\u610f AI Agent \u63d0\u4f9b\u957f\u671f\u8bb0\u5fc6\u80fd\u529b",
   "type": "module",
-  "bin": { "ai-memory-os-mcp": "./bin/cli.js" },
-  "scripts": { "start": "node bin/cli.js" },
-  "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0" },
-  "engines": { "node": ">=18.0.0" },
-  "keywords": ["mcp", "memory", "ai", "agent", "rag"],
+  "bin": {
+    "memory-os-mcp": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "memory",
+    "ai",
+    "agent",
+    "rag"
+  ],
   "license": "MIT"
 }

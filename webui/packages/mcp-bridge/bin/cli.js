@@ -11,10 +11,13 @@ const { values } = parseArgs({
   strict: false,
 });
 
-if (values.help || !values.token) {
+const token  = values.token  || process.env.MOS_TOKEN;
+const server = values.server || process.env.MOS_SERVER || 'http://localhost:8003';
+
+if (values.help || !token) {
   console.error(`
 AI Memory OS MCP Server
-用法: npx @ai-memory-os/mcp --token=<TOKEN> [--server=<URL>]
+用法: npx ai-memory-os-mcp --token=<TOKEN> [--server=<URL>]
 参数:
   --token, -t   必填。Memory OS API Token
   --server, -s  可选。服务器地址，默认 http://localhost:8003
@@ -24,6 +27,4 @@ AI Memory OS MCP Server
   process.exit(values.help ? 0 : 1);
 }
 
-const token  = values.token  || process.env.MOS_TOKEN;
-const server = values.server || process.env.MOS_SERVER || 'http://localhost:8003';
 startMcpServer({ token, server });

@@ -17,8 +17,22 @@ export class MemoryOSClient {
     return res.json();
   }
   search({ query, limit = 5, filter_type = 'all' }) { return this.request('POST', '/memory/search', { query, limit, source_type: filter_type === 'all' ? undefined : filter_type }); }
-  store({ content, title, tags = [], importance = 'normal' }) { return this.request('POST', '/memory/store', { content, title, tags, importance, source_type: 'agent' }); }
+  store({ content, title, tags = [], importance = 'normal' }) { 
+    const imp = { 'low': 0.25, 'normal': 0.5, 'high': 0.85, 'critical': 1.0 }[importance] ?? importance;
+    return this.request('POST', '/memory/store', { content, title, tags, importance: imp, source_type: 'agent' }); 
+  }
   list({ limit = 10, offset = 0 }) { return this.request('GET', `/memory/recent?limit=${limit}&offset=${offset}`); }
   delete({ memory_id }) { return this.request('DELETE', `/memory/${memory_id}`); }
   status() { return this.request('GET', '/stats'); }
+  getPersona() { return this.request('GET', '/persona/default'); }
+  reflect() { return this.request('POST', '/memory/reflect'); }
+  getCanvas({ task_id = 'main', agent_id = 'default' }) { 
+    return this.request('GET', `/canvas/${task_id}`).then(arr => {
+      if (!Array.isArray(arr)) return arr;
+      return arr.find(x => x.agent_id === agent_id) || null;
+    }); 
+  }
+  updateCanvas({ task_id = 'main', agent_id = 'default', mermaid, title = '', completed = [], next = [] }) { 
+    return this.request('POST', `/canvas/${task_id}`, { agent_id, mermaid, title, completed, next }); 
+  }
 }
