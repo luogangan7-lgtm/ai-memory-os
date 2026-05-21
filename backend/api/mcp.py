@@ -305,12 +305,13 @@ async def mcp_post_handler(
             elif tool_name in ("canvas_get", "memory_task_canvas_get"):
                 from backend.api.db_helper import get_db_conn
                 task_id = arguments.get("task_id", "main")
+                agent_id = arguments.get("agent_id", "default")
                 if not task_id: task_id = "main"
                 try:
                     conn = await get_db_conn()
-                    row = await conn.fetchrow("SELECT * FROM task_canvas WHERE team_id=$1 AND task_id=$2", team_id, task_id)
+                    row = await conn.fetchrow("SELECT * FROM task_canvas WHERE team_id=$1 AND task_id=$2 AND agent_id=$3", team_id, task_id, agent_id)
                     await conn.close()
-                    result_text = f"Canvas: {row['canvas_mermaid']}" if row else f"No canvas for {task_id}"
+                    result_text = f"Canvas: {row['canvas_mermaid']}" if row else f"No canvas for {task_id} (Agent: {agent_id})"
                 except Exception as e:
                     result_text = f"Canvas unavailable: {e}"
 
@@ -320,10 +321,20 @@ async def mcp_post_handler(
                 try:
                     conn = await get_db_conn()
                     task_id = arguments.get("task_id", "main")
+                    agent_id = arguments.get("agent_id", "default")
                     if not task_id: task_id = "main"
                     comp_str = _json.dumps(arguments.get("completed", []), ensure_ascii=False)
                     next_str = _json.dumps(arguments.get("next", []), ensure_ascii=False)
-                    await conn.execute("INSERT INTO task_canvas (team_id, task_id, task_title, canvas_mermaid, completed_steps, next_steps) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb) ON CONFLICT (team_id, task_id) DO UPDATE SET canvas_mermaid=$4, completed_steps=$5::jsonb, next_steps=$6::jsonb, updated_at=NOW()", team_id, task_id, arguments.get("task_title",""), arguments.get("mermaid",""), comp_str, next_str)
+                    await conn.execute(
+                        """INSERT INTO task_canvas (team_id, task_id, agent_id, task_title, canvas_mermaid, completed_steps, next_steps)
+                           VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)
+                           ON CONFLICT (team_id, task_id, agent_id) DO UPDATE SET
+                             canvas_mermaid  = EXCLUDED.canvas_mermaid,
+                             task_title      = COALESCE(NULLIF(EXCLUDED.task_title,''), task_canvas.task_title),
+                             completed_steps = EXCLUDED.completed_steps,
+                             next_steps      = EXCLUDED.next_steps,
+                             updated_at      = NOW()""",
+                        team_id, task_id, agent_id, arguments.get("task_title", ""), arguments.get("mermaid", ""), comp_str, next_str)
                     await conn.close()
                     result_text = "Canvas updated"
                 except Exception as e:

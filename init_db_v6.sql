@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS task_canvas (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id         VARCHAR NOT NULL,
     task_id         VARCHAR NOT NULL,
+    agent_id        VARCHAR(50) DEFAULT 'default',
     task_title      VARCHAR(300),
     canvas_mermaid  TEXT NOT NULL,
     completed_steps TEXT[] DEFAULT '{}',
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS task_canvas (
     status          VARCHAR DEFAULT 'active',
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (team_id, task_id)
+    UNIQUE (team_id, task_id, agent_id)
 );
 CREATE INDEX IF NOT EXISTS idx_canvas_team ON task_canvas(team_id, status);
 
