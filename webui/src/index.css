@@ -5,9 +5,34 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── v6 design tokens (Linear matte). New components use .v6-* class names which
-   read these vars; old pages keep their cyberpunk Tailwind colors untouched. ── */
+/* ── v6 design tokens (Linear matte). Dark by default — Cortex is a developer
+   tool and the Linear / Vercel / Stripe-class reference brands all set their
+   first-impression palette to dark. Light mode is opt-in via data-theme="light".
+   Old admin pages keep their cyberpunk Tailwind colors untouched. ──────────── */
 :root {
+  --v6-bg: #08080B;
+  --v6-bg-elev: #101013;
+  --v6-bg-sunken: #050507;
+  --v6-fg: #ECECF0;
+  --v6-fg-muted: #7A7A82;
+  --v6-fg-faint: #4E4E55;
+  --v6-border: #1A1A1F;
+  --v6-border-strong: #26262C;
+  --v6-accent: #ECECF0;
+  --v6-accent-hover: #FFFFFF;
+  --v6-accent-soft: rgba(236, 236, 240, 0.06);
+  --v6-danger: #E5484D;
+  --v6-grain-opacity: 0.05;
+  --v6-radius-sm: 6px;
+  --v6-radius-md: 8px;
+  --v6-radius-lg: 12px;
+  --v6-radius-xl: 16px;
+  --v6-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --v6-font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v6-font-mono: 'Geist Mono', ui-monospace, monospace;
+}
+/* Opt-in light mode (manual switch UI sets data-theme="light" on <html>) */
+:root[data-theme="light"] {
   --v6-bg: #FCFCFD;
   --v6-bg-elev: #FFFFFF;
   --v6-bg-sunken: #F4F4F5;
@@ -19,31 +44,7 @@
   --v6-accent: #0D0D10;
   --v6-accent-hover: #2A2A2F;
   --v6-accent-soft: rgba(13, 13, 16, 0.06);
-  --v6-danger: #E5484D;
   --v6-grain-opacity: 0.025;
-  --v6-radius-sm: 6px;
-  --v6-radius-md: 8px;
-  --v6-radius-lg: 12px;
-  --v6-radius-xl: 16px;
-  --v6-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --v6-font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --v6-font-mono: 'Geist Mono', ui-monospace, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --v6-bg: #08080B;
-    --v6-bg-elev: #101013;
-    --v6-bg-sunken: #050507;
-    --v6-fg: #ECECF0;
-    --v6-fg-muted: #7A7A82;
-    --v6-fg-faint: #4E4E55;
-    --v6-border: #1A1A1F;
-    --v6-border-strong: #26262C;
-    --v6-accent: #ECECF0;
-    --v6-accent-hover: #FFFFFF;
-    --v6-accent-soft: rgba(236, 236, 240, 0.06);
-    --v6-grain-opacity: 0.05;
-  }
 }
 
 *,
