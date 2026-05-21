@@ -148,6 +148,15 @@ async def favicon():
     return FileResponse(Path(__file__).parent / "ui" / "assets" / "favicon.ico") if (Path(__file__).parent / "ui" / "assets" / "favicon.ico").exists() else None
 
 
+# Liveness probe — must be declared before the SPA catch-all routes below, otherwise the
+# fallback at "/{full_path:path}" returns index.html and external monitors see HTTP 200
+# with HTML body, faking liveness.
+@app.get("/health", include_in_schema=False)
+@app.get("/api/health", include_in_schema=False)
+async def health():
+    return {"status": "ok", "service": settings.app_name, "version": settings.version}
+
+
 # UI routes
 UI_DIR = Path(__file__).parent.parent / "webui-dist"
 APP_DIR = Path(__file__).parent.parent / "webui-dist"
@@ -185,8 +194,6 @@ if APP_DIR.exists():
         response = FileResponse(APP_DIR / "index.html")
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return response
-
-# Metrics
 
 # Mount React SPA at root (if exists)
 if WEBUI_DIST.exists():
