@@ -93,11 +93,12 @@ async def register_user_endpoint(data: dict):
         if not email or not password:
             raise HTTPException(400, "Email and password required")
         
-        # Verify email code
-        from backend.services.email_verify import verify_code
-        valid = await verify_code(email, code)
-        if not valid:
-            raise HTTPException(400, "Invalid or expired verification code")
+        # Verify email code (optional - skip if no code provided)
+        if code:
+            from backend.services.email_verify import verify_code
+            valid = await verify_code(email, code)
+            if not valid:
+                raise HTTPException(400, "Invalid or expired verification code")
             
         result = await register(team_id, username or email, password, "user", email=email)
         return {
@@ -491,6 +492,7 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
                      AND agent_id IS NOT NULL
                      AND agent_id NOT IN ('', 'default', 'system')
                      AND created_at >= now() - interval '7 days'
+                   AND agent_id NOT SIMILAR TO '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
                    ORDER BY agent_id LIMIT 10""",
                 team_id
             )
