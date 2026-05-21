@@ -156,9 +156,54 @@ export const getAdminMemories = (params: {
   if (params.q) urlParams.set("q", params.q);
   if (params.limit !== undefined) urlParams.set("limit", String(params.limit));
   if (params.offset !== undefined) urlParams.set("offset", String(params.offset));
-  return api.get<AdminMemoriesResponse>(`/admin/memories?${urlParams.toString()}`);
+  return api.get<AdminMemoriesResponse>(`/memories?${urlParams.toString()}`);
 };
 
 export const deleteAdminMemory = (memoryId: string) =>
-  api.delete<{ deleted: boolean }>(`/admin/memories/${memoryId}`);
+  api.delete<{ deleted: boolean }>(`/memories/${memoryId}`);
+
+
+export interface UserDocument {
+  id: string;
+  team_id: string;
+  filename: string;
+  minio_key: string;
+  chunk_count: number;
+  file_size: number;
+  tags: string[];
+  created_at: string;
+}
+
+export interface AdminDocument extends UserDocument {}
+
+export interface AdminDocumentsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  documents: AdminDocument[];
+}
+
+export const getUserDocuments = () =>
+  api.get<UserDocument[]>("/memory/documents");
+
+export const deleteUserDocument = (docId: string) =>
+  api.delete<{ ok: boolean }>(`/memory/documents/${docId}`);
+
+export const getAdminDocuments = (params: {
+  team_id?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) => {
+  const urlParams = new URLSearchParams();
+  if (params.team_id) urlParams.set("team_id", params.team_id);
+  if (params.q) urlParams.set("q", params.q);
+  if (params.limit !== undefined) urlParams.set("limit", String(params.limit));
+  if (params.offset !== undefined) urlParams.set("offset", String(params.offset));
+  return api.get<AdminDocumentsResponse>(`/documents?${urlParams.toString()}`);
+};
+
+export const deleteAdminDocument = (docId: string) =>
+  api.delete<{ deleted: boolean }>(`/documents/${docId}`);
+
 

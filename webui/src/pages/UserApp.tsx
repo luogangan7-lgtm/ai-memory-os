@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PROVIDERS as ALL_PROVIDERS } from "../data/models";
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
-import { getUserPipelineStatus } from '../api/endpoints';
+import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocument } from '../api/endpoints';
 import type { PipelineStatus, PipelineJob } from '../api/types';
 
 function Dashboard() {
@@ -193,13 +193,15 @@ interface UserMemory {
 
 function MemoryPanel(){
   const [memories,setMemories]=useState<UserMemory[]>([]);
+  const [documents,setDocuments]=useState<UserDocument[]>([]);
+  const [subTab,setSubTab]=useState<'memories' | 'documents'>('memories');
   const [query,setQuery]=useState('');
   const [loading,setLoading]=useState(false);
   const [uploading,setUploading]=useState(false);
   const [uploadMsg,setUploadMsg]=useState('');
   const [activeCategory,setActiveCategory]=useState('全部');
 
-  const categories = ['全部', '文档知识', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
+  const categories = ['全部', '文档知识', '整合知识', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
 
   const fetchMemories = useCallback(async()=>{
     if(loading)return;
@@ -210,6 +212,8 @@ function MemoryPanel(){
         let url = '/memory/recent?limit=100';
         if (activeCategory === '文档知识') {
           url += '&source_type=document';
+        } else if (activeCategory === '整合知识') {
+          url += '&source_type=knowledge';
         } else if (activeCategory !== '全部') {
           url += `&category=${encodeURIComponent(activeCategory)}`;
         }
@@ -248,8 +252,20 @@ function MemoryPanel(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[query, activeCategory]);
 
+  const fetchDocuments = useCallback(async()=>{
+    try {
+      const d = await getUserDocuments();
+      setDocuments(d || []);
+    } catch(e) {
+      console.error(e);
+    }
+  }, []);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{fetchMemories()},[fetchMemories]);
+  useEffect(()=>{
+    fetchMemories();
+    fetchDocuments();
+  },[fetchMemories, fetchDocuments]);
 
   const handleDelete = async (id: string) => {
     if (!id) return;
@@ -263,10 +279,25 @@ function MemoryPanel(){
     }
   };
 
+  const handleDeleteDocument = async (id: string) => {
+    if (!id) return;
+    if (!window.confirm('确定要删除这个文档吗？这将级联删除它关联的所有提取记忆和向量索引。')) return;
+    try {
+      await deleteUserDocument(id);
+      fetchDocuments();
+      fetchMemories();
+    } catch (e) {
+      console.error(e);
+      alert('删除失败');
+    }
+  };
+
   const getSourceBadge = (source: string) => {
     switch (source) {
       case 'document':
         return <span className="badge badge-emerald" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>📄 文档</span>;
+      case 'knowledge':
+        return <span className="badge badge-premium" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px', background: 'rgba(124, 58, 237, 0.15)', border: '1px solid rgba(124, 58, 237, 0.4)', color: '#a78bfa'}}>🧠 整合知识</span>;
       case 'human':
         return <span className="badge badge-teal" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>💬 聊天</span>;
       case 'agent':
@@ -278,10 +309,33 @@ function MemoryPanel(){
     }
   };
 
+  const formatSize = (bytes: number) => {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '—';
+    try {
+      return new Date(dateStr).toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Filter memories by category
   const filteredMemories = memories.filter(m => {
     if (activeCategory === '全部') return true;
     if (activeCategory === '文档知识') return true;
+    if (activeCategory === '整合知识') return true;
     if (activeCategory === '其他') {
       return !['工程技术', '个人记忆', '自然科学', '社会科学'].includes(m.category);
     }
@@ -290,104 +344,221 @@ function MemoryPanel(){
 
   return(
     <div className='card'>
-      <div className='card-title'>🧠 我的记忆</div>
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&fetchMemories()}/>
-        <button className='btn btn-teal' onClick={fetchMemories} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
-        <label className='btn btn-ghost' style={{cursor:'pointer',fontSize:12,padding:'10px 14px',whiteSpace:'nowrap'}}>
-          📄 批量上传
-          <input type='file' accept='.txt,.md,.pdf' multiple style={{display:'none'}} onChange={async(e)=>{
-            const files = Array.from(e.target.files || []);
-            if (files.length === 0) return;
-            setUploading(true);
-            setUploadMsg(`📤 准备上传 ${files.length} 个文件...`);
-            const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
-            
-            let successCount = 0;
-            let failCount = 0;
-            
-            for (let i = 0; i < files.length; i++) {
-              const f = files[i];
-              if (!f) continue;
-              setUploadMsg(`📤 正在解析并分类 (${i + 1}/${files.length}): ${f.name}...`);
-              try {
-                const fd = new FormData();
-                fd.append('file', f);
-                const r = await fetch('/memory/upload', {
-                  method: 'POST',
-                  headers: { "Authorization": "Bearer " + tokenHeader },
-                  body: fd
-                });
-                const d = await r.json();
-                if (d.id) {
-                  successCount++;
-                } else {
-                  failCount++;
-                }
-              } catch (err) {
-                console.error(err);
-                failCount++;
-              }
-            }
-            
-            setUploadMsg(`✅ 成功导入 ${successCount} 个文件` + (failCount > 0 ? `，❌ 失败 ${failCount} 个` : ''));
-            setTimeout(() => fetchMemories(), 500);
-            setUploading(false);
-            e.target.value = '';
-          }}/>
-        </label>
-      </div>
-      {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('❌')?'var(--crimson)':uploadMsg.includes('✅')?'var(--emerald)':'var(--text)'}}>{uploadMsg}</div>}
-
-      {/* Category Tabs */}
-      <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10}}>
-        {categories.map(c => (
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+        <div className='card-title' style={{margin: 0}}>🧠 我的知识空间</div>
+        <div style={{display: 'flex', gap: 6}}>
           <button 
-            key={c} 
-            className={`btn ${activeCategory === c ? 'btn-teal' : 'btn-ghost'}`} 
-            style={{padding: '4px 10px', fontSize: 11, minWidth: 'auto', height: 'auto'}}
-            onClick={() => setActiveCategory(c)}
+            className={`btn btn-sm ${subTab === 'memories' ? 'btn-teal' : 'btn-ghost'}`}
+            style={{fontSize: 11, padding: '6px 12px'}}
+            onClick={() => setSubTab('memories')}
           >
-            {c}
+            📋 记忆与知识
           </button>
-        ))}
+          <button 
+            className={`btn btn-sm ${subTab === 'documents' ? 'btn-teal' : 'btn-ghost'}`}
+            style={{fontSize: 11, padding: '6px 12px'}}
+            onClick={() => setSubTab('documents')}
+          >
+            📁 我的文档库 ({documents.length})
+          </button>
+        </div>
       </div>
 
-      <div style={{maxHeight:450,overflow:'auto'}}>
-        {filteredMemories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无该类别的记忆数据</div>}
-        {filteredMemories.map((m,i)=>(
-          <div key={i} style={{padding:'14px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div>
-                <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4}}>
-                  <span style={{fontWeight:600,color:'var(--teal)',fontSize:13}}>{m.title}</span>
-                  {getSourceBadge(m.source_type)}
-                  <span className="badge badge-violet" style={{fontSize: 10, padding: '2px 6px'}}>{m.category}</span>
-                  {m.subcategory && <span className="badge badge-ghost" style={{fontSize: 10, padding: '2px 6px'}}>{m.subcategory}</span>}
-                  {m.topic && <span style={{fontSize: 10, color: 'var(--muted)', marginLeft: 4}}>#{m.topic}</span>}
-                </div>
-              </div>
-              <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                {m.score !== undefined && <div style={{fontSize:10,color:'var(--muted)'}}>相关度: {(m.score*100).toFixed(1)}%</div>}
-                <button 
-                  onClick={() => handleDelete(m.id)} 
-                  style={{
-                    background: 'none', 
-                    border: 'none', 
-                    color: 'var(--crimson)', 
-                    fontSize: 11, 
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-            <div style={{color:'var(--text)',fontSize:12,marginTop:6,lineHeight:1.6,whiteSpace: 'pre-wrap'}}>{m.content}</div>
+      {subTab === 'memories' ? (
+        <>
+          <div style={{display:'flex',gap:8,marginBottom:16}}>
+            <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&fetchMemories()}/>
+            <button className='btn btn-teal' onClick={fetchMemories} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
+            <label className='btn btn-ghost' style={{cursor:'pointer',fontSize:12,padding:'10px 14px',whiteSpace:'nowrap'}}>
+              📄 批量上传
+              <input type='file' accept='.txt,.md,.pdf' multiple style={{display:'none'}} onChange={async(e)=>{
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+                setUploading(true);
+                setUploadMsg(`📤 准备上传 ${files.length} 个文件...`);
+                const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+                
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (let i = 0; i < files.length; i++) {
+                  const f = files[i];
+                  if (!f) continue;
+                  setUploadMsg(`📤 正在解析并分类 (${i + 1}/${files.length}): ${f.name}...`);
+                  try {
+                    const fd = new FormData();
+                    fd.append('file', f);
+                    const r = await fetch('/memory/upload', {
+                      method: 'POST',
+                      headers: { "Authorization": "Bearer " + tokenHeader },
+                      body: fd
+                    });
+                    const d = await r.json();
+                    if (d.id) {
+                      successCount++;
+                    } else {
+                      failCount++;
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    failCount++;
+                  }
+                }
+                
+                setUploadMsg(`✅ 成功导入 ${successCount} 个文件` + (failCount > 0 ? `，❌ 失败 ${failCount} 个` : ''));
+                setTimeout(() => {
+                  fetchMemories();
+                  fetchDocuments();
+                }, 500);
+                setUploading(false);
+                e.target.value = '';
+              }}/>
+            </label>
           </div>
-        ))}
-      </div>
+          {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('❌')?'var(--crimson)':uploadMsg.includes('✅')?'var(--emerald)':'var(--text)'}}>{uploadMsg}</div>}
+
+          {/* Category Tabs */}
+          <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10}}>
+            {categories.map(c => (
+              <button 
+                key={c} 
+                className={`btn ${activeCategory === c ? 'btn-teal' : 'btn-ghost'}`} 
+                style={{padding: '4px 10px', fontSize: 11, minWidth: 'auto', height: 'auto'}}
+                onClick={() => setActiveCategory(c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div style={{maxHeight:450,overflow:'auto'}}>
+            {filteredMemories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无该类别的记忆数据</div>}
+            {filteredMemories.map((m,i)=>(
+              <div key={i} style={{padding:'14px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <div>
+                    <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4}}>
+                      <span style={{fontWeight:600,color:'var(--teal)',fontSize:13}}>{m.title}</span>
+                      {getSourceBadge(m.source_type)}
+                      <span className="badge badge-violet" style={{fontSize: 10, padding: '2px 6px'}}>{m.category}</span>
+                      {m.subcategory && <span className="badge badge-ghost" style={{fontSize: 10, padding: '2px 6px'}}>{m.subcategory}</span>}
+                      {m.topic && <span style={{fontSize: 10, color: 'var(--muted)', marginLeft: 4}}>#{m.topic}</span>}
+                    </div>
+                  </div>
+                  <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                    {m.score !== undefined && <div style={{fontSize:10,color:'var(--muted)'}}>相关度: {(m.score*100).toFixed(1)}%</div>}
+                    <button 
+                      onClick={() => handleDelete(m.id)} 
+                      style={{
+                        background: 'none', 
+                        border: 'none', 
+                        color: 'var(--crimson)', 
+                        fontSize: 11, 
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+                <div style={{color:'var(--text)',fontSize:12,marginTop:6,lineHeight:1.6,whiteSpace: 'pre-wrap'}}>{m.content}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{display:'flex',justifyContent: 'space-between',alignItems:'center',marginBottom:16}}>
+            <div style={{fontSize:12,color:'var(--muted)'}}>在这里查看你通过批量上传或MCP录入的原始文档以及它们的解析状态。</div>
+            <label className='btn btn-teal' style={{cursor:'pointer',fontSize:12,padding:'8px 16px',whiteSpace:'nowrap',margin:0}}>
+              ➕ 上传新文档
+              <input type='file' accept='.txt,.md,.pdf' multiple style={{display:'none'}} onChange={async(e)=>{
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+                setUploading(true);
+                setUploadMsg(`📤 准备上传 ${files.length} 个文件...`);
+                const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+                
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (let i = 0; i < files.length; i++) {
+                  const f = files[i];
+                  if (!f) continue;
+                  setUploadMsg(`📤 正在解析并分类 (${i + 1}/${files.length}): ${f.name}...`);
+                  try {
+                    const fd = new FormData();
+                    fd.append('file', f);
+                    const r = await fetch('/memory/upload', {
+                      method: 'POST',
+                      headers: { "Authorization": "Bearer " + tokenHeader },
+                      body: fd
+                    });
+                    const d = await r.json();
+                    if (d.id) {
+                      successCount++;
+                    } else {
+                      failCount++;
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    failCount++;
+                  }
+                }
+                
+                setUploadMsg(`✅ 成功导入 ${successCount} 个文件` + (failCount > 0 ? `，❌ 失败 ${failCount} 个` : ''));
+                setTimeout(() => {
+                  fetchDocuments();
+                  fetchMemories();
+                }, 500);
+                setUploading(false);
+                e.target.value = '';
+              }}/>
+            </label>
+          </div>
+          {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('❌')?'var(--crimson)':uploadMsg.includes('✅')?'var(--emerald)':'var(--text)'}}>{uploadMsg}</div>}
+
+          <div style={{maxHeight:450,overflow:'auto'}}>
+            <table className="table" style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead>
+                <tr style={{textAlign:'left',borderBottom:'1px solid var(--border)',color:'var(--muted)',fontSize:11}}>
+                  <th style={{padding:'10px 8px'}}>文件名</th>
+                  <th style={{padding:'10px 8px'}}>大小</th>
+                  <th style={{padding:'10px 8px'}}>分块数量</th>
+                  <th style={{padding:'10px 8px'}}>上传时间</th>
+                  <th style={{padding:'10px 8px',textAlign:'right'}}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{padding:30,textAlign:'center',color:'var(--muted)',fontSize:12}}>暂无已上传的文档</td>
+                  </tr>
+                ) : (
+                  documents.map((doc)=>(
+                    <tr key={doc.id} style={{borderBottom:'1px solid var(--border)',fontSize:12}}>
+                      <td style={{padding:'12px 8px',fontWeight:500,color:'var(--text)'}}>{doc.filename}</td>
+                      <td style={{padding:'12px 8px',color:'var(--muted)'}}>{formatSize(doc.file_size)}</td>
+                      <td style={{padding:'12px 8px'}}><span className="badge badge-violet" style={{fontSize:10,padding:'2px 6px'}}>{doc.chunk_count} Chunks</span></td>
+                      <td style={{padding:'12px 8px',color:'var(--muted)',fontSize:11}}>{formatDate(doc.created_at)}</td>
+                      <td style={{padding:'12px 8px',textAlign:'right'}}>
+                        <button 
+                          className="btn btn-ghost btn-sm"
+                          style={{color:'var(--crimson)',padding:'4px 8px',fontSize:11}}
+                          onClick={() => handleDeleteDocument(doc.id)}
+                        >
+                          删除
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -401,13 +572,13 @@ const getServerUrl=()=>window.location.hostname+(window.location.port?':'+window
 const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex'>('cursor');
 const[copied,setCopied]=useState(false);
 
-const configs={cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""],env:{}}}},null,2),
-claude:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp"],env:{MOS_TOKEN:token,MOS_SERVER:"http://"+getServerUrl()}}}},null,2),
+const configs={cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],env:{}}}},null,2),
+claude:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp"],env:{MOS_TOKEN:token,MOS_SERVER:"http://"+getServerUrl()}}}},null,2),
 openclaw:"SSE 地址: http://"+getServerUrl()+"/mcp?token="+token,
-cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2),
-continue:JSON.stringify({experimental:{modelContextProtocolServers:[{transport:{type:"stdio",command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""]}}]}},null,2),
-roo:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""],alwaysAllow:["memory_search","memory_store"]}},null,2),
-codex:"# ~/.codex/config.toml\n[[mcp_servers]]\nname = \"ai-memory-os\"\ncommand = \"npx\"\nargs = [\"-y\", \"@ai-memory-os/mcp\", \"--token="+token+"\", \"--server=http://"+getServerUrl()+"\"]"};
+cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2),
+continue:JSON.stringify({experimental:{modelContextProtocolServers:[{transport:{type:"stdio",command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""]}}]}},null,2),
+roo:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],alwaysAllow:["memory_search","memory_store"]}},null,2),
+codex:"# ~/.codex/config.toml\n[[mcp_servers]]\nname = \"ai-memory-os\"\ncommand = \"npx\"\nargs = [\"-y\", \"ai-memory-os-mcp\", \"--token="+token+"\", \"--server=http://"+getServerUrl()+"\"]"};
 
 const FILE_PATHS={cursor:'~/.cursor/mcp.json',claude:'~/Library/Application Support/Claude/claude_desktop_config.json',openclaw:'OpenClaw → Settings → MCP Servers',cline:'VS Code → Cline → MCP Servers',continue:'~/.continue/config.json',roo:'VS Code → Roo Code → MCP Servers',codex:'~/.codex/config.toml'};
 
@@ -617,41 +788,78 @@ function PipelineStatusPanel(){
 }
 
 function CanvasPanel(){
-  const [,setCanvas]=useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [canvases,setCanvases]=useState<any[]>([]);
+  const [activeAgent,setActiveAgent]=useState<string>("");
   const [loading,setLoading]=useState(false);
   const [taskId,setTaskId]=useState("main");
   const svgRef=useRef<HTMLDivElement>(null);
+  
   async function load(){
     setLoading(true);
     try{
       const r=await fetch("/canvas/"+taskId,{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});
       const d=await r.json();
-      const md=d.canvas_mermaid||"graph TD\n  A[暂无任务] --> B[开始使用后自动生成]";
-      setCanvas(md);
-      // Render with mermaid.js
-      setTimeout(async ()=>{
-        if(svgRef.current){
-          try{
-            const mermaid=(await import("mermaid")).default;
-            mermaid.initialize({startOnLoad:false,theme:"dark",themeVariables:{primaryColor:"#00f0d4",primaryTextColor:"#e0e0e0",lineColor:"#4A6080"}});
-            const{svg}=await mermaid.render("mermaid-canvas",md);
-            svgRef.current.innerHTML=svg;
-          }catch{svgRef.current.innerHTML='<div style=color:var(--muted)>图谱渲染失败</div>'}
-        }
-      },100);
-    }catch{setCanvas("加载失败");if(svgRef.current)svgRef.current.innerHTML=''}
+      const arr = Array.isArray(d) ? d : (d.task_id ? [d] : []);
+      setCanvases(arr);
+      if (arr.length > 0 && !arr.find(x => x.agent_id === activeAgent)) {
+        setActiveAgent(arr[0].agent_id || "default");
+      } else if (arr.length === 0) {
+        setActiveAgent("");
+      }
+    }catch{
+      setCanvases([]);
+    }
     setLoading(false);
   }
+  
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{load()},[taskId]);
-  return(<div className="card"><div className="card-title">📋 任务画布</div>
+
+  useEffect(() => {
+    let md = "graph TD\n  A[暂无任务] --> B[开始使用后自动生成]";
+    if (canvases.length > 0 && activeAgent) {
+      const c = canvases.find(x => x.agent_id === activeAgent) || canvases[0];
+      if (c && c.canvas_mermaid) md = c.canvas_mermaid;
+    }
+    let isCancelled = false;
+    setTimeout(async ()=>{
+      if(svgRef.current && !isCancelled){
+        try{
+          const mermaid=(await import("mermaid")).default;
+          mermaid.initialize({startOnLoad:false,theme:"dark",themeVariables:{primaryColor:"#00f0d4",primaryTextColor:"#e0e0e0",lineColor:"#4A6080"}});
+          const{svg}=await mermaid.render("mermaid-canvas-"+Date.now(),md);
+          if(!isCancelled) svgRef.current.innerHTML=svg;
+        }catch{if(!isCancelled) svgRef.current.innerHTML='<div style=color:var(--muted)>图谱渲染失败</div>'}
+      }
+    },100);
+    return () => { isCancelled = true; };
+  }, [canvases, activeAgent]);
+
+  return(<div className="card"><div className="card-title">📋 任务画布 (多Agent协作)</div>
     <div style={{display:"flex",gap:8,marginBottom:12}}>
       <input value={taskId} onChange={e=>setTaskId(e.target.value)} style={{flex:1,background:"rgba(4,8,16,.85)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",color:"var(--text)",fontSize:13}} placeholder="任务ID (默认: main)"/>
       <button className="btn btn-teal" onClick={load} disabled={loading}>刷新</button>
     </div>
+    
+    {canvases.length > 0 && (
+      <div style={{display:'flex',gap:6,marginBottom:12,borderBottom:'1px solid var(--border)',paddingBottom:8,overflowX:'auto'}}>
+        {canvases.map(c => (
+          <button 
+            key={c.agent_id} 
+            className={`btn ${activeAgent===c.agent_id ? 'btn-teal' : 'btn-ghost'}`} 
+            style={{padding:'4px 12px',fontSize:11,whiteSpace:'nowrap'}}
+            onClick={() => setActiveAgent(c.agent_id)}
+          >
+            🤖 {c.agent_id || 'default'}
+          </button>
+        ))}
+      </div>
+    )}
+
     {loading?<div style={{color:"var(--muted)",fontSize:13}}>加载中...</div>:
     <div ref={svgRef} style={{background:"rgba(0,0,0,.3)",borderRadius:10,padding:16,minHeight:100,overflow:"auto"}}/>}
-    <div style={{fontSize:10,color:"var(--muted)",marginTop:8}}>Agent 通过 memory_task_canvas_update 工具自动更新此画布</div>
+    <div style={{fontSize:10,color:"var(--muted)",marginTop:8}}>同一 Task 下的不同 Agent 画布互相隔离，互不干扰</div>
   </div>)
 }
 
