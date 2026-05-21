@@ -309,15 +309,34 @@ interface UserMemory {
   score?: number;
 }
 
-function MemoryPanel(){
-  const [memories,setMemories]=useState<UserMemory[]>([]);
-  const [documents,setDocuments]=useState<UserDocument[]>([]);
-  const [subTab,setSubTab]=useState<'memories' | 'documents'>('memories');
-  const [query,setQuery]=useState('');
-  const [loading,setLoading]=useState(false);
-  const [uploading,setUploading]=useState(false);
-  const [uploadMsg,setUploadMsg]=useState('');
-  const [activeCategory,setActiveCategory]=useState('全部');
+const CATEGORY_LABELS: Record<string, string> = {
+  '全部': 'All',
+  '文档知识': 'Docs',
+  '整合知识': 'Knowledge',
+  '工程技术': 'Engineering',
+  '个人记忆': 'Personal',
+  '自然科学': 'Science',
+  '社会科学': 'Social',
+  '其他': 'Other',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  document: 'doc',
+  knowledge: 'knowledge',
+  human: 'chat',
+  agent: 'agent',
+  image: 'ocr',
+};
+
+function MemoryPanel() {
+  const [memories, setMemories] = useState<UserMemory[]>([]);
+  const [documents, setDocuments] = useState<UserDocument[]>([]);
+  const [subTab, setSubTab] = useState<'memories' | 'documents'>('memories');
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
+  const [activeCategory, setActiveCategory] = useState('全部');
 
   const categories = ['全部', '文档知识', '整合知识', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
 
@@ -410,22 +429,7 @@ function MemoryPanel(){
     }
   };
 
-  const getSourceBadge = (source: string) => {
-    switch (source) {
-      case 'document':
-        return <span className="badge badge-emerald" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>📄 文档</span>;
-      case 'knowledge':
-        return <span className="badge badge-premium" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px', background: 'rgba(124, 58, 237, 0.15)', border: '1px solid rgba(124, 58, 237, 0.4)', color: '#a78bfa'}}>🧠 整合知识</span>;
-      case 'human':
-        return <span className="badge badge-teal" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>💬 聊天</span>;
-      case 'agent':
-        return <span className="badge badge-violet" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>🤖 AI/MCP</span>;
-      case 'image':
-        return <span className="badge badge-amber" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>🖼️ OCR</span>;
-      default:
-        return <span className="badge badge-ghost" style={{marginLeft: 6, fontSize: 10, padding: '2px 6px'}}>💬 {source}</span>;
-    }
-  };
+  const getSourceTag = (source: string) => SOURCE_LABELS[source] || source || 'chat';
 
   const formatSize = (bytes: number) => {
     if (!bytes) return '0 Bytes';
@@ -460,225 +464,208 @@ function MemoryPanel(){
     return m.category === activeCategory;
   });
 
-  return(
-    <div className='card'>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
-        <div className='card-title' style={{margin: 0}}>🧠 我的知识空间</div>
-        <div style={{display: 'flex', gap: 6}}>
-          <button 
-            className={`btn btn-sm ${subTab === 'memories' ? 'btn-teal' : 'btn-ghost'}`}
-            style={{fontSize: 11, padding: '6px 12px'}}
+  const runUpload = async (files: File[], onDone?: () => void) => {
+    if (files.length === 0) return;
+    setUploading(true);
+    setUploadMsg(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`);
+    const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!f) continue;
+      setUploadMsg(`Parsing (${i + 1}/${files.length}) ${f.name}…`);
+      try {
+        const fd = new FormData();
+        fd.append('file', f);
+        const r = await fetch('/memory/upload', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + tokenHeader },
+          body: fd,
+        });
+        const d = await r.json();
+        if (d.id) ok++; else fail++;
+      } catch (err) {
+        console.error(err);
+        fail++;
+      }
+    }
+    setUploadMsg(`Imported ${ok}${fail > 0 ? ` · failed ${fail}` : ''}`);
+    setTimeout(() => {
+      fetchMemories();
+      fetchDocuments();
+      onDone?.();
+    }, 400);
+    setUploading(false);
+  };
+
+  const uploadStatusKind = uploadMsg.startsWith('Imported')
+    ? (uploadMsg.includes('failed') ? 'err' : 'ok')
+    : '';
+
+  return (
+    <div className="v6-card">
+      <div className="v6-card__head">
+        <div className="v6-card__title">
+          {subTab === 'memories' ? 'Memories' : 'Files'}
+          <span className="v6-card__title-hint">
+            {subTab === 'memories' ? `${filteredMemories.length} items` : `${documents.length} files`}
+          </span>
+        </div>
+        <div className="v6-subtabs" role="tablist">
+          <button
+            className="v6-subtab"
+            aria-current={subTab === 'memories' ? 'page' : undefined}
             onClick={() => setSubTab('memories')}
           >
-            📋 记忆与知识
+            Memories
           </button>
-          <button 
-            className={`btn btn-sm ${subTab === 'documents' ? 'btn-teal' : 'btn-ghost'}`}
-            style={{fontSize: 11, padding: '6px 12px'}}
+          <button
+            className="v6-subtab"
+            aria-current={subTab === 'documents' ? 'page' : undefined}
             onClick={() => setSubTab('documents')}
           >
-            📁 我的文档库 ({documents.length})
+            Files
           </button>
         </div>
       </div>
 
+      <div className="v6-toolbar">
+        {subTab === 'memories' && (
+          <>
+            <input
+              className="v6-input-global"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search memories…"
+              onKeyDown={(e) => e.key === 'Enter' && fetchMemories()}
+            />
+            <button className="v6-btn" onClick={fetchMemories} disabled={loading}>
+              {loading ? '…' : 'Search'}
+            </button>
+          </>
+        )}
+        <label className={`v6-btn ${subTab === 'documents' ? 'v6-btn--primary' : ''}`} style={{ cursor: 'pointer' }}>
+          Upload
+          <input
+            type="file"
+            accept=".txt,.md,.pdf"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              runUpload(files);
+              e.target.value = '';
+            }}
+            disabled={uploading}
+          />
+        </label>
+      </div>
+
+      {(uploading || uploadMsg) && (
+        <div className={`v6-statusbar ${uploadStatusKind === 'ok' ? 'v6-statusbar--ok' : uploadStatusKind === 'err' ? 'v6-statusbar--err' : ''}`}>
+          {uploadMsg}
+        </div>
+      )}
+
       {subTab === 'memories' ? (
         <>
-          <div style={{display:'flex',gap:8,marginBottom:16}}>
-            <input value={query} onChange={e=>setQuery(e.target.value)} style={{flex:1,background:'rgba(4,8,16,.85)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',color:'var(--text)',fontSize:13,outline:'none'}} placeholder='搜索记忆...' onKeyDown={e=>e.key==='Enter'&&fetchMemories()}/>
-            <button className='btn btn-teal' onClick={fetchMemories} disabled={loading}>{loading?'搜索中...':'搜索'}</button>
-            <label className='btn btn-ghost' style={{cursor:'pointer',fontSize:12,padding:'10px 14px',whiteSpace:'nowrap'}}>
-              📄 批量上传
-              <input type='file' accept='.txt,.md,.pdf' multiple style={{display:'none'}} onChange={async(e)=>{
-                const files = Array.from(e.target.files || []);
-                if (files.length === 0) return;
-                setUploading(true);
-                setUploadMsg(`📤 准备上传 ${files.length} 个文件...`);
-                const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
-                
-                let successCount = 0;
-                let failCount = 0;
-                
-                for (let i = 0; i < files.length; i++) {
-                  const f = files[i];
-                  if (!f) continue;
-                  setUploadMsg(`📤 正在解析并分类 (${i + 1}/${files.length}): ${f.name}...`);
-                  try {
-                    const fd = new FormData();
-                    fd.append('file', f);
-                    const r = await fetch('/memory/upload', {
-                      method: 'POST',
-                      headers: { "Authorization": "Bearer " + tokenHeader },
-                      body: fd
-                    });
-                    const d = await r.json();
-                    if (d.id) {
-                      successCount++;
-                    } else {
-                      failCount++;
-                    }
-                  } catch (err) {
-                    console.error(err);
-                    failCount++;
-                  }
-                }
-                
-                setUploadMsg(`✅ 成功导入 ${successCount} 个文件` + (failCount > 0 ? `，❌ 失败 ${failCount} 个` : ''));
-                setTimeout(() => {
-                  fetchMemories();
-                  fetchDocuments();
-                }, 500);
-                setUploading(false);
-                e.target.value = '';
-              }}/>
-            </label>
-          </div>
-          {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('❌')?'var(--crimson)':uploadMsg.includes('✅')?'var(--emerald)':'var(--text)'}}>{uploadMsg}</div>}
-
-          {/* Category Tabs */}
-          <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10}}>
-            {categories.map(c => (
-              <button 
-                key={c} 
-                className={`btn ${activeCategory === c ? 'btn-teal' : 'btn-ghost'}`} 
-                style={{padding: '4px 10px', fontSize: 11, minWidth: 'auto', height: 'auto'}}
+          <div className="v6-chips">
+            {categories.map((c) => (
+              <button
+                key={c}
+                className="v6-chip"
+                aria-current={activeCategory === c ? 'page' : undefined}
                 onClick={() => setActiveCategory(c)}
               >
-                {c}
+                {CATEGORY_LABELS[c] || c}
               </button>
             ))}
           </div>
-
-          <div style={{maxHeight:450,overflow:'auto'}}>
-            {filteredMemories.length === 0 && !loading && <div style={{padding:20,textAlign:'center',color:'var(--muted)',fontSize:13}}>暂无该类别的记忆数据</div>}
-            {filteredMemories.map((m,i)=>(
-              <div key={i} style={{padding:'14px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                  <div>
-                    <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4}}>
-                      <span style={{fontWeight:600,color:'var(--teal)',fontSize:13}}>{m.title}</span>
-                      {getSourceBadge(m.source_type)}
-                      <span className="badge badge-violet" style={{fontSize: 10, padding: '2px 6px'}}>{m.category}</span>
-                      {m.subcategory && <span className="badge badge-ghost" style={{fontSize: 10, padding: '2px 6px'}}>{m.subcategory}</span>}
-                      {m.topic && <span style={{fontSize: 10, color: 'var(--muted)', marginLeft: 4}}>#{m.topic}</span>}
+          {filteredMemories.length === 0 && !loading ? (
+            <div className="v6-empty">No memories in this category yet.</div>
+          ) : (
+            <div className="v6-list" style={{ maxHeight: 500, overflow: 'auto' }}>
+              {filteredMemories.map((m, i) => (
+                <div key={i} className="v6-list__item">
+                  <div className="v6-list__item-head">
+                    <div className="v6-list__item-main">
+                      <div className="v6-list__item-title">{m.title}</div>
+                      <div className="v6-list__item-meta">
+                        <span className="v6-tag">{getSourceTag(m.source_type)}</span>
+                        <span className="v6-tag">{CATEGORY_LABELS[m.category] || m.category}</span>
+                        {m.subcategory && <span className="v6-tag">{m.subcategory}</span>}
+                        {m.topic && (
+                          <span style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>
+                            #{m.topic}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="v6-list__item-aside">
+                      {m.score !== undefined && <span>{(m.score * 100).toFixed(0)}%</span>}
+                      <span>{formatDate(m.created_at)}</span>
+                      <button
+                        className="v6-btn v6-btn--ghost v6-btn--danger v6-btn--xs"
+                        onClick={() => handleDelete(m.id)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
-                  <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                    {m.score !== undefined && <div style={{fontSize:10,color:'var(--muted)'}}>相关度: {(m.score*100).toFixed(1)}%</div>}
-                    <button 
-                      onClick={() => handleDelete(m.id)} 
-                      style={{
-                        background: 'none', 
-                        border: 'none', 
-                        color: 'var(--crimson)', 
-                        fontSize: 11, 
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                    >
-                      删除
-                    </button>
-                  </div>
+                  <div className="v6-list__item-body">{m.content}</div>
                 </div>
-                <div style={{color:'var(--text)',fontSize:12,marginTop:6,lineHeight:1.6,whiteSpace: 'pre-wrap'}}>{m.content}</div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         <>
-          <div style={{display:'flex',justifyContent: 'space-between',alignItems:'center',marginBottom:16}}>
-            <div style={{fontSize:12,color:'var(--muted)'}}>在这里查看你通过批量上传或MCP录入的原始文档以及它们的解析状态。</div>
-            <label className='btn btn-teal' style={{cursor:'pointer',fontSize:12,padding:'8px 16px',whiteSpace:'nowrap',margin:0}}>
-              ➕ 上传新文档
-              <input type='file' accept='.txt,.md,.pdf' multiple style={{display:'none'}} onChange={async(e)=>{
-                const files = Array.from(e.target.files || []);
-                if (files.length === 0) return;
-                setUploading(true);
-                setUploadMsg(`📤 准备上传 ${files.length} 个文件...`);
-                const tokenHeader = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
-                
-                let successCount = 0;
-                let failCount = 0;
-                
-                for (let i = 0; i < files.length; i++) {
-                  const f = files[i];
-                  if (!f) continue;
-                  setUploadMsg(`📤 正在解析并分类 (${i + 1}/${files.length}): ${f.name}...`);
-                  try {
-                    const fd = new FormData();
-                    fd.append('file', f);
-                    const r = await fetch('/memory/upload', {
-                      method: 'POST',
-                      headers: { "Authorization": "Bearer " + tokenHeader },
-                      body: fd
-                    });
-                    const d = await r.json();
-                    if (d.id) {
-                      successCount++;
-                    } else {
-                      failCount++;
-                    }
-                  } catch (err) {
-                    console.error(err);
-                    failCount++;
-                  }
-                }
-                
-                setUploadMsg(`✅ 成功导入 ${successCount} 个文件` + (failCount > 0 ? `，❌ 失败 ${failCount} 个` : ''));
-                setTimeout(() => {
-                  fetchDocuments();
-                  fetchMemories();
-                }, 500);
-                setUploading(false);
-                e.target.value = '';
-              }}/>
-            </label>
-          </div>
-          {(uploading||uploadMsg)&&<div style={{marginBottom:12,fontSize:12,color:uploadMsg.includes('❌')?'var(--crimson)':uploadMsg.includes('✅')?'var(--emerald)':'var(--text)'}}>{uploadMsg}</div>}
-
-          <div style={{maxHeight:450,overflow:'auto'}}>
-            <table className="table" style={{width:'100%',borderCollapse:'collapse'}}>
-              <thead>
-                <tr style={{textAlign:'left',borderBottom:'1px solid var(--border)',color:'var(--muted)',fontSize:11}}>
-                  <th style={{padding:'10px 8px'}}>文件名</th>
-                  <th style={{padding:'10px 8px'}}>大小</th>
-                  <th style={{padding:'10px 8px'}}>分块数量</th>
-                  <th style={{padding:'10px 8px'}}>上传时间</th>
-                  <th style={{padding:'10px 8px',textAlign:'right'}}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.length === 0 ? (
+          {documents.length === 0 ? (
+            <div className="v6-empty">No files uploaded yet. Use Upload above.</div>
+          ) : (
+            <div style={{ maxHeight: 500, overflow: 'auto' }}>
+              <table className="v6-table">
+                <thead>
                   <tr>
-                    <td colSpan={5} style={{padding:30,textAlign:'center',color:'var(--muted)',fontSize:12}}>暂无已上传的文档</td>
+                    <th>Name</th>
+                    <th>Size</th>
+                    <th>Chunks</th>
+                    <th>Uploaded</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
-                ) : (
-                  documents.map((doc)=>(
-                    <tr key={doc.id} style={{borderBottom:'1px solid var(--border)',fontSize:12}}>
-                      <td style={{padding:'12px 8px',fontWeight:500,color:'var(--text)'}}>{doc.filename}</td>
-                      <td style={{padding:'12px 8px',color:'var(--muted)'}}>{formatSize(doc.file_size)}</td>
-                      <td style={{padding:'12px 8px'}}><span className="badge badge-violet" style={{fontSize:10,padding:'2px 6px'}}>{doc.chunk_count} Chunks</span></td>
-                      <td style={{padding:'12px 8px',color:'var(--muted)',fontSize:11}}>{formatDate(doc.created_at)}</td>
-                      <td style={{padding:'12px 8px',textAlign:'right'}}>
-                        <button 
-                          className="btn btn-ghost btn-sm"
-                          style={{color:'var(--crimson)',padding:'4px 8px',fontSize:11}}
+                </thead>
+                <tbody>
+                  {documents.map((doc) => (
+                    <tr key={doc.id}>
+                      <td style={{ fontWeight: 500 }}>{doc.filename}</td>
+                      <td style={{ color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>
+                        {formatSize(doc.file_size)}
+                      </td>
+                      <td>
+                        <span className="v6-tag">{doc.chunk_count}</span>
+                      </td>
+                      <td style={{ color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>
+                        {formatDate(doc.created_at)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          className="v6-btn v6-btn--ghost v6-btn--danger v6-btn--xs"
                           onClick={() => handleDeleteDocument(doc.id)}
                         >
-                          删除
+                          Delete
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </div>
-  )
+  );
 }
 
 function ConnectPanel({token:propToken}:{token?:string}){

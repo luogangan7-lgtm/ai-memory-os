@@ -237,8 +237,202 @@
 .v6-table tr:last-child td { border-bottom: none; }
 .v6-table tr:hover td { background: var(--v6-bg-sunken); }
 
+/* ── Card head: title row + right-aligned controls (subtabs / actions) ────── */
+.v6-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.v6-card__head .v6-card__title { margin-bottom: 0; }
+
+/* ── Sub-tabs (inside-card segmented control) ────────────────────────────── */
+.v6-subtabs {
+  display: inline-flex;
+  background: var(--v6-bg-sunken);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+  padding: 2px;
+}
+.v6-subtab {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s var(--v6-ease);
+}
+.v6-subtab:hover { color: var(--v6-fg); }
+.v6-subtab[aria-current="page"] {
+  background: var(--v6-bg-elev);
+  color: var(--v6-fg);
+  border-color: var(--v6-border);
+}
+
+/* ── Toolbar (search input + actions in a row) ──────────────────────────── */
+.v6-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.v6-toolbar > .v6-input-global { flex: 1; }
+
+/* ── Global input ────────────────────────────────────────────────────────── */
+.v6-input-global {
+  appearance: none;
+  background: var(--v6-bg);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--v6-fg);
+  font-family: var(--v6-font-sans);
+  letter-spacing: -0.005em;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.v6-input-global:focus {
+  outline: none;
+  border-color: var(--v6-fg);
+}
+.v6-input-global::placeholder { color: var(--v6-fg-faint); }
+
+/* ── Chips row (e.g. category filters) ───────────────────────────────────── */
+.v6-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--v6-border);
+}
+.v6-chip {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--v6-border);
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s var(--v6-ease);
+}
+.v6-chip:hover { color: var(--v6-fg); border-color: var(--v6-border-strong); }
+.v6-chip[aria-current="page"] {
+  background: var(--v6-fg);
+  color: var(--v6-bg);
+  border-color: var(--v6-fg);
+}
+
+/* ── Compact list (Linear/Vercel-style rows) ─────────────────────────────── */
+.v6-list { display: flex; flex-direction: column; }
+.v6-list__item {
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--v6-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: background 0.15s var(--v6-ease);
+}
+.v6-list__item:last-child { border-bottom: none; }
+.v6-list__item:hover { background: var(--v6-bg-sunken); }
+.v6-list__item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.v6-list__item-main { flex: 1; min-width: 0; }
+.v6-list__item-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--v6-fg);
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v6-list__item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.v6-list__item-body {
+  font-size: 12.5px;
+  color: var(--v6-fg-muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.v6-list__item-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--v6-font-mono);
+  font-size: 11px;
+  color: var(--v6-fg-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Tag / inline badge (monochrome, monospace) ──────────────────────────── */
+.v6-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-family: var(--v6-font-mono);
+  letter-spacing: 0.02em;
+  border: 1px solid var(--v6-border);
+  border-radius: 4px;
+  color: var(--v6-fg-muted);
+  background: var(--v6-bg-sunken);
+  text-transform: lowercase;
+}
+.v6-tag--accent {
+  color: var(--v6-fg);
+  border-color: var(--v6-border-strong);
+}
+
+/* ── Danger button variant ──────────────────────────────────────────────── */
+.v6-btn--danger { color: var(--v6-danger); }
+.v6-btn--danger:hover {
+  border-color: var(--v6-danger);
+  background: color-mix(in srgb, var(--v6-danger) 8%, transparent);
+}
+.v6-btn--xs { padding: 3px 8px; font-size: 11px; }
+
+/* ── Status strip (e.g. upload progress) ─────────────────────────────────── */
+.v6-statusbar {
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  background: var(--v6-bg-sunken);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+  font-size: 12px;
+  font-family: var(--v6-font-mono);
+  color: var(--v6-fg-muted);
+}
+.v6-statusbar--ok { color: #2DBFA8; border-color: color-mix(in srgb, #2DBFA8 35%, var(--v6-border)); }
+.v6-statusbar--err { color: var(--v6-danger); border-color: color-mix(in srgb, var(--v6-danger) 35%, var(--v6-border)); }
+
 @media (max-width: 760px) {
   .v6-app__nav { padding: 14px 18px; flex-wrap: wrap; gap: 12px; }
   .v6-app__tabs { order: 3; width: 100%; justify-content: flex-start; }
   .v6-app__main { padding: 24px 18px 60px; }
+  .v6-list__item-head { flex-direction: column; }
+  .v6-list__item-aside { align-self: flex-start; }
 }
