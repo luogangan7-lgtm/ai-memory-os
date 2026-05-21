@@ -5,9 +5,10 @@ from backend.services.internalizer import InternalizationService
 from backend.memory.lifecycle import compute_freshness, compute_next_stage
 
 class ReflectionEngine:
-    def __init__(self, pg_repo, graph_store, registry=None):
+    def __init__(self, pg_repo, graph_store, registry=None, retrieval=None):
         self.pg, self.graph = pg_repo, graph_store
         self.registry = registry
+        self.retrieval = retrieval
 
     async def reflect_all(self, team_id="default"):
         rpt = {"stage_transitions":0,"freshness_updated":0,"duplicates_found":0,"summaries":0,"relations_found":0}
@@ -102,10 +103,10 @@ class ReflectionEngine:
         """Auto-categorize high-value memories as 'knowledge'."""
         n = 0
         async with self.pg.pool.acquire() as conn:
-            # Promote high importance + high access to 'knowledge' category
+            # Promote high importance + high access to 'knowledge' source_type
             res = await conn.execute(
-                "UPDATE memories SET category='knowledge', updated_at=$1 "
-                "WHERE team_id=$2 AND importance > 0.8 AND access_count > 5 AND category != 'knowledge'",
+                "UPDATE memories SET source_type='knowledge', updated_at=$1 "
+                "WHERE team_id=$2 AND importance > 0.8 AND access_count > 5 AND (source_type IS NULL OR source_type != 'knowledge')",
                 datetime.now(timezone.utc), team_id
             )
             if "UPDATE" in res: n = int(res.split(" ")[1])
