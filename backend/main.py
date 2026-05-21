@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.proxy import router as proxy_router
@@ -155,6 +155,212 @@ async def favicon():
 @app.get("/api/health", include_in_schema=False)
 async def health():
     return {"status": "ok", "service": settings.app_name, "version": settings.version}
+
+
+# Root portal — split traffic between /manage (admin Command Deck) and /app (user
+# Workspace). Self-contained HTML so it loads without the SPA bundle, and so first-time
+# operators landing on the bare domain don't accidentally enter the admin view.
+PORTAL_HTML = """<!doctype html>
+<html lang="zh-CN" data-theme="system">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Memory OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #FAFAFA;
+      --bg-elev: #FFFFFF;
+      --fg: #0A0A0A;
+      --fg-muted: #6B6B6B;
+      --border: #E5E5E5;
+      --border-strong: #D4D4D4;
+      --accent: #6E56CF;
+      --accent-glow: rgba(110, 86, 207, 0.18);
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0A0A0A;
+        --bg-elev: #111111;
+        --fg: #E5E5E5;
+        --fg-muted: #888888;
+        --border: #1F1F1F;
+        --border-strong: #2A2A2A;
+        --accent: #8E78E5;
+        --accent-glow: rgba(142, 120, 229, 0.22);
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      font-feature-settings: 'cv11', 'ss01';
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+      perspective: 1200px;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      gap: 48px;
+    }
+    .brand { text-align: center; }
+    .brand .logo {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: 'Geist Mono', ui-monospace, monospace;
+      font-size: 13px; letter-spacing: 0.06em;
+      color: var(--fg-muted); text-transform: uppercase;
+    }
+    .brand .logo::before {
+      content: ''; width: 8px; height: 8px; border-radius: 999px;
+      background: var(--accent); box-shadow: 0 0 12px var(--accent-glow);
+    }
+    .brand h1 {
+      margin-top: 14px; font-size: 32px; font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .brand p {
+      margin-top: 8px; font-size: 14px; color: var(--fg-muted);
+    }
+    .cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
+      gap: 20px; width: 100%; max-width: 760px;
+    }
+    .card {
+      position: relative;
+      display: block; text-decoration: none; color: inherit;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      transition: transform 0.35s var(--ease), border-color 0.2s, box-shadow 0.3s;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+    .card:hover {
+      transform: translateY(-4px) rotateX(2deg) rotateY(-2deg);
+      border-color: var(--border-strong);
+      box-shadow: 0 14px 32px -16px var(--accent-glow), 0 0 0 1px var(--accent-glow);
+    }
+    .card::after {
+      content: ''; position: absolute; inset: 0;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(135deg, var(--accent-glow), transparent 50%);
+      opacity: 0; transition: opacity 0.3s var(--ease); pointer-events: none;
+    }
+    .card:hover::after { opacity: 1; }
+    .card .icon {
+      width: 44px; height: 44px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-md);
+      background: var(--accent-glow);
+      color: var(--accent);
+      margin-bottom: 18px;
+    }
+    .card h2 {
+      font-size: 18px; font-weight: 600; margin-bottom: 6px;
+      letter-spacing: -0.015em;
+    }
+    .card p {
+      font-size: 13.5px; line-height: 1.55; color: var(--fg-muted);
+      margin-bottom: 18px;
+    }
+    .card .cta {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px; letter-spacing: 0.04em;
+      color: var(--accent); text-transform: uppercase;
+    }
+    .card .cta::after { content: '→'; transition: transform 0.2s var(--ease); }
+    .card:hover .cta::after { transform: translateX(3px); }
+    .meta {
+      font-family: 'Geist Mono', monospace;
+      font-size: 11px; color: var(--fg-muted); letter-spacing: 0.04em;
+      text-align: center; opacity: 0.7;
+    }
+    .meta a { color: var(--fg-muted); text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: 1fr; }
+      .brand h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="brand">
+      <div class="logo">AI Memory OS · v6</div>
+      <h1>Where do you want to go?</h1>
+      <p>同一服务,两套界面。按你的角色选择入口。</p>
+    </header>
+
+    <section class="cards">
+      <a class="card" href="/manage/" data-card="admin">
+        <div class="icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+        </div>
+        <h2>Command Deck</h2>
+        <p>管理后台。租户、用户、提供商、反射引擎、监控、知识图谱、审计日志。</p>
+        <span class="cta">Enter admin</span>
+      </a>
+
+      <a class="card" href="/app/" data-card="user">
+        <div class="icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 1 1-6 0V5a3 3 0 0 1 3-3z"/>
+            <path d="M5 11a7 7 0 0 0 14 0"/>
+            <path d="M12 18v3"/>
+            <path d="M8 21h8"/>
+          </svg>
+        </div>
+        <h2>Memory Workspace</h2>
+        <p>个人空间。你的长期记忆、对话历史、人物画像、MCP 接入。</p>
+        <span class="cta">Enter workspace</span>
+      </a>
+    </section>
+
+    <footer class="meta">
+      backend healthy · <a href="/health" target="_blank">/health</a> · <a href="https://github.com/luogangan7-lgtm/ai-memory-os" target="_blank">source</a>
+    </footer>
+  </main>
+  <script>
+    // 3D tilt: subtle perspective parallax based on cursor
+    document.querySelectorAll('.card').forEach(card => {
+      card.addEventListener('pointermove', (e) => {
+        const r = card.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = `translateY(-4px) rotateX(${y * -6}deg) rotateY(${x * 6}deg)`;
+      });
+      card.addEventListener('pointerleave', () => {
+        card.style.transform = '';
+      });
+    });
+  </script>
+</body>
+</html>
+"""
+
+
+@app.get("/", include_in_schema=False)
+async def portal():
+    return HTMLResponse(PORTAL_HTML)
 
 
 # UI routes
