@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json, time, subprocess, os
-import subprocess
 from pathlib import Path
 from uuid import uuid4
 
@@ -374,9 +373,46 @@ async def delete_tenant(team_id: str):
     """Delete a tenant and all its associated data (memories, accounts, configs)."""
     if team_id in ("default", "admin"):
         raise HTTPException(400, "无法删除系统内置租户")
+    import asyncio
     from backend.api.db_helper import get_db_conn
     try:
         conn = await get_db_conn()
+        
+        # 1. Clean up Neo4j knowledge graph nodes before deleting memories from Postgres
+        if _graph_store and _graph_store.driver:
+            try:
+                rows = await conn.fetch("SELECT id FROM memories WHERE team_id = $1", team_id)
+                mids = [str(r["id"]) for r in rows]
+                if mids:
+                    async with _graph_store.driver.session() as session:
+                        await session.run("MATCH (m:Memory) WHERE m.id IN $ids DETACH DELETE m", ids=mids)
+            except Exception as e:
+                import logging
+                logging.getLogger("admin").warning(f"Failed to delete Neo4j nodes for tenant {team_id}: {e}")
+
+        # 2. Clean up Qdrant vector collection
+        if _qdrant_store and _qdrant_store.client:
+            collection_name = f"memory_team_{team_id}"
+            try:
+                await asyncio.to_thread(_qdrant_store.client.delete_collection, collection_name)
+            except Exception as e:
+                import logging
+                logging.getLogger("admin").warning(f"Failed to delete Qdrant collection {collection_name}: {e}")
+
+        # 3. Clean up MinIO files
+        if _minio_store and _minio_store.client:
+            try:
+                from backend.memory.minio_store import BUCKET
+                def cleanup_minio():
+                    objects_to_delete = _minio_store.client.list_objects(BUCKET, prefix=f"{team_id}/", recursive=True)
+                    for obj in objects_to_delete:
+                        _minio_store.client.remove_object(BUCKET, obj.object_name)
+                await asyncio.to_thread(cleanup_minio)
+            except Exception as e:
+                import logging
+                logging.getLogger("admin").warning(f"Failed to delete MinIO files for tenant {team_id}: {e}")
+
+        # 4. Delete Postgres records
         await conn.execute("DELETE FROM memories WHERE team_id=$1", team_id)
         await conn.execute("DELETE FROM chunks WHERE team_id=$1", team_id)
         await conn.execute("DELETE FROM documents WHERE team_id=$1", team_id)
@@ -911,8 +947,10 @@ async def save_reflection_config(data: dict):
 async def _run_background_reflection(teams: list[str]):
     from backend.reflection.engine import ReflectionEngine
     from backend.manager.registry import ModelRegistry
+    from backend.memory.retrieval import RetrievalPipeline
     reg = ModelRegistry.get_instance()
-    engine = ReflectionEngine(_pg_repo, _graph_store, registry=reg)
+    rp = RetrievalPipeline(_qdrant_store, _graph_store) if _qdrant_store else None
+    engine = ReflectionEngine(_pg_repo, _graph_store, registry=reg, retrieval=rp)
     for team_id in teams:
         try:
             await engine.reflect_all(team_id)
@@ -990,12 +1028,14 @@ async def get_graph_summary():
         return {"nodes": 0, "edges": 0, "status": "disconnected"}
     
     try:
-        with _graph_store.driver.session() as session:
-            res_nodes = session.run("MATCH (n) RETURN count(n) as node_count;")
-            node_count = res_nodes.single()["node_count"]
+        async with _graph_store.driver.session() as session:
+            res_nodes = await session.run("MATCH (n) RETURN count(n) as node_count;")
+            node_rec = await res_nodes.single()
+            node_count = node_rec["node_count"] if node_rec else 0
             
-            res_edges = session.run("MATCH ()-[r]->() RETURN count(r) as edge_count;")
-            edge_count = res_edges.single()["edge_count"]
+            res_edges = await session.run("MATCH ()-[r]->() RETURN count(r) as edge_count;")
+            edge_rec = await res_edges.single()
+            edge_count = edge_rec["edge_count"] if edge_rec else 0
             
             return {
                 "nodes": node_count,
@@ -1004,6 +1044,17 @@ async def get_graph_summary():
             }
     except Exception as e:
         return {"nodes": 0, "edges": 0, "status": "error", "detail": str(e)}
+
+@router.get("/graph/visualization")
+async def get_graph_visualization(limit: int = 200):
+    """Return full Neo4j graph data for visualization."""
+    if not _graph_store:
+        return {"nodes": [], "edges": []}
+    try:
+        data = await _graph_store.get_full_graph(limit=limit)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/embeddings/rebuild")
 async def trigger_embedding_rebuild(
@@ -1113,4 +1164,108 @@ async def delete_memory_admin(memory_id: str):
         await _qdrant_store.delete(memory_id, team_id=team_id)
         
     return {"deleted": ok}
+
+
+@router.get("/documents")
+async def list_all_documents(
+    team_id: str = None,
+    q: str = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin: bool = Depends(require_admin)
+):
+    """List and search all documents across all users/tenants (Admin view)."""
+    if not _pg_repo:
+        raise HTTPException(503, "Database not ready")
+        
+    async with _pg_repo.pool.acquire() as conn:
+        query_parts = ["WHERE 1=1"]
+        params = []
+        
+        if team_id:
+            params.append(team_id)
+            query_parts.append(f"AND team_id = ${len(params)}")
+        if q:
+            params.append(f"%{q}%")
+            query_parts.append(f"AND filename ILIKE ${len(params)}")
+            
+        where_clause = " ".join(query_parts)
+        
+        # Get count
+        count_q = f"SELECT COUNT(*) FROM documents {where_clause}"
+        total = await conn.fetchval(count_q, *params)
+        
+        # Get list
+        params.append(limit)
+        limit_param = f"${len(params)}"
+        params.append(offset)
+        offset_param = f"${len(params)}"
+        
+        list_q = f"SELECT * FROM documents {where_clause} ORDER BY created_at DESC LIMIT {limit_param} OFFSET {offset_param}"
+        rows = await conn.fetch(list_q, *params)
+        
+    documents = []
+    for r in rows:
+        d = dict(r)
+        if d.get("id"):
+            d["id"] = str(d["id"])
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        documents.append(d)
+        
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "documents": documents
+    }
+
+
+@router.delete("/documents/{doc_id}")
+async def delete_document_admin(doc_id: str, admin: bool = Depends(require_admin)):
+    """Admin endpoint to delete any document and cascade delete its memories, Qdrant vectors and file."""
+    if not _pg_repo:
+        raise HTTPException(503, "Database not ready")
+    from backend.memory.pg_repo import safe_uuid
+    from backend.memory.minio_store import MinIOStore
+
+    # 1. Fetch document metadata first
+    async with _pg_repo.pool.acquire() as conn:
+        doc = await conn.fetchrow("SELECT * FROM documents WHERE id = $1", safe_uuid(doc_id))
+    if not doc:
+        raise HTTPException(404, "Document not found")
+
+    doc_dict = dict(doc)
+    minio_key = doc_dict.get("minio_key")
+    team_id = doc_dict.get("team_id")
+
+    # 2. Find and delete corresponding memories
+    source_uri = f"minio://{minio_key}" if minio_key else ""
+    if source_uri:
+        async with _pg_repo.pool.acquire() as conn:
+            mem_rows = await conn.fetch("SELECT id FROM memories WHERE source_uri = $1 AND team_id = $2", source_uri, team_id)
+        for r in mem_rows:
+            mem_id = str(r["id"])
+            await _pg_repo.delete(mem_id, team_id)
+            if _qdrant_store:
+                try:
+                    await _qdrant_store.delete(mem_id, team_id=team_id)
+                except Exception as e:
+                    print(f"[delete_document_admin] Qdrant delete failed for memory {mem_id}: {e}")
+
+    # 3. Delete from MinIO
+    if minio_key:
+        try:
+            minio = MinIOStore()
+            minio.delete(minio_key)
+        except Exception as e:
+            print(f"[delete_document_admin] MinIO delete failed for key {minio_key}: {e}")
+
+    # 4. Delete document entry
+    async with _pg_repo.pool.acquire() as conn:
+        r = await conn.execute("DELETE FROM documents WHERE id = $1", safe_uuid(doc_id))
+        ok = "DELETE 1" in r
+
+    return {"deleted": ok}
+
 

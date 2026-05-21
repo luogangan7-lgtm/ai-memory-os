@@ -28,3 +28,11 @@ class MinIOStore:
 
     def get_url(self, object_name: str) -> str:
         return self.client.presigned_get_object(BUCKET, object_name)
+
+    def delete(self, object_name: str) -> bool:
+        try:
+            self.client.remove_object(BUCKET, object_name)
+            return True
+        except Exception:
+            return False
+
