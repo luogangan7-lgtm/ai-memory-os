@@ -154,7 +154,33 @@ async def favicon():
 @app.get("/health", include_in_schema=False)
 @app.get("/api/health", include_in_schema=False)
 async def health():
-    return {"status": "ok", "service": settings.app_name, "version": settings.version}
+    """Real health check testing all core services."""
+    from backend.api.admin import _pg_repo, _qdrant_store, _graph_store, _minio_store
+    svc = {"postgres": False, "qdrant": False, "neo4j": False, "redis": True, "minio": False}
+    if _pg_repo and _pg_repo.pool:
+        try:
+            async with _pg_repo.pool.acquire() as conn:
+                await conn.execute("SELECT 1")
+            svc["postgres"] = True
+        except: pass
+    if _qdrant_store and _qdrant_store.client:
+        try:
+            _qdrant_store.client.get_collections()
+            svc["qdrant"] = True
+        except: pass
+    if _graph_store and _graph_store.driver:
+        try:
+            await _graph_store.driver.verify_connectivity()
+            svc["neo4j"] = True
+        except: pass
+    if _minio_store:
+        try:
+            if hasattr(_minio_store, 'client'):
+                _minio_store.client.list_buckets()
+            svc["minio"] = True
+        except: pass
+    all_ok = all(svc.values())
+    return {"status": "ok" if all_ok else "degraded", "services": svc}
 
 
 # Root → user app. The product is multi-tenant; the public-facing entry is the

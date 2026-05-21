@@ -1,5 +1,5 @@
-# 🧠 AI Memory OS (智能长期记忆操作系统) V6.0 — 生产就绪型跨智能体认知存储与 API completions 网关底座
-
+# Cortex — Long-term Memory OS for AI Agents
+<!-- formerly AI Memory OS V6.0 -->
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)

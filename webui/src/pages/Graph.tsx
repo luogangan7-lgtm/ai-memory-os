@@ -28,7 +28,6 @@ export function GraphPage(){
     const rawEdges = graphData?.edges || [];
     const cx=c.width/2,cy=c.height/2,r2=Math.min(c.width,c.height)*0.38;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nodes:any[] = rawNodes.length > 0
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? rawNodes.map((n:any,i:number)=>({x:cx+Math.cos(2*Math.PI*i/rawNodes.length)*r2,y:cy+Math.sin(2*Math.PI*i/rawNodes.length)*r2,r:5+Math.random()*3,label:(n.title||n.name||n.label||n.id||"").slice(0,18),vx:0,vy:0}))
@@ -42,15 +41,15 @@ export function GraphPage(){
     const W=c.width,H=c.height;
     function draw(){
       ctx!.clearRect(0,0,W,H);
-      ctx!.strokeStyle='rgba(0,240,212,.12)';ctx!.lineWidth=.8;
+      ctx!.strokeStyle='rgba(45, 191, 168, 0.12)';ctx!.lineWidth=.8;
       for(const[a,b]of links as [number,number][]){
         ctx!.beginPath();ctx!.moveTo(nodes[a]!.x,nodes[a]!.y);ctx!.lineTo(nodes[b]!.x,nodes[b]!.y);ctx!.stroke()
       }
       for(const n of nodes){
         ctx!.beginPath();ctx!.arc(n.x,n.y,n.r,0,Math.PI*2);
-        ctx!.fillStyle='rgba(0,240,212,.5)';ctx!.fill();
-        ctx!.strokeStyle='#00f0d4';ctx!.lineWidth=1;ctx!.stroke();
-        ctx!.font='10px Fira Code';ctx!.fillStyle='#6a7fa8';ctx!.textAlign='center';ctx!.fillText(n.label,n.x,n.y+n.r+14);
+        ctx!.fillStyle='rgba(45, 191, 168, 0.4)';ctx!.fill();
+        ctx!.strokeStyle='#2DBFA8';ctx!.lineWidth=1;ctx!.stroke();
+        ctx!.font='10px Fira Code, Courier New, monospace';ctx!.fillStyle='var(--v6-fg-muted)';ctx!.textAlign='center';ctx!.fillText(n.label,n.x,n.y+n.r+14);
         n.vx+=(Math.random()-.5)*.02;n.vy+=(Math.random()-.5)*.02;n.vx*=.95;n.vy*=.95;
         n.x+=n.vx;n.y+=n.vy;
         n.x=Math.max(30,Math.min(W-30,n.x));n.y=Math.max(30,Math.min(H-30,n.y))
@@ -58,29 +57,27 @@ export function GraphPage(){
       requestAnimationFrame(draw)
     }
     draw()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
+  },[graphData]);
 
   return (
     <div>
-      <div className='page-title'>知识图谱</div>
-      <div className='page-sub'>Neo4j 神经网络可视化</div>
-      <div className='card' style={{ position: 'relative', overflow: 'hidden' }}>
+      <h1 style={{ font: "600 22px var(--v6-font-sans)", color: "var(--v6-fg)", marginBottom: 4 }}>知识图谱 Knowledge Graph</h1>
+      <div style={{ color: "var(--v6-fg-muted)", fontSize: 13, marginBottom: 24 }}>Neo4j 语义神经网络关联可视化 · Neo4j semantic neural network visualization</div>
+      <div className="v6-card" style={{ position: 'relative', overflow: 'hidden' }}>
         
         {/* Floating HUD Controller */}
         <div style={{
           position: 'absolute',
           top: 20,
           left: 20,
-          background: 'rgba(8, 12, 24, 0.88)',
-          border: '1px solid rgba(0, 240, 212, 0.25)',
+          background: 'var(--v6-bg-elev)',
+          border: '1px solid var(--v6-border)',
           borderRadius: 12,
           padding: '16px 20px',
-          color: 'var(--text)',
-          fontFamily: 'Fira Code, monospace',
+          color: 'var(--v6-fg)',
+          fontFamily: 'var(--v6-font-mono), monospace',
           fontSize: 12,
           maxWidth: 380,
-          backdropFilter: 'blur(8px)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
           zIndex: 10
         }}>
@@ -89,32 +86,35 @@ export function GraphPage(){
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: stats.nodes === 0 ? '#00f0d4' : '#10b981',
-              boxShadow: stats.nodes === 0 ? '0 0 10px #00f0d4' : '0 0 10px #10b981',
+              background: stats.nodes === 0 ? 'var(--v6-fg-muted)' : '#2DBFA8',
               display: 'inline-block'
             }} />
-            <span style={{ fontWeight: 'bold', color: '#00f0d4', letterSpacing: 0.5 }}>NEO4J 神经网络控制器</span>
+            <span style={{ fontWeight: 'bold', color: 'var(--v6-fg)', letterSpacing: 0.5 }}>NEO4J 神经网络控制器 Neural Controller</span>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12, borderBottom: '1px solid var(--v6-border)', paddingBottom: 12 }}>
             <div>
-              <div style={{ color: '#6a7fa8', fontSize: 10 }}>实体节点数</div>
-              <div style={{ fontSize: 20, fontWeight: 'bold', color: stats.nodes === 0 ? '#00f0d4' : '#fff' }}>{stats.nodes}</div>
+              <div style={{ color: 'var(--v6-fg-muted)', fontSize: 10 }}>实体节点数 Nodes</div>
+              <div style={{ fontSize: 20, fontWeight: 'bold', color: stats.nodes === 0 ? 'var(--v6-fg-muted)' : 'var(--v6-fg)' }}>{stats.nodes}</div>
             </div>
             <div>
-              <div style={{ color: '#6a7fa8', fontSize: 10 }}>关联关系数</div>
-              <div style={{ fontSize: 20, fontWeight: 'bold', color: stats.nodes === 0 ? '#00f0d4' : '#fff' }}>{stats.edges}</div>
+              <div style={{ color: 'var(--v6-fg-muted)', fontSize: 10 }}>关联关系数 Edges</div>
+              <div style={{ fontSize: 20, fontWeight: 'bold', color: stats.nodes === 0 ? 'var(--v6-fg-muted)' : 'var(--v6-fg)' }}>{stats.edges}</div>
             </div>
           </div>
           
-          <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', lineHeight: 1.5 }}>
             {stats.nodes === 0 ? (
               <span>
-                ✨ <strong style={{ color: '#38bdf8' }}>数据已彻底净化</strong>：当前 Neo4j 底层存储完全为空（0 个节点）。下方为您呈现的是神经网络自适应突触寻轨算法的实时动画模拟。
+                ✨ <strong>数据已彻底净化 Empty State</strong>: 当前 Neo4j 底层存储为空。下方呈现的是神经网络算法的实时动画模拟。
+                <br />
+                The database is empty. Showing an animated network simulation.
               </span>
             ) : (
               <span>
-                ✓ 实时图谱已同步：当前数据库内已加载 {stats.nodes} 个实体节点与 {stats.edges} 条关联。
+                ✓ <strong>实时图谱已同步 Synced</strong>: 当前已加载 {stats.nodes} 个实体节点与 {stats.edges} 条关联。
+                <br />
+                Loaded {stats.nodes} nodes and {stats.edges} edges from Neo4j.
               </span>
             )}
           </div>

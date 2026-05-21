@@ -29,46 +29,50 @@ export function TenantsPage() {
 
   return (
     <div>
-      <div className="page-title">租户管理</div>
-      <div className="page-sub">管理系统中的所有租户（团队）及其资源配额</div>
-      {err && <div style={{color:"var(--crimson)",marginBottom:16,fontSize:13}}>{err}</div>}
-      <div className="card">
-        <table className="table">
+      <h1 style={{ font: "600 22px var(--v6-font-sans)", color: "var(--v6-fg)", marginBottom: 4 }}>租户管理 Tenants</h1>
+      <div style={{ color: "var(--v6-fg-muted)", fontSize: 13, marginBottom: 24 }}>管理系统中的所有租户（团队）及其资源配额 · Manage tenant workspace allocations and resource quotas</div>
+      {err && <div className="v6-statusbar v6-statusbar--err" style={{ marginBottom: 16 }}>{err}</div>}
+      <div className="v6-card">
+        <table className="v6-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>名称</th>
-              <th>用户数</th>
-              <th>记忆数</th>
-              <th>状态</th>
-              <th>操作</th>
+              <th>标识 ID</th>
+              <th>名称 Name</th>
+              <th>用户数 Users</th>
+              <th>记忆数 Memories</th>
+              <th>状态 Status</th>
+              <th>操作 Actions</th>
             </tr>
           </thead>
           <tbody>
             {tenants.length === 0 && !err && (
-              <tr><td colSpan={6} style={{textAlign:"center",padding:40,color:"var(--muted)"}}>暂无数据</td></tr>
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: 40, color: "var(--v6-fg-muted)" }}>
+                  暂无数据 · No data yet
+                </td>
+              </tr>
             )}
             {tenants.map((t, i) => (
               <tr key={i}>
-                <td>{t.team_id}</td>
+                <td className="v6-font-mono">{t.team_id}</td>
                 <td>{t.name}</td>
                 <td>{t.user_count}</td>
-                <td>{t.memory_count?.toLocaleString()}</td>
+                <td className="v6-font-mono">{t.memory_count?.toLocaleString()}</td>
                 <td>
-                  <span className={`badge ${t.active ? "badge-emerald" : "badge-amber"}`}>
-                    {t.active ? "活跃" : "已暂停"}
+                  <span className="v6-tag">
+                    {t.active ? "活跃 Active" : "已暂停 Paused"}
                   </span>
                 </td>
                 <td>
                   {t.team_id !== "default" && t.team_id !== "admin" ? (
                     <button
-                      className="btn btn-danger"
+                      className="v6-btn v6-btn--danger v6-btn--xs"
                       onClick={() => remove(t.team_id)}
                     >
-                      删除
+                      删除 Delete
                     </button>
                   ) : (
-                    <span style={{color:"var(--muted)",fontSize:12}}>系统租户</span>
+                    <span style={{ color: "var(--v6-fg-faint)", fontSize: 12 }}>系统租户 System</span>
                   )}
                 </td>
               </tr>

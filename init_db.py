@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS pipeline_usage (
     l1_calls     INTEGER DEFAULT 0,
     l2_calls     INTEGER DEFAULT 0,
     l3_calls     INTEGER DEFAULT 0,
+    l1_tokens    INTEGER DEFAULT 0,
+    l2_tokens    INTEGER DEFAULT 0,
+    l3_tokens    INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
     PRIMARY KEY (team_id, year_month)
 );

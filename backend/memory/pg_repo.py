@@ -173,9 +173,17 @@ class MemoryRepo:
                     l1_calls INTEGER DEFAULT 0,
                     l2_calls INTEGER DEFAULT 0,
                     l3_calls INTEGER DEFAULT 0,
+                    l1_tokens INTEGER DEFAULT 0,
+                    l2_tokens INTEGER DEFAULT 0,
+                    l3_tokens INTEGER DEFAULT 0,
                     total_tokens INTEGER DEFAULT 0,
                     UNIQUE(team_id, year_month)
                 );
+                
+                -- Add columns if they were missing from older versions
+                ALTER TABLE pipeline_usage ADD COLUMN IF NOT EXISTS l1_tokens INTEGER DEFAULT 0;
+                ALTER TABLE pipeline_usage ADD COLUMN IF NOT EXISTS l2_tokens INTEGER DEFAULT 0;
+                ALTER TABLE pipeline_usage ADD COLUMN IF NOT EXISTS l3_tokens INTEGER DEFAULT 0;
                 CREATE TABLE IF NOT EXISTS pipeline_queue (
                     id SERIAL PRIMARY KEY,
                     team_id TEXT NOT NULL,
@@ -439,19 +447,25 @@ class MemoryRepo:
 
     async def increment_pipeline_usage(self, team_id: str, layer: str, tokens: int = 0):
         ym = datetime.now(timezone.utc).strftime("%Y-%m")
-        l1 = 1 if layer == 'L1' else 0
-        l2 = 1 if layer == 'L2' else 0
-        l3 = 1 if layer == 'L3' else 0
+        l1_c = 1 if layer == 'L1' else 0
+        l2_c = 1 if layer == 'L2' else 0
+        l3_c = 1 if layer == 'L3' else 0
+        l1_t = tokens if layer == 'L1' else 0
+        l2_t = tokens if layer == 'L2' else 0
+        l3_t = tokens if layer == 'L3' else 0
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO pipeline_usage (team_id, year_month, l1_calls, l2_calls, l3_calls, total_tokens)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO pipeline_usage (team_id, year_month, l1_calls, l2_calls, l3_calls, l1_tokens, l2_tokens, l3_tokens, total_tokens)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (team_id, year_month) DO UPDATE SET
                     l1_calls = pipeline_usage.l1_calls + EXCLUDED.l1_calls,
                     l2_calls = pipeline_usage.l2_calls + EXCLUDED.l2_calls,
                     l3_calls = pipeline_usage.l3_calls + EXCLUDED.l3_calls,
+                    l1_tokens = pipeline_usage.l1_tokens + EXCLUDED.l1_tokens,
+                    l2_tokens = pipeline_usage.l2_tokens + EXCLUDED.l2_tokens,
+                    l3_tokens = pipeline_usage.l3_tokens + EXCLUDED.l3_tokens,
                     total_tokens = pipeline_usage.total_tokens + EXCLUDED.total_tokens
-            """, team_id, ym, l1, l2, l3, tokens)
+            """, team_id, ym, l1_c, l2_c, l3_c, l1_t, l2_t, l3_t, tokens)
 
     # --- Account Management Methods ---
     async def get_account(self, username: str) -> Optional[dict]:

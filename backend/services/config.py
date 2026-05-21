@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     active_provider: str = "alibaba"
     language_model: str = "qwen-turbo"
 
+    # SMTP (QQ Mail)
+    smtp_host: str = "smtp.qq.com"
+    smtp_port: int = 465
+    smtp_user: str = "luolimoa@qq.com"
+    smtp_password: str = "eyprdnhhrhhxbdhe"
+    smtp_from: str = "Cortex <luolimoa@qq.com>"
+    # Redis
+    redis_host: str = "redis"
+    redis_port: int = 6379
+
     model_config = {"env_prefix": "MEMORY_OS_"}
 
 

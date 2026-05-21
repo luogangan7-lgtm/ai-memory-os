@@ -45,20 +45,52 @@ export function ReflectionPage() {
 
   return (
     <div>
-      <div className='page-title'>知识整合</div>
-      <div className='page-sub'>全局知识整合</div>
+      <h1 style={{ font: "600 22px var(--v6-font-sans)", color: "var(--v6-fg)", marginBottom: 4 }}>知识整合 Reflection</h1>
+      <div style={{ color: "var(--v6-fg-muted)", fontSize: 13, marginBottom: 24 }}>全局知识的语义网络重构与记忆衰减调度 · Semantic network restructuring and memory decay scheduling</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        <div className='card'>
-          <div className='card-head'><div className='card-title'><div className='card-icon ci-violet'>K</div>全局知识整合</div></div>
-          <button className='btn btn-teal w-full' onClick={trigger} disabled={loading}>{loading ? '运行中...' : '触发全局整合'}</button>
-          {status && <p style={{ marginTop: 10, color: '#4A6080', fontSize: 12 }}>{status}</p>}
+        <div className="v6-card">
+          <div className="v6-card__head">
+            <div className="v6-card__title">
+              全局知识整合 Global Reflection
+            </div>
+          </div>
+          <button className='v6-btn v6-btn--primary w-full' onClick={trigger} disabled={loading}>
+            {loading ? '运行中... Running...' : '触发全局整合 Trigger Reflection'}
+          </button>
+          {status && <p style={{ marginTop: 10, color: 'var(--v6-fg-muted)', fontSize: 12 }}>{status}</p>}
         </div>
-        <div className='card'>
-          <div className='card-head'><div className='card-title'><div className='card-icon ci-amber'>P</div>参数配置</div></div>
-          <div className='form-group'><label>衰减率: {(decay * 100).toFixed(0)}%/day</label><input type='range' min={0} max={0.2} step={0.01} value={decay} onChange={e => setDecay(+e.target.value)} /></div>
-          <div className='form-group'><label>质量阈值: {quality.toFixed(2)}</label><input type='range' min={0} max={1} step={0.05} value={quality} onChange={e => setQuality(+e.target.value)} /></div>
-          <div className='form-group'><label>间隔(小时)</label><select value={intervalH} onChange={e => setIntervalH(+e.target.value)}><option value={0}>手动</option><option value={6}>6h</option><option value={12}>12h</option><option value={24}>24h</option></select></div>
-          <button className='btn btn-teal w-full' onClick={save}>保存参数</button>
+        <div className="v6-card">
+          <div className="v6-card__head">
+            <div className="v6-card__title">
+              参数配置 Parameters Configuration
+            </div>
+          </div>
+          <div className='form-group' style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--v6-fg-muted)' }}>
+              衰减率 Decay Rate: <span style={{ color: '#2DBFA8', fontFamily: 'var(--v6-font-mono)' }}>{(decay * 100).toFixed(0)}%/day</span>
+            </label>
+            <input type='range' className="v6-input-global" style={{ width: '100%', padding: '4px 8px' }} min={0} max={0.2} step={0.01} value={decay} onChange={e => setDecay(+e.target.value)} />
+          </div>
+          <div className='form-group' style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--v6-fg-muted)' }}>
+              质量阈值 Quality Threshold: <span style={{ color: '#2DBFA8', fontFamily: 'var(--v6-font-mono)' }}>{quality.toFixed(2)}</span>
+            </label>
+            <input type='range' className="v6-input-global" style={{ width: '100%', padding: '4px 8px' }} min={0} max={1} step={0.05} value={quality} onChange={e => setQuality(+e.target.value)} />
+          </div>
+          <div className='form-group' style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--v6-fg-muted)' }}>
+              时间间隔 Interval (Hours)
+            </label>
+            <select className="v6-input-global" style={{ width: '100%' }} value={intervalH} onChange={e => setIntervalH(+e.target.value)}>
+              <option value={0}>手动 Manual</option>
+              <option value={6}>6h</option>
+              <option value={12}>12h</option>
+              <option value={24}>24h</option>
+            </select>
+          </div>
+          <button className='v6-btn v6-btn--primary w-full' onClick={save}>
+            保存参数 Save Parameters
+          </button>
         </div>
       </div>
     </div>

@@ -20,6 +20,18 @@ function Dashboard() {
   const [tab, setTab] = useState<DashTab>("overview");
   const { logout, token, mcpKey } = useAuth();
 
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'dark';
+  });
+
+  const toggleTheme = useCallback(() => {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme') || 'dark';
+    const next = current === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    setTheme(next);
+  }, []);
+
   // Allow child panels to trigger navigation without prop drilling
   useEffect(() => {
     const handler = (e: Event) => {
@@ -52,8 +64,32 @@ function Dashboard() {
           </div>
           <div className="v6-app__nav-right">
             <LLMStatusBar />
+            <button
+              onClick={toggleTheme}
+              title="切换主题 Theme"
+              style={{
+                appearance: 'none',
+                background: 'transparent',
+                border: '1px solid var(--v6-border)',
+                color: 'var(--v6-fg-muted)',
+                fontFamily: 'var(--v6-font-mono)',
+                fontSize: 16,
+                width: 34,
+                height: 34,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 'var(--v6-radius-md)',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                padding: 0,
+                marginRight: 8,
+              }}
+            >
+              {theme === 'light' ? '🌙' : '☀'}
+            </button>
             <button className="v6-btn v6-btn--ghost" onClick={logout}>
-              Sign out
+              退出 Sign out
             </button>
           </div>
         </nav>
@@ -211,6 +247,16 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
           {/* ── 管线任务列表 ── */}
           <div className="v6-section-label" style={{ marginBottom: 10 }}>
             <span>记忆管线 · Pipeline</span>
+            <button
+              className="v6-btn v6-btn--xs"
+              onClick={async () => {
+                try { await fetch('/api/api/user/llm/pipeline/trigger', { method: 'POST', headers: authHeader() }); refresh(); }
+                catch {}
+              }}
+              style={{ marginLeft: 8 }}
+            >
+              触发 Trigger
+            </button>
             <span className="v6-section-label__count">
               {pipeline?.in_flight ?? 0} 正在处理
             </span>
@@ -234,6 +280,39 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
             </div>
           )}
 
+          {/* ── 管道层级呼吸灯 ── */}
+          <div className="v6-section-label" style={{ marginBottom: 10 }}>
+            <span>管道层级 · Layers</span>
+          </div>
+          <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+            {[
+              { label: 'L1 知识提取 Extract', key: 'l1_total', color: '#7A7A82' },
+              { label: 'L2 场景聚合 Synthesis', key: 'l2_total', color: '#E5A23B' },
+              { label: 'L3 画像生成 Persona', key: 'l3_total', color: '#2DBFA8' }
+            ].map(layer => {
+              const count = (pipeline?.[layer.key] as number) ?? 0;
+              const pc = pipelineCounts as Record<string,number>;
+              const recentCompleted = pipelineRecent.length > 0 && pipelineRecent[0]?.completed_at
+                ? (Date.now() - new Date(pipelineRecent[0].completed_at).getTime()) < 300000
+                : false;
+              const active = (pc['processing'] ?? 0) > 0 || (pc['pending'] ?? 0) > 0 || recentCompleted;
+              return (
+                <div key={layer.key} className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">{layer.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="v6-metric-tile__value" style={{ fontSize: 28 }}>{count}</div>
+                    <div style={{
+                      width: 12, height: 12, borderRadius: '50%',
+                      background: layer.color,
+                      opacity: active ? 1 : 0.3,
+                      animation: active ? 'pulse-breath 1.5s ease-in-out infinite' : 'none'
+                    }} />
+                  </div>
+                  <div className="v6-metric-tile__sub">{active ? '工作中' : '待命中'}</div>
+                </div>
+              );
+            })}
+          </div>
           {/* ── 系统健康 ── */}
           <div className="v6-section-label"><span>系统健康 · Health</span></div>
           <div className="v6-health-list">
@@ -325,6 +404,7 @@ export function LoginOverlay() {
           <div className="v6-nav__brand">
             <CortexMark size={28} breathing />
             <span>Cortex</span>
+            {!isUserApp && <span className="v6-tag" style={{ marginLeft: 8 }}>管理后台 Admin</span>}
           </div>
           <div className="v6-nav__actions">
             {isUserApp ? (
@@ -355,7 +435,13 @@ export function LoginOverlay() {
 
         {mode === "landing" && (
           <>
-            <section className="v6-hero">
+            <section className="v6-hero" style={{position:'relative',overflow:'hidden'}}>
+              {/* 3D decoration — Spline 待接入 */}
+              <div className="v6-hero__geo" aria-hidden="true">
+                <div className="v6-hero__geo-ring" />
+                <div className="v6-hero__geo-sphere" />
+                <span className="v6-hero__geo-label">Spline 待接入</span>
+              </div>
               <span className="v6-hero__tag">long-term memory for AI agents</span>
               <h1 className="v6-hero__title">
                 Memory that <em>lasts</em>, across every agent.
@@ -420,19 +506,19 @@ export function LoginOverlay() {
           <div className="v6-authcard-wrap">
             <div className="v6-authcard">
               <h2 className="v6-authcard__title">
-                {mode === "signup" ? "Create your account" : isUserApp ? "Welcome back" : "Admin sign in"}
+                {mode === "signup" ? "创建账号 Create your account" : isUserApp ? "欢迎回来 Welcome back" : "管理员登录 Admin sign in"}
               </h2>
               <p className="v6-authcard__sub">
                 {mode === "signup"
-                  ? "注册账号以接入 Cortex 记忆"
+                  ? "注册账号以接入 Cortex 记忆 · Sign up for Cortex memory"
                   : isUserApp
-                  ? "登录 Cortex 进入你的记忆空间"
-                  : "使用管理员账户登录 Command Deck"}
+                  ? "登录 Cortex 进入你的记忆空间 · Sign in to your memory space"
+                  : "使用管理员账户登录 Command Deck · Sign in to Command Deck"}
               </p>
               <form onSubmit={handleSubmit}>
                 {mode === "signup" && (
                   <div className="v6-field">
-                    <label className="v6-field__label">用户名</label>
+                    <label className="v6-field__label">用户名 Username</label>
                     <input
                       className="v6-input"
                       type="text"
@@ -444,7 +530,7 @@ export function LoginOverlay() {
                   </div>
                 )}
                 <div className="v6-field">
-                  <label className="v6-field__label">{isUserApp ? "邮箱" : "管理员账号"}</label>
+                  <label className="v6-field__label">{isUserApp ? "邮箱 Email" : "管理员账号 Admin Account"}</label>
                   <input
                     className="v6-input"
                     type={isUserApp ? "email" : "text"}
@@ -455,7 +541,7 @@ export function LoginOverlay() {
                   />
                 </div>
                 <div className="v6-field">
-                  <label className="v6-field__label">密码</label>
+                  <label className="v6-field__label">密码 Password</label>
                   <input
                     className="v6-input"
                     type="password"
@@ -466,7 +552,7 @@ export function LoginOverlay() {
                   />
                 </div>
                 <button type="submit" className="v6-btn v6-btn--primary v6-btn--block" disabled={loading}>
-                  {loading ? "..." : mode === "signup" ? "Create account" : "Sign in"}
+                  {loading ? "..." : mode === "signup" ? "创建账号 Create account" : "登录 Sign in"}
                 </button>
               </form>
               {isUserApp && (
@@ -549,6 +635,8 @@ function MemoryPanel() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
   const [activeCategory, setActiveCategory] = useState('全部');
+  const [drawer, setDrawer] = useState<any>(null);  // null | { id, title, content, chunk_count, category, source_type, created_at }
+  const [drawerChunks, setDrawerChunks] = useState<any[]>([]);
 
   const categories = ['全部', '文档知识', '整合知识', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
 
@@ -601,6 +689,17 @@ function MemoryPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[query, activeCategory]);
 
+  const openDrawer = async (mem: UserMemory) => {
+    if (!mem.id) return;
+    setDrawer({ id: mem.id, title: mem.title, content: mem.content, category: mem.category, source_type: mem.source_type, created_at: mem.created_at, score: mem.score });
+    try {
+      const detail = await api.get<any>(`/memory/${mem.id}`);
+      setDrawer({ id: detail.id, title: detail.title, content: detail.content, category: detail.category, source_type: detail.source_type, created_at: detail.created_at, chunk_count: detail.chunk_count });
+      const chunks = await api.get<any[]>(`/memory/${mem.id}/chunks`);
+      setDrawerChunks(chunks || []);
+    } catch { setDrawerChunks([]); }
+  };
+
   const fetchDocuments = useCallback(async()=>{
     try {
       const d = await getUserDocuments();
@@ -615,6 +714,13 @@ function MemoryPanel() {
     fetchMemories();
     fetchDocuments();
   },[fetchMemories, fetchDocuments]);
+
+  // Esc to close drawer
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawer(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (!id) return;
@@ -799,7 +905,7 @@ function MemoryPanel() {
           ) : (
             <div className="v6-list" style={{ maxHeight: 500, overflow: 'auto' }}>
               {filteredMemories.map((m, i) => (
-                <div key={i} className="v6-list__item">
+                <div key={i} className="v6-list__item" onClick={() => openDrawer(m)} style={{ cursor: 'pointer' }}>
                   <div className="v6-list__item-head">
                     <div className="v6-list__item-main">
                       <div className="v6-list__item-title">{m.title}</div>
@@ -874,6 +980,48 @@ function MemoryPanel() {
               </table>
             </div>
           )}
+        </>
+      )}
+
+      {/* Memory Detail Drawer */}
+      {drawer && (
+        <>
+          <div className="v6-drawer-overlay" onClick={() => setDrawer(null)} />
+          <div className={`v6-drawer${drawer ? ' v6-drawer--open' : ''}`}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:600,color:'var(--v6-fg)',marginBottom:4}}>{drawer.title}</div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  <span className="v6-tag">{drawer.category}</span>
+                  <span className="v6-tag">{drawer.source_type}</span>
+                  {drawer.chunk_count > 0 && <span className="v6-tag">{drawer.chunk_count} chunks</span>}
+                  {drawer.score !== undefined && <span className="v6-tag">{(drawer.score*100).toFixed(0)}% match</span>}
+                </div>
+              </div>
+              <button className="v6-btn v6-btn--ghost v6-btn--xs" onClick={() => setDrawer(null)}>✕</button>
+            </div>
+            <div className="v6-card__body" style={{marginBottom:16,whiteSpace:'pre-wrap',lineHeight:1.7,fontSize:13,maxHeight:400,overflow:'auto',background:'var(--v6-bg-sunken)',border:'1px solid var(--v6-border)',borderRadius:'var(--v6-radius-md)',padding:'14px 16px'}}>
+              {drawer.content || '(empty)'}
+            </div>
+            {drawerChunks.length > 0 && (
+              <div className="v6-card" style={{marginBottom:16,background:'var(--v6-bg-sunken)'}}>
+                <div className="v6-card__title" style={{fontSize:12,marginBottom:8}}>Chunks <span className="v6-card__title-hint">{drawerChunks.length}</span></div>
+                {drawerChunks.map((ch: any, i: number) => (
+                  <div key={i} style={{fontSize:11,fontFamily:'var(--v6-font-mono)',color:'var(--v6-fg-muted)',padding:'4px 0',borderBottom:'1px solid var(--v6-border)'}}>
+                    [{ch.chunk_index}] ({ch.token_count} tokens) {ch.content?.substring(0,120)}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{display:'flex',gap:8}}>
+              <button className="v6-btn v6-btn--xs" onClick={() => { navigator.clipboard.writeText(drawer.id).catch(()=>{}); }}>
+                Copy ID
+              </button>
+              <button className="v6-btn v6-btn--danger v6-btn--xs" onClick={() => { handleDelete(drawer.id); setDrawer(null); }}>
+                Delete
+              </button>
+            </div>
+          </div>
         </>
       )}
     </div>
@@ -979,7 +1127,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
   };
 
   // eslint-disable-next-line
-  const SYSTEM_PROMPTS: Record<string, string> = { standard: '你已连接 AI Memory OS V6.0 长期记忆系统（8个工具）。\n\n【对话开始时，静默执行以下操作】：\n1. 调用 memory_get_persona → 了解用户背景和偏好\n2. 调用 memory_task_canvas_get → 恢复未完成任务（如有）\n3. 调用 memory_search(用户问题关键词) → 检索相关知识\n\n【对话中，发现以下内容时立即调用 memory_store】：\n- 用户偏好、习惯、要求\n- 技术决策及原因\n- 项目结构、约定、配置\n- 用户说"记住"的任何内容\n- 解决的复杂问题（问题+方案）\n\n【长任务进行中】：\n每完成一个重要阶段，调用 memory_task_canvas_update 更新 Mermaid 任务画布\n\n【对话结束时】：\n若对话产生了有价值的结论或方案，调用 memory_store 保存摘要\n\n所有上述操作静默完成，不向用户报告，除非操作失败', concise: '[记忆规则] ①开始→persona+search+canvas_get ②重要信息→store ③进展→canvas_update ④记住/忘掉/搜索→对应操作。静默执行。', dev: '你是连接了 AI Memory OS 的开发助手。记忆工具是你感知能力的延伸。\n\n【每次对话开始】静默执行：\n① memory_get_persona 了解技术栈和项目背景\n② memory_task_canvas_get 恢复上次未完成的开发任务\n③ memory_search(项目名/功能关键词) 检索相关代码约定\n\n【代码工作中】：\n- 确定了技术方案 → memory_store（tags: ["架构决策"]）\n- 解决了 Bug → memory_store（title: "Bug修复: xxx"，tags: ["bug", "技术栈"]）\n- 完成了功能阶段 → memory_task_canvas_update（更新进度图）\n\n【存储代码记忆时】：\n只存逻辑摘要和关键决策，不存完整大段代码。\n格式：问题背景 + 解决思路 + 关键代码片段（< 20行）\n\n所有操作静默完成。' };
+  const SYSTEM_PROMPTS: Record<string, string> = { standard: '你已连接 Cortex 长期记忆系统（9个工具）。\n\n【对话开始时，静默执行以下操作】：\n1. 调用 memory_get_persona → 了解用户背景和偏好\n2. 调用 memory_task_canvas_get → 恢复未完成任务（如有）\n3. 调用 memory_search(用户问题关键词) → 检索相关知识\n\n【对话中，发现以下内容时立即调用 memory_store】：\n- 用户偏好、习惯、要求\n- 技术决策及原因\n- 项目结构、约定、配置\n- 用户说"记住"的任何内容\n- 解决的复杂问题（问题+方案）\n\n【长任务进行中】：\n每完成一个重要阶段，调用 memory_task_canvas_update 更新 Mermaid 任务画布\n\n【对话结束时】：\n若对话产生了有价值的结论或方案，调用 memory_store 保存摘要\n\n所有上述操作静默完成，不向用户报告，除非操作失败', concise: '[记忆规则] ①开始→persona+search+canvas_get ②重要信息→store ③进展→canvas_update ④记住/忘掉/搜索→对应操作。静默执行。', dev: '你是连接了 AI Memory OS 的开发助手。记忆工具是你感知能力的延伸。\n\n【每次对话开始】静默执行：\n① memory_get_persona 了解技术栈和项目背景\n② memory_task_canvas_get 恢复上次未完成的开发任务\n③ memory_search(项目名/功能关键词) 检索相关代码约定\n\n【代码工作中】：\n- 确定了技术方案 → memory_store（tags: ["架构决策"]）\n- 解决了 Bug → memory_store（title: "Bug修复: xxx"，tags: ["bug", "技术栈"]）\n- 完成了功能阶段 → memory_task_canvas_update（更新进度图）\n\n【存储代码记忆时】：\n只存逻辑摘要和关键决策，不存完整大段代码。\n格式：问题背景 + 解决思路 + 关键代码片段（< 20行）\n\n所有操作静默完成。' };
   const [pType, setPType] = useState<'standard' | 'concise' | 'dev'>('standard');
 
   const status = {
@@ -1364,10 +1512,31 @@ function UsagePanel() {
 
   if (!usage) return null;
   const models: { provider_name: string; model_name: string; prompt: number; completion: number; total: number }[] =
-    (usage.usage_by_model || []).filter((m: { total: number }) => (m.total || 0) > 0);
+    (usage.usage_by_model || []).map((m: any) => ({
+      provider_name: m.provider_name || '',
+      model_name: m.model_name || '',
+      prompt: m.prompt_tokens ?? m.prompt ?? 0,
+      completion: m.completion_tokens ?? m.completion ?? 0,
+      total: m.total_tokens ?? m.total ?? 0,
+    })).filter((m: any) => m.total > 0);
   const totalPrompt = models.reduce((s, m) => s + (m.prompt || 0), 0);
   const totalCompletion = models.reduce((s, m) => s + (m.completion || 0), 0);
-  const hasData = totalPrompt + totalCompletion > 0;
+
+  const pipe = usage.pipeline_stats || {
+    l1_calls: 0,
+    l2_calls: 0,
+    l3_calls: 0,
+    l1_tokens: 0,
+    l2_tokens: 0,
+    l3_tokens: 0,
+    total_tokens: 0
+  };
+  const hasPipelineData = (
+    pipe.l1_calls > 0 || pipe.l2_calls > 0 || pipe.l3_calls > 0 ||
+    pipe.l1_tokens > 0 || pipe.l2_tokens > 0 || pipe.l3_tokens > 0
+  );
+
+  const hasData = (totalPrompt + totalCompletion > 0) || hasPipelineData;
   const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
 
   return (
@@ -1390,36 +1559,70 @@ function UsagePanel() {
         </div>
       ) : (
         <>
-          <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">输入 Prompt Tokens</div>
-              <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>
-            </div>
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">输出 Completion Tokens</div>
-              <div className="v6-metric-tile__value">{fmt(totalCompletion)}</div>
-            </div>
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
-              <div className="v6-metric-tile__value">
-                {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
-              </div>
-              <div className="v6-metric-tile__sub">直接结算给 provider</div>
-            </div>
-          </div>
-
-          <div className="v6-modellist">
-            {models.map((m, i) => (
-              <div key={i} className="v6-usage-row">
-                <div className="v6-usage-row__label">{m.model_name || m.provider_name}</div>
-                <div className="v6-usage-row__nums">
-                  <span>输入 <b>{fmt(m.prompt || 0)}</b></span>
-                  <span>输出 <b>{fmt(m.completion || 0)}</b></span>
-                  <span>合计 <b>{fmt(m.total || 0)}</b> tokens</span>
+          {(totalPrompt + totalCompletion > 0) && (
+            <>
+              <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+                <div className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">输入 Prompt Tokens</div>
+                  <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>
+                </div>
+                <div className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">输出 Completion Tokens</div>
+                  <div className="v6-metric-tile__value">{fmt(totalCompletion)}</div>
+                </div>
+                <div className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
+                  <div className="v6-metric-tile__value">
+                    {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
+                  </div>
+                  <div className="v6-metric-tile__sub">直接结算给 provider</div>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="v6-modellist" style={{ marginBottom: hasPipelineData ? 24 : 0 }}>
+                {models.map((m, i) => (
+                  <div key={i} className="v6-usage-row">
+                    <div className="v6-usage-row__label">{m.model_name || m.provider_name}</div>
+                    <div className="v6-usage-row__nums">
+                      <span>输入 <b>{fmt(m.prompt || 0)}</b></span>
+                      <span>输出 <b>{fmt(m.completion || 0)}</b></span>
+                      <span>合计 <b>{fmt(m.total || 0)}</b> tokens</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {hasPipelineData && (
+            <div style={{ marginTop: (totalPrompt + totalCompletion > 0) ? 20 : 0, paddingTop: (totalPrompt + totalCompletion > 0) ? 16 : 0, borderTop: (totalPrompt + totalCompletion > 0) ? '1px dashed var(--v6-border)' : 'none' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--v6-fg-muted)', marginBottom: 12 }}>
+                记忆处理管道 · Memory Processing Pipelines
+              </div>
+              <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">L1 事实提取 (L1 Fact Extraction)</div>
+                  <div className="v6-metric-tile__value">{fmt(pipe.l1_tokens)}</div>
+                  <div className="v6-metric-tile__sub">{pipe.l1_calls} 次调用 · calls</div>
+                </div>
+                <div className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">L2 场景合成 (L2 Scene Synthesis)</div>
+                  <div className="v6-metric-tile__value">{fmt(pipe.l2_tokens)}</div>
+                  <div className="v6-metric-tile__sub">{pipe.l2_calls} 次调用 · calls</div>
+                </div>
+                <div className="v6-metric-tile">
+                  <div className="v6-metric-tile__label">L3 画像生成 (L3 Persona Generation)</div>
+                  <div className="v6-metric-tile__value">{fmt(pipe.l3_tokens)}</div>
+                  <div className="v6-metric-tile__sub">{pipe.l3_calls} 次调用 · calls</div>
+                </div>
+                <div className="v6-metric-tile" style={{ borderLeft: '2px solid var(--v6-primary, #6366f1)' }}>
+                  <div className="v6-metric-tile__label">管道总消耗 Total Pipeline</div>
+                  <div className="v6-metric-tile__value" style={{ color: 'var(--v6-primary, #6366f1)' }}>{fmt(pipe.total_tokens)}</div>
+                  <div className="v6-metric-tile__sub">Tokens</div>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1597,13 +1800,12 @@ function CanvasPanel() {
   const [canvases, setCanvases] = useState<any[]>([]);
   const [activeAgent, setActiveAgent] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [taskId, setTaskId] = useState('main');
   const svgRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const r = await fetch('/canvas/' + taskId, {
+      const r = await fetch('/canvas', {
         headers: { Authorization: 'Bearer ' + (localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '') },
       });
       const d = await r.json();
@@ -1621,7 +1823,14 @@ function CanvasPanel() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [taskId]);
+  useEffect(() => { load(); }, []);
+
+  // 5s auto-refresh
+  useEffect(() => {
+    const id = setInterval(load, 5000);
+    return () => clearInterval(id);
+  }, [load]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let md = 'graph TD\n  A[No tasks yet] --> B[Will appear here]';
@@ -1670,12 +1879,6 @@ function CanvasPanel() {
       </div>
 
       <div className="v6-toolbar">
-        <input
-          className="v6-input-global"
-          value={taskId}
-          onChange={(e) => setTaskId(e.target.value)}
-          placeholder="task id (default: main)"
-        />
         <button className="v6-btn" onClick={load} disabled={loading}>
           {loading ? '…' : '刷新 Refresh'}
         </button>
@@ -1711,6 +1914,31 @@ function CanvasPanel() {
           }}
         />
       )}
+      {/* Checklist: completed + next steps */}
+      {canvases.length > 0 && activeAgent && (() => {
+        const canvas = canvases.find(c => c.agent_id === activeAgent);
+        if (!canvas) return null;
+        let completed: string[] = [];
+        let nextSteps: string[] = [];
+        try { completed = JSON.parse(canvas.completed_steps || '[]'); } catch {}
+        try { nextSteps = JSON.parse(canvas.next_steps || '[]'); } catch {}
+        if (completed.length === 0 && nextSteps.length === 0) return null;
+        return (
+          <div className="v6-card" style={{ marginTop: 14 }}>
+            <div className="v6-card__head">
+              <div className="v6-card__title">任务进度 Progress <span className="v6-card__title-hint">{completed.length} done / {nextSteps.length} todo</span></div>
+            </div>
+            <div className="v6-canvas-checklist">
+              {completed.map((s, i) => (
+                <div key={`done${i}`} className="v6-canvas-step done">✓ {s}</div>
+              ))}
+              {nextSteps.map((s, i) => (
+                <div key={`todo${i}`} className="v6-canvas-step todo">○ {s}</div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', marginTop: 10 }}>
         Each agent under the same task keeps an isolated canvas.
       </div>

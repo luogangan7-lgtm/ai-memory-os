@@ -9,20 +9,24 @@ PROMPT = (Path(__file__).parent / "prompts" / "l2_synthesize.txt").read_text(enc
 
 def init(repo: MemoryRepo): global _repo; _repo = repo
 
-async def synthesize(team_id: str, atom_ids: list[str] | None = None) -> str | None:
-    if _repo is None: return None
+async def synthesize(team_id: str, atom_ids: list[str] | None = None) -> tuple[str | None, int]:
+    """Synthesize memories into a scenario. Returns (result_text, total_tokens)."""
+    if _repo is None: return None, 0
     rows = await _repo.pool.fetch(
         "SELECT title, content FROM memories WHERE team_id=$1 AND layer='L1' ORDER BY created_at DESC LIMIT 30",
         team_id)
-    if not rows: return None
+    if not rows: return None, 0
     facts = "\n".join(f"- {r['title']}: {r['content'][:200]}" for r in rows)
     prompt = PROMPT + "\n\n" + facts
-    
-    result = await call_llm(prompt, team_id, "reflection")
+
+    result, tokens = await call_llm(prompt, team_id, "reflection")
+    if not result:
+        return None, tokens
+
     import uuid
     scenario_id = str(uuid.uuid4())
     await _repo.pool.execute(
         """INSERT INTO memory_scenarios (team_id, scenario_id, title, content_md, atom_ids)
            VALUES ($1, $2, $3, $4, $5)""",
         team_id, scenario_id, result[:100], result, atom_ids or [])
-    return result
+    return result, tokens

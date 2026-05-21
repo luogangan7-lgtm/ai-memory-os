@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS pipeline_usage (
     l1_calls     INTEGER DEFAULT 0,
     l2_calls     INTEGER DEFAULT 0,
     l3_calls     INTEGER DEFAULT 0,
+    l1_tokens    INTEGER DEFAULT 0,
+    l2_tokens    INTEGER DEFAULT 0,
+    l3_tokens    INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
     PRIMARY KEY (team_id, year_month)
 );
@@ -74,3 +77,26 @@ CREATE TABLE IF NOT EXISTS pipeline_queue (
     error_msg    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_pq_status ON pipeline_queue(status, scheduled_at);
+
+-- V6.1 付费系统
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mcp_call_count INTEGER DEFAULT 0;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email TEXT;
+
+CREATE TABLE IF NOT EXISTS orders (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id         VARCHAR NOT NULL,
+    out_trade_no    VARCHAR(64) UNIQUE NOT NULL,
+    payjs_order_id  VARCHAR(64),
+    plan            VARCHAR(20) NOT NULL,
+    duration_months INTEGER DEFAULT 1,
+    total_fee       INTEGER NOT NULL,
+    status          VARCHAR(20) DEFAULT 'pending',
+    payjs_raw       JSONB,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    paid_at         TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_team ON orders(team_id);
+CREATE INDEX IF NOT EXISTS idx_orders_out_trade ON orders(out_trade_no);

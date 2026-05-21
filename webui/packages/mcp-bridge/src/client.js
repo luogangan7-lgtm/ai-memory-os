@@ -26,13 +26,13 @@ export class MemoryOSClient {
   status() { return this.request('GET', '/stats'); }
   getPersona() { return this.request('GET', '/persona/default'); }
   reflect() { return this.request('POST', '/memory/reflect'); }
-  getCanvas({ task_id = 'main', agent_id = 'default' }) { 
-    return this.request('GET', `/canvas/${task_id}`).then(arr => {
+  getCanvas({ agent_id = 'default' }) { 
+    return this.request('GET', `/canvas`).then(arr => {
       if (!Array.isArray(arr)) return arr;
       return arr.find(x => x.agent_id === agent_id) || null;
     }); 
   }
-  updateCanvas({ task_id = 'main', agent_id = 'default', mermaid, title = '', completed = [], next = [] }) { 
-    return this.request('POST', `/canvas/${task_id}`, { agent_id, mermaid, title, completed, next }); 
+  updateCanvas({ agent_id = 'default', mermaid, title = '', completed = [], next = [] }) { 
+    return this.request('POST', `/canvas`, { agent_id, mermaid, title, completed, next }); 
   }
 }

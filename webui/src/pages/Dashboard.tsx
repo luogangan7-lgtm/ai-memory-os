@@ -7,14 +7,22 @@ import { PROVIDERS } from '../data/models';
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler);
 
-type StatColor = 'teal' | 'violet' | 'emerald' | 'amber';
-
-function StatCard({ color, label, value, sub }: { color: StatColor; label: string; value: string; sub: string }) {
+function MetricTile({ label, value, sub, done }: { label: string; value: string; sub: string; done?: boolean }) {
+  const handleTilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(700px) rotateX(${y * -6}deg) rotateY(${x * 6}deg) translateY(-4px)`;
+  };
+  const resetTilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.style.transform = '';
+  };
   return (
-    <div className={`stat-card ${color}`}>
-      <div className='stat-label'>{label}</div>
-      <div className='stat-value'>{value}</div>
-      <div className='stat-sub'>{sub}</div>
+    <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+      <div className="v6-metric-tile__label">{label}</div>
+      <div className={`v6-metric-tile__value${done ? ' v6-metric-tile__value--done' : ''}`}>{value}</div>
+      <div className="v6-metric-tile__sub">{sub}</div>
     </div>
   );
 }
@@ -66,9 +74,16 @@ export function DashboardPage() {
           [type]: { testing: false, status: 'ok' }
         }));
       } else {
+        // Clean up long error URLs – keep only the key status part
+        const rawErr = res.error || '测试失败';
+        const cleanErr = rawErr
+          .replace(/For more information.*$/s, '')
+          .replace(/Client error '(\d+ [^']+)' for url '([^']+)'/,
+            (_: string, status: string) => status)
+          .trim();
         setTestStates(p => ({
           ...p,
-          [type]: { testing: false, status: 'err', error: res.error || '测试失败' }
+          [type]: { testing: false, status: 'err', error: cleanErr }
         }));
       }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,12 +129,13 @@ export function DashboardPage() {
     return () => clearInterval(i);
   }, [ld]);
 
-  // Auto-run connection diagnostic test on load
+  // Auto-run tests only after data is loaded AND user is on this page
   const hasTested = useRef(false);
   useEffect(() => {
     if (routing && llmEngine && !hasTested.current) {
       hasTested.current = true;
-      runAllTests();
+      // Small delay to ensure auth token is settled in localStorage
+      setTimeout(() => runAllTests(), 800);
     }
   }, [routing, llmEngine, runAllTests]);
 
@@ -132,8 +148,8 @@ export function DashboardPage() {
     maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: {
-      x: { ticks: { color: '#4A6080', font: { size: 10 } }, grid: { color: 'rgba(0,229,255,0.05)' } },
-      y: { ticks: { color: '#4A6080', font: { size: 10 } }, grid: { color: 'rgba(0,229,255,0.05)' } }
+      x: { ticks: { color: 'var(--v6-fg-muted)', font: { size: 10 } }, grid: { color: 'rgba(45,191,168,0.05)' } },
+      y: { ticks: { color: 'var(--v6-fg-muted)', font: { size: 10 } }, grid: { color: 'rgba(45,191,168,0.05)' } }
     }
   };
 
@@ -142,34 +158,33 @@ export function DashboardPage() {
     datasets: [
       {
         data: tv,
-        borderColor: '#00E5FF',
-        backgroundColor: 'rgba(0,229,255,0.05)',
+        borderColor: '#2DBFA8',
+        backgroundColor: 'rgba(45,191,168,0.05)',
         tension: 0.4,
         fill: true,
         pointRadius: 3,
-        pointBackgroundColor: '#00E5FF'
+        pointBackgroundColor: '#2DBFA8'
       }
     ]
   };
 
   return (
     <div>
-      <div className='page-title'>控制台</div>
-      <div className='page-sub'>实时系统状态监控</div>
+      <h1 style={{font:"600 22px var(--v6-font-sans)",color:"var(--v6-fg)",marginBottom:4}}>控制台 Dashboard</h1>
+      <div style={{color:"var(--v6-fg-muted)",fontSize:13,marginBottom:24}}>系统状态监测与引擎测试 · System status and engine diagnostics</div>
 
-      <div className='stats-grid'>
-        <StatCard color='teal' label='全局记忆' value={s?.total?.toLocaleString() ?? '—'} sub={s?.memory_growth ?? '加载中...'} />
-        <StatCard color='violet' label='活跃租户' value={s?.active_users?.toLocaleString() ?? '—'} sub='注册租户总数' />
-        <StatCard color='emerald' label='今日写入' value={s?.today_writes?.toLocaleString() ?? '—'} sub='实时写入频率' />
-        <StatCard color='amber' label='已省 Token' value={s?.tokens_saved?.toLocaleString() ?? '—'} sub='全局 RAG 减免' />
+      <div className="v6-metric-grid">
+        <MetricTile label='总记忆 Memories' value={s?.total?.toLocaleString() ?? "—"} sub={s?.memory_growth ?? '加载中 Loading'} done />
+        <MetricTile label='活跃租户 Tenants' value={s?.active_users?.toLocaleString() ?? "—"} sub='注册总数 Total' />
+        <MetricTile label='今日写入 Today' value={s?.today_writes?.toLocaleString() ?? "—"} sub='实时频率 Rate' />
+        <MetricTile label='已省 Token Saved' value={s?.tokens_saved?.toLocaleString() ?? "—"} sub='全局 RAG 减免' />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, marginBottom: 22 }}>
-        <div className='card' style={{ marginBottom: 0 }}>
-          <div className='card-head'>
-            <div className='card-title'>
-              <div className='card-icon ci-teal'>📈</div>
-              写入吞吐趋势
+        <div className="v6-card" style={{ marginBottom: 0 }}>
+          <div className="v6-card__head">
+            <div className="v6-card__title">
+              写入吞吐 Throughput
             </div>
           </div>
           <div className='chart-wrap'>
@@ -178,21 +193,25 @@ export function DashboardPage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div className='card' style={{ marginBottom: 0 }}>
-            <div className='card-head'>
-              <div className='card-title'>
-                <div className='card-icon ci-emerald'>💚</div>
-                服务健康
+          <div className="v6-card" style={{ marginBottom: 0 }}>
+            <div className="v6-card__head">
+              <div className="v6-card__title">
+                服务健康 Health
               </div>
             </div>
             <div>
               {SVCS.map(v => (
-                <div key={v.key} className='service-row'>
-                  <div className='service-name'>
-                    <div className={`status-dot ${svc?.[v.key] ? 'status-ok' : 'status-err'}`} />
+                <div key={v.key} className='v6-health-item'>
+                  <div className='v6-health-item__label'>
+                    <div className={`v6-health-item__dot ${svc?.[v.key] ? 'v6-health-item__dot--ok' : 'v6-health-item__dot--err'}`} />
                     {v.label}
                   </div>
-                  <span className={`badge ${svc?.[v.key] ? 'badge-emerald' : 'badge-red'}`}>
+                  <span style={{
+                    fontSize: 10,
+                    fontFamily: 'var(--v6-font-mono)',
+                    letterSpacing: '0.06em',
+                    color: svc?.[v.key] ? '#2DBFA8' : 'var(--v6-danger)',
+                  }}>
                     {svc?.[v.key] ? 'ONLINE' : 'OFFLINE'}
                   </span>
                 </div>
@@ -200,19 +219,18 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className='card' style={{ marginBottom: 0 }}>
-            <div className='card-head'>
-              <div className='card-title'>
-                <div className='card-icon ci-violet'>🤖</div>
-                模型与算力状态
+          <div className="v6-card" style={{ marginBottom: 0 }}>
+            <div className="v6-card__head">
+              <div className="v6-card__title">
+                模型算力 Engines
               </div>
               <button
-                className='btn btn-teal'
+                className='v6-btn v6-btn--primary'
                 style={{ padding: '4px 8px', fontSize: 10 }}
                 onClick={runAllTests}
                 disabled={testStates.classifier.testing || testStates.reflection.testing || testStates.embedding.testing || testStates.rerank.testing}
               >
-                🔄 一键检测
+                检测全部 Test all
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -230,44 +248,63 @@ export function DashboardPage() {
                   rerank: '重排序模型 (Rerank)'
                 }[type];
 
+                // dot class
+                const dotCls = state.testing
+                  ? 'v6-health-item__dot v6-health-item__dot--testing'
+                  : state.status === 'ok'
+                  ? 'v6-health-item__dot v6-health-item__dot--ok'
+                  : state.status === 'err'
+                  ? 'v6-health-item__dot v6-health-item__dot--err'
+                  : 'v6-health-item__dot';
+
                 return (
-                  <div key={type} className='service-row' style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4, paddingBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--text)' }}>{label}</div>
+                  <div key={type} style={{ padding: '10px 0', borderBottom: '1px solid var(--v6-border)' }}>
+                    {/* Row 1: dot + name + test button */}
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+                      <div className={dotCls} style={{ flexShrink:0 }} />
+                      <div style={{ flex:1, fontWeight:600, fontSize:12, color:'var(--v6-fg)' }}>{label}</div>
                       <button
-                        className='btn btn-ghost'
-                        style={{ padding: '2px 6px', fontSize: 9 }}
+                        className='v6-btn v6-btn--ghost v6-btn--xs'
+                        style={{ padding:'2px 8px', fontSize:9, flexShrink:0 }}
                         onClick={() => runEngineTest(type)}
                         disabled={state.testing}
                       >
-                        {state.testing ? '检测中...' : '⚡ 检测'}
+                        {state.testing ? '检测中…' : '检测 Test'}
                       </button>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
-                      <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-                        {provName} <span style={{ color: 'var(--dim)' }}>({modelName})</span>
+                    {/* Row 2: provider/model + status label */}
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingLeft:16 }}>
+                      <div style={{ fontSize:11, fontFamily:'var(--v6-font-mono)', color:'var(--v6-fg-muted)' }}>
+                        {provName}
+                        {modelName !== '—' && (
+                          <span style={{ color:'var(--v6-fg-faint)' }}> ({modelName})</span>
+                        )}
                       </div>
-                      <div>
-                        {state.status === 'idle' && <span className='badge badge-violet'>未检测</span>}
-                        {state.status === 'ok' && <span className='badge badge-emerald'>ONLINE</span>}
-                        {state.status === 'err' && <span className='badge badge-crimson' title={state.error}>OFFLINE</span>}
-                      </div>
+                      <span style={{
+                        fontSize:10, fontFamily:'var(--v6-font-mono)', letterSpacing:'0.06em',
+                        color: state.testing ? '#E5A23B'
+                          : state.status==='ok' ? '#2DBFA8'
+                          : state.status==='err' ? 'var(--v6-danger)'
+                          : 'var(--v6-fg-faint)',
+                      }}>
+                        {state.testing ? 'TESTING…'
+                          : state.status==='ok' ? 'ONLINE'
+                          : state.status==='err' ? 'OFFLINE'
+                          : '—'}
+                      </span>
                     </div>
-                    {state.status === 'err' && state.error && (
-                      <div
-                        style={{
-                          fontSize: 9,
-                          color: 'var(--crimson)',
-                          fontFamily: 'var(--mono)',
-                          marginTop: 2,
-                          background: 'rgba(255,77,109,0.05)',
-                          padding: '4px 8px',
-                          borderRadius: 6,
-                          border: '1px solid rgba(255,77,109,0.1)',
-                          wordBreak: 'break-all'
-                        }}
-                      >
-                        [ERROR]: {state.error}
+                    {/* Row 3: error message */}
+                    {state.status==='err' && state.error && (
+                      <div style={{
+                        marginTop:5, marginLeft:16,
+                        fontSize:9, fontFamily:'var(--v6-font-mono)',
+                        color:'var(--v6-danger)',
+                        background:'rgba(255,77,109,0.05)',
+                        padding:'4px 8px', borderRadius:5,
+                        border:'1px solid rgba(255,77,109,0.12)',
+                        wordBreak:'break-all', lineHeight:1.5,
+                      }}>
+                        {state.error}
                       </div>
                     )}
                   </div>
@@ -278,19 +315,21 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className='card'>
-        <div className='card-head'>
-          <div className='card-title'>
-            <div className='card-icon ci-teal'>📡</div>
-            实时写入日志
+      <div className="v6-card">
+        <div className="v6-card__head">
+          <div className="v6-card__title">
+            实时写入 Log stream
           </div>
         </div>
-        <div className='log-stream' ref={lr}>
-          {log.map((l, i) => (
-            <div key={i} className='log-info'>
-              {l}
-            </div>
-          ))}
+        <div className='log-stream' ref={lr} style={{ background: 'var(--v6-bg-sunken)', borderColor: 'var(--v6-border)', fontFamily: 'var(--v6-font-mono)' }}>
+          {log.map((l, i) => {
+            const isErr = l.includes('[ERROR]') || l.includes('fail') || l.includes('error') || l.includes('OFFLINE');
+            return (
+              <div key={i} style={{ color: isErr ? 'var(--v6-danger)' : 'var(--v6-fg)', padding: '2px 0', fontFamily: 'var(--v6-font-mono)' }}>
+                {l}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -304,7 +304,7 @@ async def mcp_post_handler(
 
             elif tool_name in ("canvas_get", "memory_task_canvas_get"):
                 from backend.api.db_helper import get_db_conn
-                task_id = arguments.get("task_id", "main")
+                task_id = "main"
                 agent_id = arguments.get("agent_id", "default")
                 if not task_id: task_id = "main"
                 try:
@@ -320,7 +320,7 @@ async def mcp_post_handler(
                 from backend.api.db_helper import get_db_conn
                 try:
                     conn = await get_db_conn()
-                    task_id = arguments.get("task_id", "main")
+                    task_id = "main"
                     agent_id = arguments.get("agent_id", "default")
                     if not task_id: task_id = "main"
                     comp_str = _json.dumps(arguments.get("completed", []), ensure_ascii=False)

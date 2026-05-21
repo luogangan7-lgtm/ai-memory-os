@@ -1,11 +1,16 @@
 // ── Topbar — Admin Command Deck ───────────────────────────────────────────
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { CortexMark } from "./CortexMark";
 
 export function Topbar() {
   const { logout } = useAuth();
   const [healthy, setHealthy] = useState(true);
+  const toggleTheme = useCallback(() => {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    html.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -78,28 +83,32 @@ export function Topbar() {
         </div>
 
         <button
-          onClick={logout}
+          onClick={toggleTheme}
+          title="切换主题 Theme"
           style={{
             appearance: 'none',
             background: 'transparent',
             border: '1px solid var(--v6-border)',
             color: 'var(--v6-fg-muted)',
             fontFamily: 'var(--v6-font-mono)',
-            fontSize: 11,
-            padding: '5px 12px',
+            fontSize: 16,
+            width: 34, height: 34,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             borderRadius: 'var(--v6-radius-md)',
             cursor: 'pointer',
-            letterSpacing: '0.04em',
             transition: 'all 0.15s',
+            padding: 0,
           }}
-          onMouseEnter={e => {
-            (e.target as HTMLButtonElement).style.borderColor = 'var(--v6-border-strong)';
-            (e.target as HTMLButtonElement).style.color = 'var(--v6-fg)';
-          }}
-          onMouseLeave={e => {
-            (e.target as HTMLButtonElement).style.borderColor = 'var(--v6-border)';
-            (e.target as HTMLButtonElement).style.color = 'var(--v6-fg-muted)';
-          }}
+        >
+          ☀
+        </button>
+
+        <button
+          onClick={logout}
+          className="v6-btn v6-btn--ghost"
+          style={{ fontSize: 11, fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', padding: '5px 12px' }}
         >
           退出 Sign out
         </button>

@@ -39,10 +39,17 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
     _user_llm_configs[team_id] = cfg
     from backend.memory.pg_repo import safe_uuid
     _user_llm_configs[str(safe_uuid(team_id))] = cfg
-    # Persist to database for proxy gateway
+    # Deactivate ALL old configs for this user, then save new one
     try:
         from backend.api.routes import pg_repo
-        if pg_repo:
+        from backend.memory.pg_repo import safe_uuid
+        if pg_repo and pg_repo.pool:
+            uid = str(safe_uuid(team_id))
+            async with pg_repo.pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE user_provider_configs SET is_active=false WHERE (user_id=$1 OR user_id=$2)",
+                    team_id, uid
+                )
             await pg_repo.save_user_provider_config(
                 user_id=team_id,
                 provider_name=data.get("provider", ""),
@@ -74,27 +81,19 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
     except Exception as e:
         print(f"Failed to enqueue pending memories: {e}")
 
-    # Update waiting_key tasks in pipeline_queue to pending
+    # Unpause any waiting_key pipeline tasks for this user
     try:
-        from backend.api.routes import pg_repo
-        from backend.memory.pg_repo import safe_uuid
-        if pg_repo:
-            if hasattr(pg_repo, "db_path"):  # SQLite
-                import aiosqlite
-                async with aiosqlite.connect(pg_repo.db_path) as db:
-                    await db.execute(
-                        "UPDATE pipeline_queue SET status='pending' WHERE (team_id=? OR team_id=?) AND status='waiting_key'",
-                        (team_id, str(safe_uuid(team_id)))
-                    )
-                    await db.commit()
-            elif pg_repo.pool:  # PostgreSQL
-                async with pg_repo.pool.acquire() as conn:
-                    await conn.execute(
-                        "UPDATE pipeline_queue SET status='pending' WHERE (team_id=$1 OR team_id=$2) AND status='waiting_key'",
-                        team_id, str(safe_uuid(team_id))
-                    )
+        from backend.api.routes import pg_repo as _pg
+        if _pg and _pg.pool:
+            async with _pg.pool.acquire() as conn:
+                res = await conn.execute(
+                    "UPDATE pipeline_queue SET status='pending', started_at=NULL WHERE team_id=$1 AND status='waiting_key'",
+                    team_id
+                )
+                if res and res != "UPDATE 0":
+                    print(f"[save-user-llm] Unpaused waiting_key tasks for {team_id}: {res}", flush=True)
     except Exception as e:
-        print(f"Failed to resume waiting_key tasks: {e}")
+        print(f"[save-user-llm] Failed to unpause waiting_key: {e}", flush=True)
 
     return {"status": "saved", "team_id": team_id}
 
@@ -137,7 +136,14 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
             from backend.api.routes import pg_repo
             if pg_repo:
                 cfg = await pg_repo.get_active_user_provider_config(team_id)
-                configured = bool(cfg)
+                if not cfg:
+                    # Fallback: any active config
+                    async with pg_repo.pool.acquire() as conn:
+                        r = await conn.fetchrow(
+                            "SELECT * FROM user_provider_configs WHERE is_active=true AND api_key IS NOT NULL AND api_key != '' LIMIT 1"
+                        )
+                        cfg = dict(r) if r else None
+                configured = bool(cfg and cfg.get("api_key"))
         except Exception:
             pass
 
@@ -207,6 +213,20 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
             "configured": configured, "error": str(e),
         }
 
+    l1_total = l2_total = l3_total = 0
+    try:
+        conn2 = await get_db_conn()
+        row = await conn2.fetchrow(
+            "SELECT COALESCE(SUM(l1_calls),0) as l1, COALESCE(SUM(l2_calls),0) as l2, COALESCE(SUM(l3_calls),0) as l3 FROM pipeline_usage WHERE team_id=$1",
+            team_id
+        )
+        if row:
+            l1_total = int(row["l1"])
+            l2_total = int(row["l2"])
+            l3_total = int(row["l3"])
+        await conn2.close()
+    except: pass
+
     return {
         "counts": counts,
         "recent": recent,
@@ -214,7 +234,31 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
         "last_failed_at": last_failed_at,
         "in_flight": counts["pending"] + counts["processing"],
         "configured": configured,
+        "l1_total": l1_total,
+        "l2_total": l2_total,
+        "l3_total": l3_total,
     }
+
+
+
+@router.post("/pipeline/trigger")
+async def trigger_pipeline(team_id: str = Depends(get_current_team)):
+    """Manually unpause waiting_key tasks and trigger pipeline."""
+    import asyncio
+    try:
+        from backend.api.routes import pg_repo
+        from backend.memory.pg_repo import safe_uuid
+        if pg_repo and pg_repo.pool:
+            async with pg_repo.pool.acquire() as conn:
+                result = await conn.execute(
+                    "UPDATE pipeline_queue SET status='pending', started_at=NULL WHERE (team_id=$1 OR team_id=$2) AND status='waiting_key'",
+                    team_id, str(safe_uuid(team_id))
+                )
+            from backend.pipeline.runner import process_queue as _process_queue
+            asyncio.create_task(_process_queue())
+            return {"triggered": True, "note": "Pipeline trigger sent"}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to trigger: {e}")
 
 
 async def warm_up_llm_configs():

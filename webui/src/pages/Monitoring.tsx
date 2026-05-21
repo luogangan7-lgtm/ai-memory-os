@@ -11,8 +11,8 @@ const chartOpts = {
   maintainAspectRatio: false,
   plugins: { legend: { display: false } },
   scales: {
-    x: { ticks: { color: "#4A6080", font: { size: 10 } }, grid: { color: "rgba(0,229,255,0.05)" } },
-    y: { ticks: { color: "#4A6080", font: { size: 10 } }, grid: { color: "rgba(0,229,255,0.05)" }, beginAtZero: true },
+    x: { ticks: { color: "var(--v6-fg-muted)", font: { size: 10 } }, grid: { color: "rgba(45,191,168,0.05)" } },
+    y: { ticks: { color: "var(--v6-fg-muted)", font: { size: 10 } }, grid: { color: "rgba(45,191,168,0.05)" }, beginAtZero: true },
   },
 };
 
@@ -40,7 +40,7 @@ export function MonitoringPage() {
   useEffect(() => {
     getMonitoring()
       .then(setD)
-      .catch(() => setErr("加载监控数据失败"));
+      .catch(() => setErr("加载监控数据失败 Failed to load monitoring data"));
   }, []);
 
   const tokenVals = d?.token_values || [];
@@ -50,78 +50,86 @@ export function MonitoringPage() {
   const tenants: TopTenant[] = d?.top_tenants || [];
   const latencyBuckets = d?.latency_buckets || [];
 
+  const handleTilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(700px) rotateX(${y * -6}deg) rotateY(${x * 6}deg) translateY(-4px)`;
+  };
+  const resetTilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.style.transform = '';
+  };
+
   return (
     <div>
-      <div className="page-title">遥测监控</div>
-      <div className="page-sub">Token usage · 写入吞吐 · Top tenants</div>
+      <h1 style={{font:"600 22px var(--v6-font-sans)",color:"var(--v6-fg)",marginBottom:4}}>遥测监控 Telemetry</h1>
+      <div style={{color:"var(--v6-fg-muted)",fontSize:13,marginBottom:24}}>系统性能指标与用量分析 · System performance metrics and usage analytics</div>
 
       {err && (
-        <div className="card" style={{ borderColor: "var(--red, #f87171)", color: "#f87171" }}>
+        <div className="v6-statusbar v6-statusbar--err" style={{ marginBottom: 20 }}>
           {err}
         </div>
       )}
 
-      <div className="stats-grid">
-        <div className="stat-card amber">
-          <div className="stat-label">12h Token 用量</div>
-          <div className="stat-value">{totalTokens.toLocaleString()}</div>
-          <div className="stat-sub">最近 12 小时聚合</div>
+      <div className="v6-metric-grid" style={{ marginBottom: 22 }}>
+        <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+          <div className="v6-metric-tile__label">12h Token 用量 Token Usage</div>
+          <div className="v6-metric-tile__value">{totalTokens.toLocaleString()}</div>
+          <div className="v6-metric-tile__sub">最近 12 小时聚合 Last 12h aggregate</div>
         </div>
-        <div className="stat-card teal">
-          <div className="stat-label">12h 记忆写入</div>
-          <div className="stat-value">{totalWrites.toLocaleString()}</div>
-          <div className="stat-sub">memories 表新增</div>
+        <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+          <div className="v6-metric-tile__label">12h 记忆写入 Memory Writes</div>
+          <div className="v6-metric-tile__value">{totalWrites.toLocaleString()}</div>
+          <div className="v6-metric-tile__sub">新增记忆数 New memories</div>
         </div>
-        <div className="stat-card violet">
-          <div className="stat-label">活跃租户</div>
-          <div className="stat-value">{tenants.length.toLocaleString()}</div>
-          <div className="stat-sub">Top 10 内统计</div>
+        <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+          <div className="v6-metric-tile__label">活跃租户 Active Tenants</div>
+          <div className="v6-metric-tile__value">{tenants.length.toLocaleString()}</div>
+          <div className="v6-metric-tile__sub">Top 10 内统计 Top 10 statistics</div>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 22 }}>
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-head">
-            <div className="card-title">
-              <div className="card-icon ci-amber">⚡</div>
-              Token 用量趋势
+        <div className="v6-card" style={{ marginBottom: 0 }}>
+          <div className="v6-card__head">
+            <div className="v6-card__title">
+              Token 用量趋势 Token Usage Trend
             </div>
           </div>
-          <div className="chart-wrap">
-            <Line options={chartOpts} data={lineData(d?.token_labels || [], tokenVals, "rgb(245,158,11)")} />
+          <div className="chart-wrap" style={{ height: 260 }}>
+            <Line options={chartOpts} data={lineData(d?.token_labels || [], tokenVals, "#E5A23B")} />
           </div>
         </div>
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-head">
-            <div className="card-title">
-              <div className="card-icon ci-teal">📈</div>
-              写入吞吐
+        <div className="v6-card" style={{ marginBottom: 0 }}>
+          <div className="v6-card__head">
+            <div className="v6-card__title">
+              写入吞吐 Write Throughput
             </div>
           </div>
-          <div className="chart-wrap">
-            <Line options={chartOpts} data={lineData(d?.writes_labels || [], writeVals, "rgb(0,229,255)")} />
+          <div className="chart-wrap" style={{ height: 260 }}>
+            <Line options={chartOpts} data={lineData(d?.writes_labels || [], writeVals, "#2DBFA8")} />
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-head">
-          <div className="card-title">
-            <div className="card-icon ci-violet">🏆</div>
-            Top Tenants
+      <div className="v6-card" style={{ marginBottom: 22 }}>
+        <div className="v6-card__head">
+          <div className="v6-card__title">
+            Top 租户 Top Tenants
           </div>
         </div>
         {tenants.length === 0 ? (
-          <div style={{ padding: "20px 8px", color: "var(--muted, #4A6080)", fontSize: 13 }}>
-            暂无租户数据
+          <div className="v6-empty">
+            暂无租户数据 · No tenant data yet
           </div>
         ) : (
-          <table className="table">
+          <table className="v6-table">
             <thead>
               <tr>
-                <th>租户</th>
-                <th style={{ textAlign: "right" }}>记忆数</th>
-                <th style={{ textAlign: "right" }}>Token 用量</th>
+                <th>租户 Tenant</th>
+                <th style={{ textAlign: "right" }}>记忆数 Memories</th>
+                <th style={{ textAlign: "right" }}>Token 用量 Token Usage</th>
               </tr>
             </thead>
             <tbody>
@@ -138,18 +146,18 @@ export function MonitoringPage() {
       </div>
 
       {latencyBuckets.length > 0 && (
-        <div className="card">
-          <div className="card-head">
-            <div className="card-title">
-              <div className="card-icon ci-emerald">⏱️</div>
-              延迟分布 (ms)
+        <div className="v6-card">
+          <div className="v6-card__head">
+            <div className="v6-card__title">
+              延迟分布 Latency Distribution (ms)
             </div>
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
             {latencyBuckets.map((v, i) => (
-              <div key={i} className="stat-card emerald" style={{ minWidth: 120 }}>
-                <div className="stat-label">P{[50, 75, 95, 99][i] ?? i}</div>
-                <div className="stat-value">{v}</div>
+              <div key={i} className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+                <div className="v6-metric-tile__label">P{[50, 75, 95, 99][i] ?? i}</div>
+                <div className="v6-metric-tile__value">{v}</div>
+                <div className="v6-metric-tile__sub">毫秒 ms</div>
               </div>
             ))}
           </div>

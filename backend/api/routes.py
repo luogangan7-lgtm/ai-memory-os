@@ -67,20 +67,39 @@ def init_stores(qs, gs, ip, rp, pg, reg):
 
 
 
+
+@router.post("/auth/send-code")
+async def send_verification_code(data: dict):
+    """Send a 6-digit verification code to the user's email."""
+    email = (data.get("email") or "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Valid email required")
+    from backend.services.email_verify import send_code
+    ok = await send_code(email)
+    if not ok:
+        raise HTTPException(500, "Failed to send code. Try again.")
+    return {"sent": True, "message": "Verification code sent"}
+
 @router.post("/auth/register")
 async def register_user_endpoint(data: dict):
     from backend.auth.accounts import register
     try:
         username = data.get("username")
         password = data.get("password")
-        email = data.get("email")
-        # Default team_id to a new unique ID if not provided, or use username
+        email = (data.get("email") or "").strip()
+        code = (data.get("code") or "").strip()
         team_id = data.get("team_id") or username or "default"
         
-        if not (username or email) or not password:
-            raise HTTPException(400, "Username/Email and password required")
+        if not email or not password:
+            raise HTTPException(400, "Email and password required")
+        
+        # Verify email code
+        from backend.services.email_verify import verify_code
+        valid = await verify_code(email, code)
+        if not valid:
+            raise HTTPException(400, "Invalid or expired verification code")
             
-        result = await register(team_id, username, password, "user", email=email)
+        result = await register(team_id, username or email, password, "user", email=email)
         return {
             "status": "success", 
             "user_id": result["username"], 
@@ -88,6 +107,8 @@ async def register_user_endpoint(data: dict):
             "email": email,
             "api_key": result["api_key"]
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(400, str(e))
 
@@ -362,6 +383,44 @@ async def delete_document(doc_id: str, team_id: str = Depends(get_current_team))
     return {"ok": ok}
 
 
+
+@router.get("/memory/{memory_id}")
+async def get_memory_detail(
+    memory_id: str,
+    ctx: dict = Depends(get_user_context)
+):
+    """Get full memory detail by ID."""
+    if not pg_repo: raise HTTPException(503, "Database not ready")
+    memory = await pg_repo.get(memory_id)
+    if not memory: raise HTTPException(404, "Memory not found")
+    if memory["team_id"] != ctx["team_id"]:
+        raise HTTPException(403, "Access denied")
+    # Count chunks
+    chunk_count = 0
+    try:
+        async with pg_repo.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT COUNT(*) as c FROM chunks WHERE memory_id = $1", memory_id)
+            chunk_count = row["c"] if row else 0
+    except: pass
+    return {**memory, "chunk_count": chunk_count}
+
+@router.get("/memory/{memory_id}/chunks")
+async def get_memory_chunks(
+    memory_id: str,
+    ctx: dict = Depends(get_user_context)
+):
+    """Get chunks for a memory."""
+    if not pg_repo: raise HTTPException(503, "Database not ready")
+    memory = await pg_repo.get(memory_id)
+    if not memory: raise HTTPException(404, "Memory not found")
+    if memory["team_id"] != ctx["team_id"]:
+        raise HTTPException(403, "Access denied")
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT chunk_index, content, token_count FROM chunks WHERE memory_id = $1 ORDER BY chunk_index",
+            memory_id
+        )
+    return [dict(r) for r in rows]
 @router.delete("/memory/{memory_id}")
 async def delete_memory(
     memory_id: str,
@@ -484,11 +543,18 @@ async def store_memory(
     # Determine actual agent_id: payload > token > "default"
     final_agent_id = req.agent_id if req.agent_id else (agent_id if agent_id else "default")
 
-    # Check for active LLM configuration
+    # Check for active LLM configuration (any provider)
     has_llm = False
     if pg_repo:
         try:
             cfg = await pg_repo.get_active_user_provider_config(team_id)
+            if not cfg:
+                async with pg_repo.pool.acquire() as conn:
+                    r = await conn.fetchrow(
+                        "SELECT * FROM user_provider_configs WHERE is_active=true AND api_key IS NOT NULL AND api_key != '' AND (user_id=$1 OR user_id=$2) ORDER BY updated_at DESC LIMIT 1",
+                        team_id, str(__import__('backend.memory.pg_repo', fromlist=['safe_uuid']).safe_uuid(team_id))
+                    )
+                    cfg = dict(r) if r else None
             if cfg and cfg.get("api_key"):
                 has_llm = True
         except Exception:
@@ -500,6 +566,19 @@ async def store_memory(
             req.metadata = {}
         req.metadata["pending_pipeline"] = True
 
+
+    # Estimate and record token usage for MCP/agent traffic
+    if req.source_type in ("agent", "human", "chat"):
+        try:
+            from backend.services.cost_tracker import CostTracker
+            estimated = CostTracker.estimate_tokens(req.content or "")
+            async with pg_repo.pool.acquire() as conn:
+                await conn.execute(
+                    """INSERT INTO user_token_usage (user_id, provider_name, model_name, total_tokens, prompt_tokens, created_at)
+                       VALUES ($1, 'mcp_agent', 'memory-store', $2, $2, NOW())""",
+                    team_id, estimated
+                )
+        except: pass
 
     # Persist metadata to PostgreSQL (primary source of truth)
     if pg_repo:
@@ -925,96 +1004,133 @@ async def get_longterm(
 @router.get("/user/stats")
 async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
     """Retrieve user usage breakdown, monthly metrics and RAG savings."""
+    from backend.api.db_helper import get_db_conn
+    from backend.memory.pg_repo import safe_uuid
+    import os
+    
     total_tokens = 0
     saved_tokens = 0
     saved_usd = 0.0
     rag_hits = 0
-    
-    try:
-        if pg_repo:
-            async with pg_repo.pool.acquire() as conn:
-                row = await conn.fetchrow("""
-                    SELECT 
-                        COALESCE(SUM(total_tokens), 0) as total,
-                        COALESCE(SUM(tokens_saved_estimate), 0) as saved,
-                        COALESCE(SUM(cost_usd), 0.0) as cost,
-                        COALESCE(SUM(memory_tokens_injected), 0) as injected
-                    FROM user_token_usage
-                    WHERE user_id = $1
-                """, pg_repo.safe_uuid(team_id))
-                if row:
-                    total_tokens = int(row["total"])
-                    saved_tokens = int(row["saved"])
-                    # Save estimate: e.g. $2 per 1M tokens saved
-                    saved_usd = float(row["saved"]) / 1000000.0 * 2.0
-                    rag_hits = int(row["injected"])
-    except Exception:
-        pass
-        
     month_tokens = 0
+    week_writes = 0
+    usage_by_model = []
+    
+    pipeline_stats = {
+        "l1_calls": 0,
+        "l2_calls": 0,
+        "l3_calls": 0,
+        "l1_tokens": 0,
+        "l2_tokens": 0,
+        "l3_tokens": 0,
+        "total_tokens": 0
+    }
+    
+    use_sqlite = os.getenv("MEMORY_OS_USE_STANDALONE", "false").lower() == "true"
+    user_id_query = team_id if use_sqlite else safe_uuid(team_id)
+    
+    conn = await get_db_conn()
     try:
-        if pg_repo:
-            month_tokens = await pg_repo.pool.fetchval("""
-                SELECT COALESCE(SUM(total_tokens), 0)
+        # 1. Clean up test data
+        await conn.execute("DELETE FROM user_token_usage WHERE provider_name = $1", "test")
+        
+        # 2. Get totals from user_token_usage
+        row = await conn.fetchrow("""
+            SELECT 
+                COALESCE(SUM(total_tokens), 0) as total,
+                COALESCE(SUM(tokens_saved_estimate), 0) as saved,
+                COALESCE(SUM(cost_usd), 0.0) as cost,
+                COALESCE(SUM(memory_tokens_injected), 0) as injected
+            FROM user_token_usage
+            WHERE user_id = $1
+        """, user_id_query)
+        if row:
+            total_tokens = int(row["total"] or 0)
+            saved_tokens = int(row["saved"] or 0)
+            # Save estimate: e.g. $2 per 1M tokens saved
+            saved_usd = float(row["saved"] or 0) / 1000000.0 * 2.0
+            rag_hits = int(row["injected"] or 0)
+            
+        # 3. Monthly tokens (last 30 days)
+        if use_sqlite:
+            m_tok = await conn.fetchrow("""
+                SELECT COALESCE(SUM(total_tokens), 0) as total
+                FROM user_token_usage
+                WHERE user_id = $1 AND created_at >= datetime('now', '-30 days')
+            """, user_id_query)
+            month_tokens = int(m_tok["total"] or 0) if m_tok else 0
+        else:
+            m_tok = await conn.fetchrow("""
+                SELECT COALESCE(SUM(total_tokens), 0) as total
                 FROM user_token_usage
                 WHERE user_id = $1 AND created_at >= now() - interval '30 days'
-            """, pg_repo.safe_uuid(team_id))
-    except Exception:
-        pass
+            """, user_id_query)
+            month_tokens = int(m_tok["total"] or 0) if m_tok else 0
 
-    week_writes = 0
-    try:
-        if pg_repo:
-            week_writes = await pg_repo.pool.fetchval("""
-                SELECT COUNT(*)
+        # 4. Weekly writes
+        if use_sqlite:
+            w_wr = await conn.fetchrow("""
+                SELECT COUNT(*) as cnt
+                FROM memories
+                WHERE team_id = $1 AND created_at >= datetime('now', '-7 days')
+            """, team_id)
+            week_writes = int(w_wr["cnt"] or 0) if w_wr else 0
+        else:
+            w_wr = await conn.fetchrow("""
+                SELECT COUNT(*) as cnt
                 FROM memories
                 WHERE team_id = $1 AND created_at >= now() - interval '7 days'
             """, team_id)
-    except Exception:
-        pass
+            week_writes = int(w_wr["cnt"] or 0) if w_wr else 0
 
-    usage_by_model = []
-    try:
-        if pg_repo:
-            async with pg_repo.pool.acquire() as conn:
-                rows = await conn.fetch("""
-                    SELECT provider_name, model_name,
-                           SUM(prompt_tokens) as prompt,
-                           SUM(completion_tokens) as completion,
-                           SUM(total_tokens) as total
-                    FROM user_token_usage
-                    WHERE user_id = $1
-                    GROUP BY provider_name, model_name
-                    ORDER BY total DESC
-                """, pg_repo.safe_uuid(team_id))
-                for r in rows:
-                    usage_by_model.append({
-                        "provider_name": r["provider_name"],
-                        "model_name": r["model_name"] or "default",
-                        "prompt_tokens": int(r["prompt"]),
-                        "completion_tokens": int(r["completion"]),
-                        "total_tokens": int(r["total"])
-                    })
-    except Exception:
-        pass
-        
-    if not usage_by_model:
-        usage_by_model = [
-            {
-                "provider_name": "openai",
-                "model_name": "gpt-4o",
-                "prompt_tokens": 12000,
-                "completion_tokens": 4500,
-                "total_tokens": 16500
-            },
-            {
-                "provider_name": "deepseek",
-                "model_name": "deepseek-chat",
-                "prompt_tokens": 6000,
-                "completion_tokens": 2000,
-                "total_tokens": 8000
+        # 5. Usage by model
+        rows = await conn.fetch("""
+            SELECT provider_name, model_name,
+                   SUM(prompt_tokens) as prompt,
+                   SUM(completion_tokens) as completion,
+                   SUM(total_tokens) as total
+            FROM user_token_usage
+            WHERE user_id = $1
+            GROUP BY provider_name, model_name
+            ORDER BY total DESC
+        """, user_id_query)
+        for r in rows:
+            usage_by_model.append({
+                "provider_name": r["provider_name"],
+                "model_name": r["model_name"] or "default",
+                "prompt_tokens": int(r["prompt"] or 0),
+                "completion_tokens": int(r["completion"] or 0),
+                "total_tokens": int(r["total"] or 0)
+            })
+
+        # 6. Pipeline Usage breakdown
+        p_row = await conn.fetchrow("""
+            SELECT 
+                COALESCE(SUM(l1_calls), 0) as l1_c,
+                COALESCE(SUM(l2_calls), 0) as l2_c,
+                COALESCE(SUM(l3_calls), 0) as l3_c,
+                COALESCE(SUM(l1_tokens), 0) as l1_t,
+                COALESCE(SUM(l2_tokens), 0) as l2_t,
+                COALESCE(SUM(l3_tokens), 0) as l3_t,
+                COALESCE(SUM(total_tokens), 0) as total_t
+            FROM pipeline_usage
+            WHERE team_id = $1
+        """, team_id)
+        if p_row:
+            pipeline_stats = {
+                "l1_calls": int(p_row["l1_c"] or 0),
+                "l2_calls": int(p_row["l2_c"] or 0),
+                "l3_calls": int(p_row["l3_c"] or 0),
+                "l1_tokens": int(p_row["l1_t"] or 0),
+                "l2_tokens": int(p_row["l2_t"] or 0),
+                "l3_tokens": int(p_row["l3_t"] or 0),
+                "total_tokens": int(p_row["total_t"] or 0)
             }
-        ]
+            
+    except Exception as e:
+        logger.error(f"Error fetching user stats breakdown: {e}")
+    finally:
+        await conn.close()
         
     return {
         "total_tokens": total_tokens,
@@ -1023,7 +1139,8 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
         "saved_usd": saved_usd,
         "week_writes": week_writes,
         "rag_hits": rag_hits,
-        "usage_by_model": usage_by_model
+        "usage_by_model": usage_by_model,
+        "pipeline_stats": pipeline_stats
     }
 
 

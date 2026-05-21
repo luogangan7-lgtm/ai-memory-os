@@ -736,10 +736,10 @@ async def get_audit_logs(limit: int = 50):
         for r in rows:
             logs.append({
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                "username": r["agent_id"],
+                "username": r.get("agent_id") or r.get("user_id") or "-",
                 "team_id": r.get("team_id", "-") if "team_id" in r else "-",
                 "action": r["action"],
-                "target_id": r["memory_id"],
+                "target_id": str(r.get("memory_id") or r.get("resource_id") or ""),
                 "ip_address": "-",
                 "success": True
             })

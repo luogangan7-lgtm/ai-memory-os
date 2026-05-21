@@ -10,22 +10,22 @@ PROMPT = (Path(__file__).parent / "prompts" / "l1_extract.txt").read_text(encodi
 
 def init(repo: MemoryRepo): global _repo; _repo = repo
 
-async def extract_from_conversation(conv_id: str, team_id: str) -> list[dict]:
-    if _repo is None: return []
+async def extract_from_conversation(conv_id: str, team_id: str) -> tuple[list[dict], int]:
+    if _repo is None: return [], 0
     try:
         c_id = int(conv_id)
     except ValueError:
-        return []
+        return [], 0
     row = await _repo.pool.fetchrow(
         "SELECT messages FROM pipeline_conversations WHERE id=$1 AND team_id=$2", c_id, team_id)
-    if not row: return []
+    if not row: return [], 0
     msgs = json.loads(row["messages"]) if isinstance(row["messages"], str) else row["messages"]
     text = "\n".join(f"{m['role']}: {m['content']}" for m in msgs[-10:])
-    
+
     prompt = PROMPT + "\n\n" + text
-    result = await call_llm(prompt, team_id, "classifier")
-    if not result: return []
-    
+    result, tokens = await call_llm(prompt, team_id, "classifier")
+    if not result: return [], 0
+
     # Try parsing as JSON array
     try:
         clean_res = result.strip()
@@ -34,13 +34,13 @@ async def extract_from_conversation(conv_id: str, team_id: str) -> list[dict]:
         if clean_res.endswith("```"):
             clean_res = clean_res[:-3]
         clean_res = clean_res.strip()
-        
+
         data = json.loads(clean_res)
         if isinstance(data, list):
-            return data
+            return data, tokens
     except Exception:
         pass
-        
+
     # Fallback to bullet points if JSON parsing fails
     facts = []
     for line in result.split("\n"):
@@ -54,7 +54,8 @@ async def extract_from_conversation(conv_id: str, team_id: str) -> list[dict]:
                     "tags": ["general"],
                     "importance": "normal"
                 })
-    return facts
+    return facts, tokens
+
 
 async def store_facts(team_id: str, facts: list[dict], session_id: str = "") -> list[str]:
     if _repo is None: return []

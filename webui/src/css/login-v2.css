@@ -324,3 +324,38 @@
   .v6-features { padding: 0 18px 48px; }
   .v6-foot { padding: 18px; flex-direction: column; gap: 10px; }
 }
+
+/* ── Hero 3D geometry (CSS-only, Spline placeholder) ─────────────────── */
+.v6-hero__geo {
+  position: absolute; top: 10%; right: -8%;
+  width: 500px; height: 500px;
+  pointer-events: none; z-index: 0;
+}
+.v6-hero__geo-ring {
+  position: absolute; inset: 10%;
+  border-radius: 50%;
+  border: 2px solid var(--v6-border-strong);
+  opacity: 0.3;
+  animation: geo-spin 20s linear infinite;
+}
+.v6-hero__geo-sphere {
+  position: absolute; top: 25%; left: 25%;
+  width: 50%; height: 50%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--v6-accent-soft), transparent 60%);
+  opacity: 0.5;
+  filter: blur(40px);
+  animation: geo-float 6s ease-in-out infinite;
+}
+.v6-hero__geo-label {
+  position: absolute; bottom: 8px; right: 8px;
+  font-family: var(--v6-font-mono);
+  font-size: 10px;
+  color: var(--v6-fg-faint);
+  letter-spacing: 0.05em;
+}
+@keyframes geo-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes geo-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.05); }
+}

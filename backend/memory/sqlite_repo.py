@@ -130,6 +130,9 @@ class SQLiteMemoryRepo:
                     l1_calls INTEGER DEFAULT 0,
                     l2_calls INTEGER DEFAULT 0,
                     l3_calls INTEGER DEFAULT 0,
+                    l1_tokens INTEGER DEFAULT 0,
+                    l2_tokens INTEGER DEFAULT 0,
+                    l3_tokens INTEGER DEFAULT 0,
                     total_tokens INTEGER DEFAULT 0,
                     UNIQUE(team_id, year_month)
                 );
@@ -167,6 +170,19 @@ class SQLiteMemoryRepo:
                     FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
                 )
             """)
+            # Run column migration for sqlite
+            try:
+                await db.execute("ALTER TABLE pipeline_usage ADD COLUMN l1_tokens INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE pipeline_usage ADD COLUMN l2_tokens INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE pipeline_usage ADD COLUMN l3_tokens INTEGER DEFAULT 0")
+            except Exception:
+                pass
             await db.commit()
         return repo
 
@@ -569,8 +585,29 @@ class SQLiteMemoryRepo:
             """, (str(uuid.uuid4()), user_id, provider_name, model_name, prompt_tokens, completion_tokens, total_tokens, cost_usd, memory_tokens_injected, tokens_saved_estimate, now))
             await db.commit()
 
-    async def close(self):
-        pass
+    async def increment_pipeline_usage(self, team_id: str, layer: str, tokens: int = 0):
+        ym = datetime.now(timezone.utc).strftime("%Y-%m")
+        l1_c = 1 if layer == 'L1' else 0
+        l2_c = 1 if layer == 'L2' else 0
+        l3_c = 1 if layer == 'L3' else 0
+        l1_t = tokens if layer == 'L1' else 0
+        l2_t = tokens if layer == 'L2' else 0
+        l3_t = tokens if layer == 'L3' else 0
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO pipeline_usage (team_id, year_month, l1_calls, l2_calls, l3_calls, l1_tokens, l2_tokens, l3_tokens, total_tokens)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(team_id, year_month) DO UPDATE SET
+                    l1_calls = l1_calls + excluded.l1_calls,
+                    l2_calls = l2_calls + excluded.l2_calls,
+                    l3_calls = l3_calls + excluded.l3_calls,
+                    l1_tokens = l1_tokens + excluded.l1_tokens,
+                    l2_tokens = l2_tokens + excluded.l2_tokens,
+                    l3_tokens = l3_tokens + excluded.l3_tokens,
+                    total_tokens = total_tokens + excluded.total_tokens
+            """, (team_id, ym, l1_c, l2_c, l3_c, l1_t, l2_t, l3_t, tokens))
+            await db.commit()
 
     async def close(self):
         pass

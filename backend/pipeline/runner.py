@@ -1,4 +1,6 @@
-"""Pipeline runner with queue-based high-concurrency support."""
+"""Pipeline runner
+from backend.memory.pg_repo import safe_uuid
+ with queue-based high-concurrency support."""
 from __future__ import annotations
 import asyncio, logging, os
 from backend.memory.pg_repo import MemoryRepo
@@ -44,30 +46,79 @@ async def _process_one(row):
     async with lock:
         try:
             if task_type == 'memory_pipeline':
+                print(f"[pipeline-DEBUG] processing qid={qid} team={team}", flush=True)
                 # Check if the user has an active LLM config
                 has_llm = False
                 from backend.api.user_providers import _user_llm_configs
+                from backend.pipeline.llm_client import _DEFAULT_BASES
                 user_cfg = _user_llm_configs.get(team, {})
-                if user_cfg.get("api_key") and user_cfg.get("base_url"):
+
+                # A config is valid if it has an api_key AND either
+                # an explicit base_url OR the provider has a known default base URL.
+                def _cfg_valid(c: dict) -> bool:
+                    key = c.get("api_key", "")
+                    if not key:
+                        return False
+                    base = c.get("base_url", "") or ""
+                    if base:
+                        return True
+                    provider = (c.get("provider") or "").lower()
+                    return provider in _DEFAULT_BASES
+
+                if _cfg_valid(user_cfg):
                     has_llm = True
                 else:
                     try:
                         cfg = await _repo.get_active_user_provider_config(team)
                         if cfg and cfg.get("api_key"):
-                            has_llm = True
-                            # Cache in-memory for future requests
-                            from backend.memory.pg_repo import safe_uuid
+                            from backend.utils.crypto import decrypt
+                            raw_key = cfg.get("api_key", "")
+                            try:
+                                raw_key = decrypt(raw_key) or raw_key
+                            except Exception:
+                                pass
                             cached_cfg = {
                                 "provider": cfg.get("provider_name", ""),
                                 "model": cfg.get("model_name", ""),
-                                "api_key": cfg.get("api_key", ""),
-                                "base_url": cfg.get("api_base_url", ""),
+                                "api_key": raw_key,
+                                "base_url": cfg.get("api_base_url", "") or "",
                             }
-                            _user_llm_configs[team] = cached_cfg
-                            _user_llm_configs[str(safe_uuid(team))] = cached_cfg
-                    except Exception:
-                        pass
+                            if _cfg_valid(cached_cfg):
+                                has_llm = True
+                                _user_llm_configs[team] = cached_cfg
+                                _user_llm_configs[str(safe_uuid(team))] = cached_cfg
+                    except Exception as e:
+                        logger.warning(f"[runner] Failed to load user provider config for {team}: {e}")
 
+                # Fallback: try any active config if team-specific lookup failed
+                print(f"[pipeline-DEBUG] has_llm={has_llm} team={team}", flush=True)
+                if not has_llm:
+                    try:
+                        rows = await _repo.pool.fetch(
+                            "SELECT * FROM user_provider_configs WHERE is_active=true AND api_key IS NOT NULL AND api_key != '' AND (user_id=$1 OR user_id=$2) ORDER BY updated_at DESC LIMIT 1",
+                            team, str(safe_uuid(team))
+                        )
+                        if rows:
+                            r = dict(rows[0])
+                            from backend.utils.crypto import decrypt
+                            raw_key = r.get("api_key", "")
+                            try: raw_key = decrypt(raw_key) or raw_key
+                            except: pass
+                            fallback = {
+                                "provider": r.get("provider_name", ""),
+                                "model": r.get("model_name", ""),
+                                "api_key": raw_key,
+                                "base_url": r.get("api_base_url", "") or "",
+                            }
+                            if _cfg_valid(fallback):
+                                has_llm = True
+                                _user_llm_configs[team] = fallback
+                                _user_llm_configs[str(safe_uuid(team))] = fallback
+                                logger.info(f"[runner] Using fallback LLM config for {team}: {fallback['provider']}/{fallback['model']}")
+                    except Exception as e:
+                        logger.warning(f"[runner] Fallback LLM lookup failed for {team}: {e}")
+
+                print(f"[pipeline-DEBUG] has_llm={has_llm} team={team}", flush=True)
                 if not has_llm:
                     logger.info(f"User {team} has no active LLM config. Pausing pipeline task {qid} with 'waiting_key' status.")
                     await _repo.pool.execute(
@@ -81,24 +132,24 @@ async def _process_one(row):
                 session_id = payload.get("session_id", "")
                 if conv_id:
                     from backend.pipeline.l1_extractor import extract_from_conversation, store_facts
-                    facts = await extract_from_conversation(conv_id, team)
+                    facts, l1_tokens = await extract_from_conversation(conv_id, team)
                     if facts:
                         if hasattr(_repo, 'increment_pipeline_usage'):
-                            await _repo.increment_pipeline_usage(team, 'L1', 0)
+                            await _repo.increment_pipeline_usage(team, 'L1', l1_tokens)
                         aids = await store_facts(team, facts, session_id)
                         
                         from backend.pipeline.l2_synthesizer import synthesize
                         from backend.pipeline.l3_persona import generate
                         
                         async def run_l2():
-                            await synthesize(team, aids)
+                            _, l2_tokens = await synthesize(team, aids)
                             if hasattr(_repo, 'increment_pipeline_usage'):
-                                await _repo.increment_pipeline_usage(team, 'L2', 0)
+                                await _repo.increment_pipeline_usage(team, 'L2', l2_tokens)
                                 
                         async def run_l3():
-                            await generate(team)
+                            _, l3_tokens = await generate(team)
                             if hasattr(_repo, 'increment_pipeline_usage'):
-                                await _repo.increment_pipeline_usage(team, 'L3', 0)
+                                await _repo.increment_pipeline_usage(team, 'L3', l3_tokens)
                                 
                         await asyncio.gather(run_l2(), run_l3(), return_exceptions=True)
             elif task_type == 'embedding_rebuild':
@@ -169,6 +220,7 @@ async def process_queue():
 _background_task: asyncio.Task | None = None
 
 def start_worker():
+    print('[pipeline] start_worker() called', flush=True)
     global _background_task
     if _background_task is None or _background_task.done():
         _background_task = asyncio.create_task(process_queue())
