@@ -170,15 +170,19 @@ PORTAL_HTML = """<!doctype html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
+    /* Linear-style matte design tokens. The whole palette stays in narrow luminance
+       band; depth comes from 1px borders + grain noise, not from glow or shadow. */
     :root {
-      --bg: #FAFAFA;
+      --bg: #FCFCFD;
       --bg-elev: #FFFFFF;
-      --fg: #0A0A0A;
-      --fg-muted: #6B6B6B;
-      --border: #E5E5E5;
-      --border-strong: #D4D4D4;
+      --bg-sunken: #F4F4F5;
+      --fg: #0D0D10;
+      --fg-muted: #6F6F76;
+      --border: #E6E6E9;
+      --border-strong: #D4D4D8;
       --accent: #6E56CF;
-      --accent-glow: rgba(110, 86, 207, 0.18);
+      --accent-soft: rgba(110, 86, 207, 0.10);
+      --grain-opacity: 0.025;
       --radius-sm: 6px;
       --radius-md: 8px;
       --radius-lg: 12px;
@@ -186,14 +190,16 @@ PORTAL_HTML = """<!doctype html>
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0A0A0A;
-        --bg-elev: #111111;
-        --fg: #E5E5E5;
-        --fg-muted: #888888;
-        --border: #1F1F1F;
-        --border-strong: #2A2A2A;
-        --accent: #8E78E5;
-        --accent-glow: rgba(142, 120, 229, 0.22);
+        --bg: #08080B;
+        --bg-elev: #101013;
+        --bg-sunken: #050507;
+        --fg: #ECECF0;
+        --fg-muted: #7A7A82;
+        --border: #1A1A1F;
+        --border-strong: #26262C;
+        --accent: #9E8AE5;
+        --accent-soft: rgba(158, 138, 229, 0.10);
+        --grain-opacity: 0.05;
       }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -206,8 +212,34 @@ PORTAL_HTML = """<!doctype html>
       -webkit-font-smoothing: antialiased;
       letter-spacing: -0.01em;
       perspective: 1200px;
+      position: relative;
+      overflow-x: hidden;
+    }
+    /* Soft ambient highlight, top-right. Heavy blur so it reads as room light,
+       not as a UI element. No bright core. */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -20vh; right: -10vw;
+      width: 70vw; height: 60vh;
+      background: radial-gradient(ellipse at center, var(--accent-soft), transparent 65%);
+      filter: blur(60px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    /* Grain. Inline SVG feTurbulence; the value-noise gives the matte texture
+       Linear uses to break up flat dark surfaces. */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+      opacity: var(--grain-opacity);
+      mix-blend-mode: overlay;
+      pointer-events: none;
+      z-index: 1;
     }
     .page {
+      position: relative; z-index: 2;
       min-height: 100%;
       display: flex;
       flex-direction: column;
@@ -224,8 +256,8 @@ PORTAL_HTML = """<!doctype html>
       color: var(--fg-muted); text-transform: uppercase;
     }
     .brand .logo::before {
-      content: ''; width: 8px; height: 8px; border-radius: 999px;
-      background: var(--accent); box-shadow: 0 0 12px var(--accent-glow);
+      content: ''; width: 6px; height: 6px; border-radius: 999px;
+      background: var(--accent);
     }
     .brand h1 {
       margin-top: 14px; font-size: 32px; font-weight: 600;
@@ -245,29 +277,22 @@ PORTAL_HTML = """<!doctype html>
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: 28px;
-      transition: transform 0.35s var(--ease), border-color 0.2s, box-shadow 0.3s;
+      transition: transform 0.4s var(--ease), border-color 0.25s var(--ease);
       transform-style: preserve-3d;
       will-change: transform;
     }
+    /* No glow on hover — just borders firming up and a tiny lift. Linear style. */
     .card:hover {
-      transform: translateY(-4px) rotateX(2deg) rotateY(-2deg);
       border-color: var(--border-strong);
-      box-shadow: 0 14px 32px -16px var(--accent-glow), 0 0 0 1px var(--accent-glow);
     }
-    .card::after {
-      content: ''; position: absolute; inset: 0;
-      border-radius: var(--radius-lg);
-      background: linear-gradient(135deg, var(--accent-glow), transparent 50%);
-      opacity: 0; transition: opacity 0.3s var(--ease); pointer-events: none;
-    }
-    .card:hover::after { opacity: 1; }
     .card .icon {
-      width: 44px; height: 44px;
+      width: 40px; height: 40px;
       display: inline-flex; align-items: center; justify-content: center;
       border-radius: var(--radius-md);
-      background: var(--accent-glow);
-      color: var(--accent);
-      margin-bottom: 18px;
+      background: var(--bg-sunken);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      margin-bottom: 20px;
     }
     .card h2 {
       font-size: 18px; font-weight: 600; margin-bottom: 6px;
@@ -283,7 +308,7 @@ PORTAL_HTML = """<!doctype html>
       font-size: 12px; letter-spacing: 0.04em;
       color: var(--accent); text-transform: uppercase;
     }
-    .card .cta::after { content: '→'; transition: transform 0.2s var(--ease); }
+    .card .cta::after { content: '→'; margin-left: 4px; transition: transform 0.2s var(--ease); }
     .card:hover .cta::after { transform: translateX(3px); }
     .meta {
       font-family: 'Geist Mono', monospace;
@@ -340,17 +365,17 @@ PORTAL_HTML = """<!doctype html>
     </footer>
   </main>
   <script>
-    // 3D tilt: subtle perspective parallax based on cursor
+    // Tilt is intentionally subtle. Linear has no 3D, but the brief asks for CSS
+    // transform pseudo-3D, so we keep it but cap rotation at 2deg and lift at 2px
+    // — readable as cursor feedback, not as a gimmick.
     document.querySelectorAll('.card').forEach(card => {
       card.addEventListener('pointermove', (e) => {
         const r = card.getBoundingClientRect();
         const x = (e.clientX - r.left) / r.width - 0.5;
         const y = (e.clientY - r.top) / r.height - 0.5;
-        card.style.transform = `translateY(-4px) rotateX(${y * -6}deg) rotateY(${x * 6}deg)`;
+        card.style.transform = `translateY(-2px) rotateX(${y * -2}deg) rotateY(${x * 2}deg)`;
       });
-      card.addEventListener('pointerleave', () => {
-        card.style.transform = '';
-      });
+      card.addEventListener('pointerleave', () => { card.style.transform = ''; });
     });
   </script>
 </body>
