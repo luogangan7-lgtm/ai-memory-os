@@ -81,21 +81,17 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
   const [llm, setLlm] = useState<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pipeline, setPipeline] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [recentMem, setRecentMem] = useState<any[]>([]);
 
   const refresh = useCallback(async () => {
     try {
-      const [s, l, p, m] = await Promise.all([
+      const [s, l, p] = await Promise.all([
         fetch('/stats', { headers: authHeader() }).then((r) => r.json()),
         fetch('/api/user/llm', { headers: authHeader() }).then((r) => r.json()),
         fetch('/api/user/llm/pipeline/status', { headers: authHeader() }).then((r) => r.json()).catch(() => null),
-        fetch('/memory/recent?limit=8', { headers: authHeader() }).then((r) => r.json()).catch(() => []),
       ]);
       setStats(s);
       setLlm(l);
       setPipeline(p);
-      setRecentMem(Array.isArray(m) ? m : []);
     } catch { /* non-fatal */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -117,92 +113,110 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
   const pipelineCounts = pipeline?.counts || {};
   const pipelineRecent = (pipeline?.recent || []).slice(0, 5);
 
-  const SOURCE_LABELS: Record<string, string> = { document: 'doc', knowledge: 'knowledge', human: 'chat', agent: 'agent' };
+  // 3D tilt handler for metric tiles
+  const handleTilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(700px) rotateX(${y * -6}deg) rotateY(${x * 6}deg) translateY(-4px)`;
+  };
+  const resetTilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.style.transform = '';
+  };
 
-  // Onboarding: show if user has almost nothing set up
   const isNew = !llmOk && (stats?.total_memories ?? 0) < 3;
 
   return (
-    <div className="v6-card">
-      <div className="v6-card__head">
+    <div className="v6-card v6-overview-card">
+      {/* ambient decorative highlight layer */}
+      <div className="v6-overview__glow" aria-hidden="true" />
+
+      <div className="v6-card__head" style={{ position: 'relative', zIndex: 1 }}>
         <div className="v6-card__title">
-          Overview
-          <span className="v6-card__title-hint">auto-refresh 5s</span>
+          系统概览
+          <span className="v6-card__title-hint">每 5 秒刷新</span>
         </div>
-        <button className="v6-btn v6-btn--xs" onClick={refresh}>Refresh</button>
+        <button className="v6-btn v6-btn--xs" onClick={refresh}>刷新</button>
       </div>
 
       {isNew ? (
-        /* ── Onboarding empty state ── */
-        <>
+        /* ── Onboarding 空状态 ── */
+        <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ marginBottom: 18, fontSize: 13.5, color: 'var(--v6-fg-muted)' }}>
-            3 件事让 Cortex 跑起来：
+            3 步让 Cortex 跑起来：
           </div>
           <div className="v6-onboarding">
             <div className={`v6-onboarding__step ${llmOk ? 'v6-onboarding__step--done' : ''}`}>
               <span className="v6-onboarding__num">{llmOk ? '✓' : '1'}</span>
               <div className="v6-onboarding__body">
-                <div className="v6-onboarding__title">配置 LLM</div>
+                <div className="v6-onboarding__title">配置 LLM（你的 key，你的账单）</div>
                 <div className="v6-onboarding__desc">选一个 provider，填入 API key。可选带 FREE 标识的模型，零成本启动。</div>
-                {!llmOk && <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('myllm')}>Go to LLM →</button>}
+                {!llmOk && <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('myllm')}>前往配置 →</button>}
               </div>
             </div>
             <div className="v6-onboarding__step">
               <span className="v6-onboarding__num">2</span>
               <div className="v6-onboarding__body">
-                <div className="v6-onboarding__title">接入一个 AI agent</div>
-                <div className="v6-onboarding__desc">在 Cursor / Claude Desktop / Cline 中添加 MCP 配置，agent 就能自动把知识写入记忆。</div>
-                <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('connect')}>Go to Connect →</button>
+                <div className="v6-onboarding__title">接入 AI Agent（MCP 协议）</div>
+                <div className="v6-onboarding__desc">在 Cursor / Claude Desktop / Cline 中添加 MCP 配置，Agent 就能自动把知识写入记忆。</div>
+                <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('connect')}>前往接入 →</button>
               </div>
             </div>
             <div className="v6-onboarding__step">
               <span className="v6-onboarding__num">3</span>
               <div className="v6-onboarding__body">
                 <div className="v6-onboarding__title">写入第一条记忆</div>
-                <div className="v6-onboarding__desc">让 agent 在对话中自动调用 memory_store，或在知识库页面上传文档。</div>
-                <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('memory')}>Go to Library →</button>
+                <div className="v6-onboarding__desc">让 Agent 在对话中自动调用 memory_store，或在知识库页面上传文档。</div>
+                <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('memory')}>前往知识库 →</button>
               </div>
             </div>
           </div>
-        </>
+        </div>
       ) : (
-        <>
-          {/* ── 4 metric tiles ── */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* ── 4 个核心指标 ── */}
           <div className="v6-metric-grid">
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">Total memories</div>
+            <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+              <div className="v6-metric-tile__label">总记忆</div>
               <div className="v6-metric-tile__value">{fmt(stats?.total_memories ?? 0)}</div>
-              <div className="v6-metric-tile__sub">{fmt(stats?.total_documents ?? 0)} docs</div>
+              <div className="v6-metric-tile__sub">{fmt(stats?.total_documents ?? 0)} 份文档</div>
             </div>
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">New today</div>
-              <div className="v6-metric-tile__value">{fmt(stats?.new_today ?? 0)}</div>
-              <div className="v6-metric-tile__sub">last 24h</div>
+            <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+              <div className="v6-metric-tile__label">今日新增</div>
+              <div className="v6-metric-tile__value v6-metric-tile__value--accent">{fmt(stats?.new_today ?? 0)}</div>
+              <div className="v6-metric-tile__sub">过去 24 小时</div>
             </div>
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">Active agents</div>
+            <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+              <div className="v6-metric-tile__label">活跃 Agent</div>
               <div className="v6-metric-tile__value">{agentCount}</div>
-              <div className="v6-metric-tile__sub">{agentCount > 0 ? stats.active_agents.slice(0, 2).join(', ') : 'none in 7d'}</div>
-            </div>
-            <div className="v6-metric-tile">
-              <div className="v6-metric-tile__label">Pipeline (24h)</div>
-              <div className="v6-metric-tile__value">{fmt((pipelineCounts as Record<string,number>)['done'] ?? 0)}</div>
               <div className="v6-metric-tile__sub">
-                <b style={{ color: pipelineCounts['failed'] ? 'var(--v6-danger)' : undefined }}>
-                  {pipelineCounts['failed'] ?? 0} failed
-                </b>
-                {' · '}{pipelineCounts['pending'] ?? 0} pending
+                {agentCount > 0 ? stats.active_agents.slice(0, 2).join(' · ') : '7 天内暂无'}
+              </div>
+            </div>
+            <div className="v6-metric-tile" onPointerMove={handleTilt} onPointerLeave={resetTilt}>
+              <div className="v6-metric-tile__label">管线完成</div>
+              <div className="v6-metric-tile__value v6-metric-tile__value--done">
+                {fmt((pipelineCounts as Record<string, number>)['done'] ?? 0)}
+              </div>
+              <div className="v6-metric-tile__sub">
+                <span style={{ color: pipelineCounts['failed'] ? 'var(--v6-danger)' : undefined }}>
+                  {pipelineCounts['failed'] ?? 0} 失败
+                </span>
+                {' · '}{pipelineCounts['pending'] ?? 0} 排队中
               </div>
             </div>
           </div>
 
-          {/* ── Pipeline ── */}
+          {/* ── 管线任务列表 ── */}
           <div className="v6-section-label" style={{ marginBottom: 10 }}>
-            <span>Pipeline</span>
-            <span className="v6-section-label__count">{pipeline?.in_flight ?? 0} in flight</span>
+            <span>记忆管线 Pipeline</span>
+            <span className="v6-section-label__count">
+              {pipeline?.in_flight ?? 0} 正在处理
+            </span>
           </div>
           {pipelineRecent.length === 0 ? (
-            <div className="v6-empty" style={{ padding: '24px 0' }}>No pipeline jobs yet.</div>
+            <div className="v6-empty" style={{ padding: '24px 0' }}>暂无管线任务 — 接入 Agent 后自动触发</div>
           ) : (
             <div className="v6-modellist" style={{ marginBottom: 20 }}>
               {pipelineRecent.map((j: { id: string; status: string; task_type: string; created_at: string; started_at: string; completed_at: string; error_msg: string }) => (
@@ -220,16 +234,16 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
             </div>
           )}
 
-          {/* ── Health ── */}
-          <div className="v6-section-label"><span>Health</span></div>
-          <div className="v6-health-list" style={{ marginBottom: 20 }}>
+          {/* ── 系统健康 ── */}
+          <div className="v6-section-label"><span>系统健康</span></div>
+          <div className="v6-health-list">
             <div className="v6-health-item">
               <span className={`v6-health-item__dot ${llmOk ? 'v6-health-item__dot--ok' : 'v6-health-item__dot--warn'}`} />
               <span className="v6-health-item__label">LLM</span>
               <span className="v6-health-item__detail">
-                {llmOk ? `${llm.provider} / ${llm.model}` : 'Not configured — '}
+                {llmOk ? `${llm.provider} / ${llm.model}` : '未配置 — '}
                 {!llmOk && (
-                  <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontFamily: 'var(--v6-font-mono)', padding: 0 }} onClick={() => onNavigate('myllm')}>configure →</button>
+                  <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontFamily: 'var(--v6-font-mono)', padding: 0 }} onClick={() => onNavigate('myllm')}>前往配置 →</button>
                 )}
               </span>
             </div>
@@ -237,45 +251,21 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
               <span className={`v6-health-item__dot ${agentCount > 0 ? 'v6-health-item__dot--ok' : 'v6-health-item__dot--warn'}`} />
               <span className="v6-health-item__label">MCP</span>
               <span className="v6-health-item__detail">
-                {agentCount > 0 ? `${agentCount} agent${agentCount > 1 ? 's' : ''} active (7d)` : 'No agents active yet'}
-                {agentCount === 0 && <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontFamily: 'var(--v6-font-mono)', padding: 0, marginLeft: 4 }} onClick={() => onNavigate('connect')}>connect →</button>}
+                {agentCount > 0
+                  ? `${agentCount} 个 Agent 活跃（7 天内）`
+                  : '暂无活跃 Agent '}
+                {agentCount === 0 && (
+                  <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontFamily: 'var(--v6-font-mono)', padding: 0 }} onClick={() => onNavigate('connect')}>前往接入 →</button>
+                )}
               </span>
             </div>
             <div className="v6-health-item">
               <span className="v6-health-item__dot v6-health-item__dot--ok" />
               <span className="v6-health-item__label">Backend</span>
-              <span className="v6-health-item__detail">healthy</span>
+              <span className="v6-health-item__detail">服务正常</span>
             </div>
           </div>
-
-          {/* ── Recent memories ── */}
-          {recentMem.length > 0 && (
-            <>
-              <div className="v6-section-label">
-                <span>Recent memories</span>
-                <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg-muted)', cursor: 'pointer', fontSize: 11, fontFamily: 'var(--v6-font-mono)' }} onClick={() => onNavigate('memory')}>view all →</button>
-              </div>
-              <div className="v6-list">
-                {recentMem.map((m, i) => (
-                  <div key={i} className="v6-list__item">
-                    <div className="v6-list__item-head">
-                      <div className="v6-list__item-main">
-                        <div className="v6-list__item-title">{m.title || 'Untitled'}</div>
-                        <div className="v6-list__item-meta">
-                          <span className="v6-tag">{SOURCE_LABELS[m.source_type] || m.source_type || 'chat'}</span>
-                          {m.category && <span className="v6-tag">{m.category}</span>}
-                        </div>
-                      </div>
-                      <div className="v6-list__item-aside">
-                        <span>{fmtDate(m.created_at)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
+        </div>
       )}
     </div>
   );
