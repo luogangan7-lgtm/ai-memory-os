@@ -245,6 +245,16 @@ class MemoryRepo:
             """, doc_id, team_id, filename, minio_key, chunk_count, file_size, tags or [])
             return doc_id
 
+    async def insert_chunk(self, memory_id: str, chunk_index: int, content: str, token_count: int, qdrant_point_id: str):
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO chunks (memory_id, chunk_index, content, token_count, qdrant_point_id)
+                VALUES ($1, $2, $3, $4, $5)
+            """, safe_uuid(memory_id), chunk_index, content, token_count, qdrant_point_id)
+
+
+
+
 
     @retry(max_retries=2, delay=0.3)
     async def insert(self, **kw):

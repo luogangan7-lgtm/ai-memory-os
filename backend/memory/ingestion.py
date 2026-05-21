@@ -54,9 +54,10 @@ class SemanticChunker:
 class IngestionPipeline:
     """Orchestrates: parse -> clean -> chunk -> embed -> store."""
 
-    def __init__(self, qdrant_store, chunker: Optional[SemanticChunker] = None):
+    def __init__(self, qdrant_store, chunker: Optional[SemanticChunker] = None, pg_repo = None):
         self.qdrant = qdrant_store
         self.chunker = chunker or SemanticChunker()
+        self.pg_repo = pg_repo
 
     async def ingest(
         self,
@@ -70,6 +71,22 @@ class IngestionPipeline:
         """Run the full ingestion pipeline for a single memory."""
         chunks = self.chunker.chunk(content)
         results: list[dict] = []
+
+        # Clear existing chunks for this memory_id if pg_repo is available
+        if self.pg_repo:
+            try:
+                if hasattr(self.pg_repo, "db_path"):  # SQLite
+                    import aiosqlite
+                    async with aiosqlite.connect(self.pg_repo.db_path) as db:
+                        await db.execute("DELETE FROM chunks WHERE memory_id = ?", (memory_id,))
+                        await db.commit()
+                else:  # PostgreSQL
+                    from backend.memory.pg_repo import safe_uuid
+                    async with self.pg_repo.pool.acquire() as conn:
+                        await conn.execute("DELETE FROM chunks WHERE memory_id = $1", safe_uuid(memory_id))
+            except Exception as e:
+                import logging
+                logging.getLogger("ingestion").warning(f"Failed to clear existing chunks for {memory_id}: {e}")
 
         for i, chunk_text in enumerate(chunks):
             # Truncate to ~7000 chars (~5000 tokens for Chinese) to avoid API limits
@@ -93,10 +110,28 @@ class IngestionPipeline:
                     "agent_id": kwargs.get("agent_id", ""),
                 },
             )
+
+            token_count = self.chunker._estimate_tokens(chunk_text)
+
+            # Insert chunk into database chunks table
+            if self.pg_repo:
+                try:
+                    await self.pg_repo.insert_chunk(
+                        memory_id=memory_id,
+                        chunk_index=i,
+                        content=chunk_text,
+                        token_count=token_count,
+                        qdrant_point_id=point_id
+                    )
+                except Exception as db_err:
+                    import logging
+                    logging.getLogger("ingestion").error(f"Failed to save chunk {i} to database for memory {memory_id}: {db_err}")
+
             results.append({
                 "chunk_index": i,
                 "point_id": point_id,
-                "token_estimate": self.chunker._estimate_tokens(chunk_text),
+                "token_estimate": token_count,
             })
 
         return results
+

@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
     await gs.setup_indexes()
     ms = MinIOStore()
-    ip = IngestionPipeline(qs)
+    ip = IngestionPipeline(qs, pg_repo=pg)
     rp = RetrievalPipeline(qs, gs)
     registry = ModelRegistry()
     
@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_cleanup_scheduler())
     from backend.scheduler.freshness_decay import start_decay_scheduler
     asyncio.create_task(start_decay_scheduler())
-    refl = ReflectionEngine(pg, gs, registry=registry)
+    refl = ReflectionEngine(pg, gs, registry=registry, retrieval=rp)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()
     app.state.scheduler = sched
@@ -187,10 +187,6 @@ if APP_DIR.exists():
         return response
 
 # Metrics
-from backend.services.metrics import metrics_response
-@app.get("/metrics")
-async def metrics():
-    return metrics_response()
 
 # Mount React SPA at root (if exists)
 if WEBUI_DIST.exists():

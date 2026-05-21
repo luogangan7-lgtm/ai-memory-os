@@ -155,6 +155,16 @@ class SQLiteMemoryRepo:
                     metadata TEXT DEFAULT '{}',
                     created_at TEXT,
                     updated_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS chunks (
+                    id TEXT PRIMARY KEY,
+                    memory_id TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    token_count INTEGER DEFAULT 0,
+                    qdrant_point_id TEXT,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
                 )
             """)
             await db.commit()
@@ -180,6 +190,25 @@ class SQLiteMemoryRepo:
             await db.execute(q, vals)
             await db.commit()
         return kw["id"]
+
+    async def insert_chunk(self, memory_id: str, chunk_index: int, content: str, token_count: int, qdrant_point_id: str):
+        now = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """INSERT INTO chunks (id, memory_id, chunk_index, content, token_count, qdrant_point_id, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (str(uuid.uuid4()), memory_id, chunk_index, content, token_count, qdrant_point_id, now)
+            )
+            await db.commit()
+
+    async def delete(self, mid: str, team_id: str) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("DELETE FROM memories WHERE id=? AND team_id=?", (mid, team_id)) as cursor:
+                await db.execute("DELETE FROM chunks WHERE memory_id=?", (mid,))
+                await db.commit()
+                return cursor.rowcount > 0
+
+
 
     async def add_message(self, team_id: str, agent_id: str, role: str, content: str):
         """High-level helper to archive a chat message into memory."""
