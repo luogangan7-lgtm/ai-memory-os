@@ -34,22 +34,21 @@ CREATE TABLE IF NOT EXISTS user_persona (
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 任务画布
+-- 任务画布 (schema reflects the actual production table; code in api/canvas.py and api/mcp.py
+-- writes completed_steps/next_steps as JSONB via ::jsonb casts.)
 CREATE TABLE IF NOT EXISTS task_canvas (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    team_id         VARCHAR NOT NULL,
-    task_id         VARCHAR NOT NULL,
+    id              SERIAL PRIMARY KEY,
+    team_id         TEXT NOT NULL,
+    task_id         TEXT NOT NULL,
     agent_id        VARCHAR(50) DEFAULT 'default',
-    task_title      VARCHAR(300),
-    canvas_mermaid  TEXT NOT NULL,
-    completed_steps TEXT[] DEFAULT '{}',
-    next_steps      TEXT[] DEFAULT '{}',
-    status          VARCHAR DEFAULT 'active',
+    task_title      VARCHAR(300) DEFAULT '',
+    canvas_mermaid  TEXT DEFAULT '',
+    completed_steps JSONB DEFAULT '[]'::jsonb,
+    next_steps      JSONB DEFAULT '[]'::jsonb,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (team_id, task_id, agent_id)
 );
-CREATE INDEX IF NOT EXISTS idx_canvas_team ON task_canvas(team_id, status);
 
 -- 管线用量追踪
 CREATE TABLE IF NOT EXISTS pipeline_usage (
