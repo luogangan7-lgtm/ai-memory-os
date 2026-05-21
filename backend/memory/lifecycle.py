@@ -57,6 +57,14 @@ def compute_freshness(memory: dict[str, Any]) -> float:
     return max(0.0, 1.0 * (0.5 ** (age_days / 7.0)))
 
 
+STAGE_ORDER = {
+    LifecycleStage.RECENT: 0,
+    LifecycleStage.WORKING: 1,
+    LifecycleStage.LONGTERM: 2,
+    LifecycleStage.CORE: 3,
+}
+
+
 def compute_next_stage(memory: dict[str, Any], current: str) -> LifecycleStage:
     """Determine the next lifecycle stage based on metrics."""
     try:
@@ -70,14 +78,14 @@ def compute_next_stage(memory: dict[str, Any], current: str) -> LifecycleStage:
 
     # Check promotions first
     for target in (LifecycleStage.CORE, LifecycleStage.LONGTERM, LifecycleStage.WORKING):
-        if target.value > stage.value:
-            for src, rules in TRANSITION_RULES.items():
-                if target in rules and rules[target](m):
-                    return target
+        if STAGE_ORDER[target] > STAGE_ORDER[stage]:
+            rules = TRANSITION_RULES.get(stage, {})
+            if target in rules and rules[target](m):
+                return target
 
     # Check demotions
     for target in (LifecycleStage.RECENT, LifecycleStage.WORKING):
-        if target.value < stage.value:
+        if STAGE_ORDER[target] < STAGE_ORDER[stage]:
             if stage in TRANSITION_RULES and target in TRANSITION_RULES[stage]:
                 if TRANSITION_RULES[stage][target](m):
                     return target
