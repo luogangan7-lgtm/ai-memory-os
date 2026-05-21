@@ -59,6 +59,21 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# Surface insecure defaults loudly. Don't fail-fast — that breaks running deployments
+# that haven't been migrated yet — but make sure operators can grep the logs for these.
+import logging as _logging
+_log = _logging.getLogger("config")
+if settings.jwt_secret == "change-me-in-production":
+    _log.warning(
+        "MEMORY_OS_JWT_SECRET is using the built-in default 'change-me-in-production'. "
+        "Set it to a random 64-char hex string before exposing this service to the network."
+    )
+if settings.minio_secret_key == "password" or settings.pg_password == "memoryos" or settings.neo4j_password == "password":
+    _log.warning(
+        "One or more datastore passwords are still at their compose-template defaults. "
+        "Override POSTGRES_PASSWORD / NEO4J_PASSWORD / MINIO_ROOT_PASSWORD via .env before going public."
+    )
+
 # --- System-Wide Tuning Config Persistence (V5.1 Spec) ---
 import json
 from pathlib import Path

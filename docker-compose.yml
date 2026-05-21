@@ -2,8 +2,8 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
@@ -11,7 +11,7 @@ services:
   postgres:
     image: postgres:16
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-memoryos}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-memoryos}
@@ -29,8 +29,8 @@ services:
   neo4j:
     image: neo4j:5
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_PLUGINS: '["apoc"]'
@@ -46,8 +46,8 @@ services:
   minio:
     image: minio/minio:latest
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
@@ -64,7 +64,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -99,6 +99,7 @@ services:
       - MEMORY_OS_MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-admin}
       - MEMORY_OS_MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-password}
       - MEMORY_OS_MASTER_KEY=${MEMORY_OS_MASTER_KEY:-}
+      - MEMORY_OS_JWT_SECRET=${MEMORY_OS_JWT_SECRET:-change-me-in-production}
     volumes:
       - backend_config:/app/config
       - ./webui-dist:/app/webui-dist:ro
