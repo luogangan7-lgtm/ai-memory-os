@@ -668,62 +668,185 @@ function MemoryPanel() {
   );
 }
 
-function ConnectPanel({token:propToken}:{token?:string}){
+function ConnectPanel({ token: propToken }: { token?: string }) {
+  const [connected, setConnected] = useState<'checking' | 'online' | 'offline'>('checking');
+  useEffect(() => {
+    function check() {
+      fetch(window.location.origin + '/')
+        .then((r) => setConnected(r.ok ? 'online' : 'offline'))
+        .catch(() => setConnected('offline'));
+    }
+    check();
+    const i = setInterval(check, 8000);
+    return () => clearInterval(i);
+  }, []);
 
-const[connected,setConnected]=useState<'checking'|'online'|'offline'>('checking');
-useEffect(()=>{function check(){fetch(window.location.origin+'/').then(r=>setConnected(r.ok?'online':'offline')).catch(()=>setConnected('offline'))};check();const i=setInterval(check,8000);return ()=>clearInterval(i)},[]);
-const[token]=useState(()=>propToken||'mos_'+Math.random().toString(36).slice(2,10)+'_'+Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join(''));
-const getServerUrl=()=>window.location.hostname+(window.location.port?':'+window.location.port:':8003');
-const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex'>('cursor');
-const[copied,setCopied]=useState(false);
+  const [token] = useState(
+    () =>
+      propToken ||
+      'mos_' +
+        Math.random().toString(36).slice(2, 10) +
+        '_' +
+        Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+  );
+  const getServerUrl = () =>
+    window.location.hostname + (window.location.port ? ':' + window.location.port : ':8003');
+  const [agent, setAgent] = useState<'cursor' | 'claude' | 'openclaw' | 'cline' | 'continue' | 'roo' | 'codex'>('cursor');
+  const [copiedKey, setCopiedKey] = useState<string>('');
+  const copy = (key: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(''), 1500);
+  };
 
-const configs={cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],env:{}}}},null,2),
-claude:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp"],env:{MOS_TOKEN:token,MOS_SERVER:"http://"+getServerUrl()}}}},null,2),
-openclaw:"SSE 地址: http://"+getServerUrl()+"/mcp?token="+token,
-cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2),
-continue:JSON.stringify({experimental:{modelContextProtocolServers:[{transport:{type:"stdio",command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""]}}]}},null,2),
-roo:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],alwaysAllow:["memory_search","memory_store"]}},null,2),
-codex:"# ~/.codex/config.toml\n[[mcp_servers]]\nname = \"ai-memory-os\"\ncommand = \"npx\"\nargs = [\"-y\", \"ai-memory-os-mcp\", \"--token="+token+"\", \"--server=http://"+getServerUrl()+"\"]"};
+  const configs: Record<string, string> = {
+    cursor: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()], env: {} } } }, null, 2),
+    claude: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp'], env: { MOS_TOKEN: token, MOS_SERVER: 'http://' + getServerUrl() } } } }, null, 2),
+    openclaw: 'SSE endpoint: http://' + getServerUrl() + '/mcp?token=' + token,
+    cline: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()], disabled: false, autoApprove: ['memory_search', 'memory_list', 'memory_status'] } }, null, 2),
+    continue: JSON.stringify({ experimental: { modelContextProtocolServers: [{ transport: { type: 'stdio', command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()] } }] } }, null, 2),
+    roo: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()], alwaysAllow: ['memory_search', 'memory_store'] } }, null, 2),
+    codex: '# ~/.codex/config.toml\n[[mcp_servers]]\nname = "ai-memory-os"\ncommand = "npx"\nargs = ["-y", "ai-memory-os-mcp", "--token=' + token + '", "--server=http://' + getServerUrl() + '"]',
+  };
 
-const FILE_PATHS={cursor:'~/.cursor/mcp.json',claude:'~/Library/Application Support/Claude/claude_desktop_config.json',openclaw:'OpenClaw → Settings → MCP Servers',cline:'VS Code → Cline → MCP Servers',continue:'~/.continue/config.json',roo:'VS Code → Roo Code → MCP Servers',codex:'~/.codex/config.toml'};
+  const FILE_PATHS: Record<string, string> = {
+    cursor: '~/.cursor/mcp.json',
+    claude: '~/Library/Application Support/Claude/claude_desktop_config.json',
+    openclaw: 'OpenClaw → Settings → MCP Servers',
+    cline: 'VS Code → Cline → MCP Servers',
+    continue: '~/.continue/config.json',
+    roo: 'VS Code → Roo Code → MCP Servers',
+    codex: '~/.codex/config.toml',
+  };
 
-const AGENTS=[{id:'cursor',name:'Cursor'},{id:'claude',name:'Claude Desktop'},{id:'openclaw',name:'OpenClaw (SSE)'},{id:'cline',name:'Cline'},{id:'continue',name:'Continue'},{id:'roo',name:'Roo Code'},{id:'codex',name:'Codex CLI'}];
+  const AGENTS = [
+    { id: 'cursor', name: 'Cursor' },
+    { id: 'claude', name: 'Claude Desktop' },
+    { id: 'openclaw', name: 'OpenClaw' },
+    { id: 'cline', name: 'Cline' },
+    { id: 'continue', name: 'Continue' },
+    { id: 'roo', name: 'Roo Code' },
+    { id: 'codex', name: 'Codex CLI' },
+  ];
 
-const SETUP_STEPS={cursor:['1. 打开 Cursor → Settings → MCP','2. 点击 Add Server → 选择 Command','3. 复制上方 JSON 粘贴到配置框','4. 点击 Save，重启 Cursor','5. 在聊天框输入"检索我的记忆"测试'],
-claude:['1. 打开文件: ~/Library/Application Support/Claude/claude_desktop_config.json','2. 复制上方 JSON，粘贴到 mcpServers 字段','3. 保存文件，完全退出 Claude Desktop','4. 重新打开 Claude，发送新对话测试'],
-openclaw:['1. 打开 OpenClaw → Agent 设置','2. 找到 MCP Servers → 添加 SSE','3. 粘贴上方 SSE URL','4. 保存后对话自动识别记忆工具'],
-cline:['1. 打开 VS Code → 扩展 → Cline 设置','2. 找到 MCP Servers 配置 (JSON 格式)','3. 复制上方 JSON 粘贴到配置','4. 重启 VS Code，新对话自动加载'],
-continue:['1. 打开文件: ~/.continue/config.json','2. 在 experimental.modelContextProtocolServers 数组中粘贴上方 JSON','3. 保存文件，重启 Continue 扩展'],
-roo:['1. 打开 VS Code → Roo Code 扩展','2. Settings → MCP Servers → Add','3. 粘贴上方 JSON 配置','4. 保存后新对话即可使用'],
-codex:['1. 打开文件: ~/.codex/config.toml','2. 复制上方配置粘贴到文件末尾','3. 保存文件','4. 运行 codex 命令，工具自动加载']};
-// eslint-disable-next-line
-const SYSTEM_PROMPTS={standard:'你已连接 AI Memory OS V6.0 长期记忆系统（8个工具）。\n\n【对话开始时，静默执行以下操作】：\n1. 调用 memory_get_persona → 了解用户背景和偏好\n2. 调用 memory_task_canvas_get → 恢复未完成任务（如有）\n3. 调用 memory_search(用户问题关键词) → 检索相关知识\n\n【对话中，发现以下内容时立即调用 memory_store】：\n- 用户偏好、习惯、要求\n- 技术决策及原因\n- 项目结构、约定、配置\n- 用户说"记住"的任何内容\n- 解决的复杂问题（问题+方案）\n\n【长任务进行中】：\n每完成一个重要阶段，调用 memory_task_canvas_update 更新 Mermaid 任务画布\n\n【对话结束时】：\n若对话产生了有价值的结论或方案，调用 memory_store 保存摘要\n\n所有上述操作静默完成，不向用户报告，除非操作失败',concise:'[记忆规则] ①开始→persona+search+canvas_get ②重要信息→store ③进展→canvas_update ④记住/忘掉/搜索→对应操作。静默执行。',dev:'你是连接了 AI Memory OS 的开发助手。记忆工具是你感知能力的延伸。\n\n【每次对话开始】静默执行：\n① memory_get_persona 了解技术栈和项目背景\n② memory_task_canvas_get 恢复上次未完成的开发任务\n③ memory_search(项目名/功能关键词) 检索相关代码约定\n\n【代码工作中】：\n- 确定了技术方案 → memory_store（tags: [\"架构决策\"]）\n- 解决了 Bug → memory_store（title: \"Bug修复: xxx\"，tags: [\"bug\", \"技术栈\"]）\n- 完成了功能阶段 → memory_task_canvas_update（更新进度图）\n\n【存储代码记忆时】：\n只存逻辑摘要和关键决策，不存完整大段代码。\n格式：问题背景 + 解决思路 + 关键代码片段（< 20行）\n\n所有操作静默完成。'};
+  const SETUP_STEPS: Record<string, string[]> = {
+    cursor: ['Cursor → Settings → MCP', 'Add Server → Command', 'Paste JSON above', 'Save, restart Cursor'],
+    claude: ['Open ~/Library/Application Support/Claude/claude_desktop_config.json', 'Paste into mcpServers', 'Save, fully quit Claude Desktop', 'Reopen'],
+    openclaw: ['OpenClaw → Agent settings', 'Add SSE under MCP Servers', 'Paste URL above', 'Save'],
+    cline: ['VS Code → Cline settings', 'Paste JSON into MCP Servers', 'Restart VS Code'],
+    continue: ['Open ~/.continue/config.json', 'Append JSON to experimental.modelContextProtocolServers', 'Save, restart extension'],
+    roo: ['VS Code → Roo Code → MCP Servers → Add', 'Paste JSON above', 'Save'],
+    codex: ['Open ~/.codex/config.toml', 'Append config above', 'Save'],
+  };
 
-const[pType,setPType]=useState<'standard'|'concise'|'dev'>('standard');
+  // eslint-disable-next-line
+  const SYSTEM_PROMPTS: Record<string, string> = { standard: '你已连接 AI Memory OS V6.0 长期记忆系统（8个工具）。\n\n【对话开始时，静默执行以下操作】：\n1. 调用 memory_get_persona → 了解用户背景和偏好\n2. 调用 memory_task_canvas_get → 恢复未完成任务（如有）\n3. 调用 memory_search(用户问题关键词) → 检索相关知识\n\n【对话中，发现以下内容时立即调用 memory_store】：\n- 用户偏好、习惯、要求\n- 技术决策及原因\n- 项目结构、约定、配置\n- 用户说"记住"的任何内容\n- 解决的复杂问题（问题+方案）\n\n【长任务进行中】：\n每完成一个重要阶段，调用 memory_task_canvas_update 更新 Mermaid 任务画布\n\n【对话结束时】：\n若对话产生了有价值的结论或方案，调用 memory_store 保存摘要\n\n所有上述操作静默完成，不向用户报告，除非操作失败', concise: '[记忆规则] ①开始→persona+search+canvas_get ②重要信息→store ③进展→canvas_update ④记住/忘掉/搜索→对应操作。静默执行。', dev: '你是连接了 AI Memory OS 的开发助手。记忆工具是你感知能力的延伸。\n\n【每次对话开始】静默执行：\n① memory_get_persona 了解技术栈和项目背景\n② memory_task_canvas_get 恢复上次未完成的开发任务\n③ memory_search(项目名/功能关键词) 检索相关代码约定\n\n【代码工作中】：\n- 确定了技术方案 → memory_store（tags: ["架构决策"]）\n- 解决了 Bug → memory_store（title: "Bug修复: xxx"，tags: ["bug", "技术栈"]）\n- 完成了功能阶段 → memory_task_canvas_update（更新进度图）\n\n【存储代码记忆时】：\n只存逻辑摘要和关键决策，不存完整大段代码。\n格式：问题背景 + 解决思路 + 关键代码片段（< 20行）\n\n所有操作静默完成。' };
+  const [pType, setPType] = useState<'standard' | 'concise' | 'dev'>('standard');
 
-return(<div className='card'><div className='card-title'>🔑 接入配置</div>
-<div style={{marginBottom:16,display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:connected==='online'?'var(--emerald)':connected==='offline'?'var(--crimson)':'var(--amber)',boxShadow:connected==='online'?'0 0 8px var(--emerald)':connected==='offline'?'0 0 8px var(--crimson)':'none'}}/><span style={{fontSize:13,color:connected==='online'?'var(--emerald)':connected==='offline'?'var(--crimson)':'var(--amber)'}}>{connected==='online'?'已连接到服务器':connected==='offline'?'服务器不可达':'检测中...'}</span></div>
-<div style={{marginBottom:20,padding:"10px 14px",background:"rgba(255,179,71,.08)",borderRadius:10,border:"1px solid rgba(255,179,71,.2)",fontSize:12,color:"var(--amber)"}}>⚠️ 部署到服务器后，配置已自动检测当前服务器地址，可直接复制使用。<hr style={{borderColor:"var(--border)",margin:"10px 0"}}/></div><div style={{marginBottom:20}}>
-<div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>你的 MCP Token（Agent 连接记忆系统的凭证）</div>
-<div style={{display:'flex',gap:8,alignItems:'center'}}>
-<code style={{flex:1,background:'rgba(0,240,212,.05)',padding:'12px 16px',borderRadius:10,fontSize:13,fontFamily:'var(--mono)',wordBreak:'break-all',border:'1px solid rgba(0,240,212,.15)'}}>{token}</code>
-<button className='btn btn-teal' onClick={()=>{navigator.clipboard.writeText(token);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>{copied?'✅ 已复制':'📋 复制'}</button></div></div>
+  const status = {
+    online: { label: 'Connected', cls: 'v6-llmpill__dot--ok' },
+    offline: { label: 'Offline', cls: 'v6-llmpill__dot--warn' },
+    checking: { label: 'Checking…', cls: '' },
+  }[connected];
 
-<div style={{marginBottom:16}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>选择你的 Agent（{AGENTS.length} 种）</div>
-<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-{AGENTS.map(a=><button key={a.id} className={`btn ${agent===a.id?'btn-teal':'btn-ghost'}`} onClick={()=>setAgent(a.id as 'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex')} style={{fontSize:11,padding:'8px 14px'}}>{a.name}</button>)}
-</div></div>
+  return (
+    <div className="v6-card">
+      <div className="v6-card__head">
+        <div className="v6-card__title">
+          Connect
+          <span className="v6-card__title-hint">MCP gateway for agents</span>
+        </div>
+        <span className="v6-llmpill">
+          <span className={`v6-llmpill__dot ${status.cls}`} />
+          {status.label}
+        </span>
+      </div>
 
-<div style={{fontSize:10,color:'var(--muted)',marginBottom:4,fontFamily:'var(--mono)'}}>📁 保存位置:: {FILE_PATHS[agent]||'N/A'}</div>
-<code style={{display:'block',background:'rgba(0,0,0,.45)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',maxHeight:220,overflow:'auto',marginBottom:8}}>{configs[agent]||''}</code>
-<button className='btn btn-teal btn-sm' style={{fontSize:11,marginBottom:20}} onClick={()=>{navigator.clipboard.writeText(configs[agent]||'');setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制配置</button>
-<div style={{marginTop:14,padding:"12px 14px",background:"rgba(0,240,212,.04)",borderRadius:10,border:"1px solid var(--border)"}}><div style={{fontSize:11,fontWeight:600,color:"var(--teal)",marginBottom:8}}>📋 设置步骤</div>{SETUP_STEPS[agent]?.map((s,i)=><div key={i} style={{fontSize:12,color:"var(--text)",padding:"4px 0",lineHeight:1.6}}>{s}</div>)}</div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
+          MCP Token
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <code style={{ flex: 1, minWidth: 0, background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)', padding: '10px 14px', fontSize: 12.5, fontFamily: 'var(--v6-font-mono)', wordBreak: 'break-all', color: 'var(--v6-fg)' }}>
+            {token}
+          </code>
+          <button className="v6-btn" onClick={() => copy('token', token)}>
+            {copiedKey === 'token' ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      </div>
 
-<div style={{borderTop:'1px solid var(--border)',paddingTop:20,marginTop:4}}><div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>系统提示词（粘贴到 Agent 的 System Prompt）</div>
-<div style={{display:'flex',gap:6,marginBottom:10}}>{Object.keys(SYSTEM_PROMPTS).map(k=><button key={k} className={`btn ${pType===k?'btn-teal':'btn-ghost'}`} onClick={()=>setPType(k as 'standard'|'concise'|'dev')} style={{fontSize:10}}>{k==='standard'?'📝 完整版':k==='concise'?'⚡ 精简版':'💻 开发版'}</button>)}</div>
-<code style={{display:'block',background:'rgba(0,0,0,.45)',padding:'12px',borderRadius:8,fontSize:11,fontFamily:'var(--mono)',whiteSpace:'pre-wrap',lineHeight:1.8,maxHeight:200,overflow:'auto',marginBottom:8}}>{SYSTEM_PROMPTS[pType]}</code>
-<button className='btn btn-teal btn-sm' style={{fontSize:11}} onClick={()=>{navigator.clipboard.writeText(SYSTEM_PROMPTS[pType]);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制提示词</button></div>
-</div>)}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
+          Target agent
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {AGENTS.map((a) => (
+            <button
+              key={a.id}
+              className="v6-chip"
+              aria-current={agent === a.id ? 'page' : undefined}
+              onClick={() => setAgent(a.id as typeof agent)}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>
+            {FILE_PATHS[agent] || 'N/A'}
+          </span>
+          <button className="v6-btn v6-btn--xs" onClick={() => copy('config', configs[agent] || '')}>
+            {copiedKey === 'config' ? 'Copied' : 'Copy config'}
+          </button>
+        </div>
+        <pre style={{ margin: 0, background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)', padding: 14, fontSize: 11.5, fontFamily: 'var(--v6-font-mono)', color: 'var(--v6-fg)', whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto' }}>
+          {configs[agent] || ''}
+        </pre>
+      </div>
+
+      <div style={{ marginBottom: 24, padding: '14px 16px', background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)' }}>
+        <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+          Setup
+        </div>
+        <ol style={{ paddingLeft: 18, margin: 0, fontSize: 12.5, color: 'var(--v6-fg)', lineHeight: 1.75 }}>
+          {SETUP_STEPS[agent]?.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ol>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--v6-border)', paddingTop: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            System prompt
+          </span>
+          <div className="v6-subtabs">
+            {(['standard', 'concise', 'dev'] as const).map((k) => (
+              <button
+                key={k}
+                className="v6-subtab"
+                aria-current={pType === k ? 'page' : undefined}
+                onClick={() => setPType(k)}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+        </div>
+        <pre style={{ margin: 0, background: 'var(--v6-bg-sunken)', border: '1px solid var(--v6-border)', borderRadius: 'var(--v6-radius-md)', padding: 14, fontSize: 11.5, fontFamily: 'var(--v6-font-mono)', color: 'var(--v6-fg)', whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: 220, overflow: 'auto', marginBottom: 8 }}>
+          {SYSTEM_PROMPTS[pType]}
+        </pre>
+        <button className="v6-btn v6-btn--xs" onClick={() => copy('prompt', SYSTEM_PROMPTS[pType] || '')}>
+          {copiedKey === 'prompt' ? 'Copied' : 'Copy prompt'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function PersonaPanel() {
   const [persona, setPersona] = useState("");
@@ -758,35 +881,148 @@ function PersonaPanel() {
   );
 }
 
-function MyLLMPanel(){
-const getToken=()=>localStorage.getItem("admin_token")||localStorage.getItem("mos_admin_token")||"";
-const authHeaders=()=>({"Content-Type":"application/json","Authorization":"Bearer "+getToken()});
-const PROVIDERS = ALL_PROVIDERS.filter(x=>!x.region||x.region!=="local").map(x=>({id:x.id,name:x.name,region:x.region,base:x.baseUrl,models:x.models.map(m=>m.id)})); // auto from models.ts
+function MyLLMPanel() {
+  const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+  const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() });
+  const PROVIDERS = ALL_PROVIDERS.filter((x) => !x.region || x.region !== 'local').map((x) => ({
+    id: x.id, name: x.name, region: x.region, base: x.baseUrl, models: x.models.map((m) => m.id),
+  }));
 
+  const [p, setP] = useState('');
+  const [k, setK] = useState('');
+  const [m, setM] = useState('');
+  const [b, setB] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const prov = PROVIDERS.find((x) => x.id === p);
 
-const[p,setP]=useState("");const[k,setK]=useState("");const[m,setM]=useState("");const[b,setB]=useState("");
-const[r,setR]=useState("");const[l,setL]=useState(false);
-const prov=PROVIDERS.find(x=>x.id===p);
-// eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(()=>{fetch("/api/user/llm",{headers:authHeaders()}).then(r=>r.json()).then(d=>{setP(d.provider||"");setM(d.model||"");setB(d.base_url||"")})},[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(()=>{if(p&&prov){setB(prov.base);if(!m||!prov.models.includes(m)){setM(prov.models[0]||"")}}if(!p){setM("")}},[p]);
-async function save(){setL(true);try{await fetch("/api/user/llm",{method:"POST",headers:authHeaders(),body:JSON.stringify({provider:p,api_key:k,model:m,base_url:b})});setR("✅ 已保存")}catch{setR("保存失败")}setL(false)}
-async function test(){setL(true);try{const r=await fetch("/api/user/llm/test",{method:"POST",headers:authHeaders(),body:JSON.stringify({api_key:k,base_url:b,model:m})});const d=await r.json();setR(d.connected?"✅ 连接成功":"❌ "+ (d.error||d.status))}catch{setR("测试失败")}setL(false)}
-return(<div className="card" style={{borderColor:"rgba(0,240,212,.2)"}}><div className="card-title">🤖 我的 LLM</div><div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>配置你自己的大模型，驱动记忆管线（L1/L2/L3 蒸馏）</div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-<div className="form-group"><label>厂商</label><select value={p} onChange={e=>setP(e.target.value)} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}><optgroup label="🇨🇳 中国厂商">
-{PROVIDERS.filter(x=>x.region==="cn").map(x=><option key={x.id} value={x.id}>{x.name} ({x.models.length} 模型)</option>)}
-</optgroup>
-<optgroup label="🌐 海外厂商">
-{PROVIDERS.filter(x=>x.region==="intl").map(x=><option key={x.id} value={x.id}>{x.name} ({x.models.length} 模型)</option>)}
-</optgroup></select></div>
-<div className="form-group"><label>模型</label><select value={m} onChange={e=>setM(e.target.value)} disabled={!p} style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",fontSize:13}}>{prov?.models.map(x=><option key={x} value={x}>{x}</option>)}</select></div></div>
-<div className="form-group"><label>API Key</label><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="sk-..." style={{background:"rgba(0,0,0,.3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",fontSize:13}}/></div>
-<div style={{display:"flex",gap:8}}><button className="btn btn-teal" onClick={save} disabled={l}>💾 保存</button><button className="btn btn-ghost" onClick={test} disabled={l||!k}>🔗 测试连接</button></div>
-{r&&<div style={{marginTop:12,fontSize:12,color:r.includes("✅")?"var(--emerald)":"var(--crimson)"}}>{r}</div>}
-<PipelineStatusPanel />
-</div>)}
+  useEffect(() => {
+    fetch('/api/user/llm', { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((d) => { setP(d.provider || ''); setM(d.model || ''); setB(d.base_url || ''); });
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (p && prov) {
+      setB(prov.base);
+      if (!m || !prov.models.includes(m)) setM(prov.models[0] || '');
+    }
+    if (!p) setM('');
+  }, [p]);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await fetch('/api/user/llm', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ provider: p, api_key: k, model: m, base_url: b }),
+      });
+      setMsg('Saved');
+    } catch { setMsg('Save failed'); }
+    setBusy(false);
+  }
+  async function test() {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/user/llm/test', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ api_key: k, base_url: b, model: m }),
+      });
+      const d = await r.json();
+      setMsg(d.connected ? 'Connection OK' : 'Failed: ' + (d.error || d.status));
+    } catch { setMsg('Test failed'); }
+    setBusy(false);
+  }
+
+  const msgKind = msg === 'Saved' || msg === 'Connection OK' ? 'ok' : msg ? 'err' : '';
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--v6-bg)',
+    color: 'var(--v6-fg)',
+    border: '1px solid var(--v6-border)',
+    borderRadius: 'var(--v6-radius-md)',
+    padding: '9px 12px',
+    fontSize: 13,
+    fontFamily: 'var(--v6-font-sans)',
+  };
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 11,
+    fontFamily: 'var(--v6-font-mono)',
+    color: 'var(--v6-fg-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    marginBottom: 6,
+  };
+
+  return (
+    <div className="v6-card">
+      <div className="v6-card__head">
+        <div className="v6-card__title">
+          LLM provider
+          <span className="v6-card__title-hint">drives the memory pipeline (L1/L2/L3)</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div>
+          <label style={labelStyle}>Provider</label>
+          <select value={p} onChange={(e) => setP(e.target.value)} style={selectStyle}>
+            <option value="">— Select —</option>
+            <optgroup label="China">
+              {PROVIDERS.filter((x) => x.region === 'cn').map((x) => (
+                <option key={x.id} value={x.id}>{x.name} ({x.models.length})</option>
+              ))}
+            </optgroup>
+            <optgroup label="International">
+              {PROVIDERS.filter((x) => x.region === 'intl').map((x) => (
+                <option key={x.id} value={x.id}>{x.name} ({x.models.length})</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Model</label>
+          <select value={m} onChange={(e) => setM(e.target.value)} disabled={!p} style={selectStyle}>
+            {prov?.models.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={labelStyle}>API Key</label>
+        <input
+          className="v6-input-global"
+          type="password"
+          value={k}
+          onChange={(e) => setK(e.target.value)}
+          placeholder="sk-..."
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="v6-btn v6-btn--primary" onClick={save} disabled={busy}>
+          {busy ? '…' : 'Save'}
+        </button>
+        <button className="v6-btn" onClick={test} disabled={busy || !k}>
+          Test connection
+        </button>
+      </div>
+
+      {msg && (
+        <div className={`v6-statusbar ${msgKind === 'ok' ? 'v6-statusbar--ok' : msgKind === 'err' ? 'v6-statusbar--err' : ''}`} style={{ marginTop: 14, marginBottom: 0 }}>
+          {msg}
+        </div>
+      )}
+
+      <PipelineStatusPanel />
+    </div>
+  );
+}
 
 function fmtTime(s: string|null): string {
   if(!s) return "-";
@@ -804,191 +1040,270 @@ function fmtDuration(start: string|null, end: string|null): string {
   return Math.round(ms/1000) + "s";
 }
 
-function StatusBadge({status}:{status:string}){
-  const map: Record<string,{label:string;color:string;bg:string}> = {
-    pending:    {label:"⏳ 等待", color:"#facc15", bg:"rgba(250,204,21,.12)"},
-    processing: {label:"🔄 处理中", color:"#38bdf8", bg:"rgba(56,189,248,.12)"},
-    done:       {label:"✅ 完成", color:"var(--emerald)", bg:"rgba(34,197,94,.12)"},
-    failed:     {label:"❌ 失败", color:"var(--crimson)", bg:"rgba(248,113,113,.12)"},
-    dead:       {label:"💀 死信", color:"#f87171", bg:"rgba(248,113,113,.18)"},
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending: 'pending',
+    processing: 'running',
+    done: 'done',
+    failed: 'failed',
+    dead: 'dead',
   };
-  const s = map[status] || {label: status, color: "var(--muted)", bg: "rgba(255,255,255,.06)"};
-  return <span style={{display:"inline-block",padding:"2px 8px",borderRadius:6,fontSize:10,color:s.color,background:s.bg,fontFamily:"var(--mono)"}}>{s.label}</span>;
+  return <span className="v6-tag">{map[status] || status}</span>;
 }
 
-function PipelineStatusPanel(){
-  const [data,setData]=useState<PipelineStatus|null>(null);
-  const [err,setErr]=useState<string>("");
-  const [expanded,setExpanded]=useState(false);
+function PipelineStatusPanel() {
+  const [data, setData] = useState<PipelineStatus | null>(null);
+  const [err, setErr] = useState<string>('');
+  const [expanded, setExpanded] = useState(false);
 
-  const refresh = useCallback(async ()=>{
+  const refresh = useCallback(async () => {
     try {
       const d = await getUserPipelineStatus();
       setData(d);
-      setErr("");
-    } catch(e:unknown) {
-      setErr(e instanceof Error ? e.message : "加载失败");
+      setErr('');
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Load failed');
     }
-  },[]);
+  }, []);
 
-  useEffect(()=>{
+  useEffect(() => {
     refresh();
     const id = setInterval(refresh, 5000);
-    return ()=>clearInterval(id);
-  },[refresh]);
+    return () => clearInterval(id);
+  }, [refresh]);
 
-  const c = data?.counts || {pending:0,processing:0,done:0,failed:0,dead:0};
+  const c = data?.counts || { pending: 0, processing: 0, done: 0, failed: 0, dead: 0 };
   const inFlight = data?.in_flight ?? 0;
   const recent: PipelineJob[] = data?.recent || [];
 
+  const tileStyle: React.CSSProperties = {
+    background: 'var(--v6-bg-sunken)',
+    border: '1px solid var(--v6-border)',
+    borderRadius: 'var(--v6-radius-md)',
+    padding: '10px 8px',
+    textAlign: 'center',
+  };
+  const tileLabel: React.CSSProperties = {
+    fontSize: 10,
+    color: 'var(--v6-fg-muted)',
+    fontFamily: 'var(--v6-font-mono)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  };
+  const tileValue: React.CSSProperties = {
+    fontSize: 22,
+    fontWeight: 600,
+    color: 'var(--v6-fg)',
+    letterSpacing: '-0.02em',
+    marginTop: 2,
+    fontVariantNumeric: 'tabular-nums',
+  };
+
   return (
-    <div style={{marginTop:16,borderTop:"1px solid var(--border)",paddingTop:12}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-        <div style={{fontSize:11,color:"var(--muted)"}}>🔄 记忆管线状态（24h，每 5s 自动刷新）</div>
-        <button className="btn btn-ghost btn-sm" style={{fontSize:10}} onClick={refresh}>↻ 立即刷新</button>
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--v6-border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div className="v6-card__title" style={{ marginBottom: 0 }}>
+          Pipeline
+          <span className="v6-card__title-hint">24h · auto-refresh 5s</span>
+        </div>
+        <button className="v6-btn v6-btn--xs" onClick={refresh}>Refresh</button>
       </div>
 
       {!data?.configured && (
-        <div style={{padding:"10px 12px",background:"rgba(255,179,71,.08)",border:"1px solid rgba(255,179,71,.2)",borderRadius:8,fontSize:11,color:"var(--amber)",marginBottom:10}}>
-          ⚠️ 尚未保存自己的 LLM 配置，管线将无法运行 — 先保存上方的厂商/Key/模型再触发记忆写入。
+        <div className="v6-statusbar v6-statusbar--err" style={{ marginBottom: 12 }}>
+          No LLM configured — save provider/key/model above before the pipeline can run.
         </div>
       )}
+      {err && (
+        <div className="v6-statusbar v6-statusbar--err" style={{ marginBottom: 12 }}>{err}</div>
+      )}
 
-      {err && <div style={{fontSize:11,color:"var(--crimson)",marginBottom:8}}>⚠️ {err}</div>}
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:10}}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          {key:"pending",label:"等待",color:"#facc15"},
-          {key:"processing",label:"处理中",color:"#38bdf8"},
-          {key:"done",label:"完成",color:"var(--emerald)"},
-          {key:"failed",label:"失败",color:"var(--crimson)"},
-          {key:"dead",label:"死信",color:"#f87171"},
-        ].map(s=>(
-          <div key={s.key} style={{background:"rgba(0,0,0,.2)",padding:"8px",borderRadius:8,textAlign:"center"}}>
-            <div style={{fontSize:9,color:"var(--muted)"}}>{s.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:s.color}}>{(c as Record<string,number>)[s.key] ?? 0}</div>
+          { key: 'pending', label: 'pending' },
+          { key: 'processing', label: 'running' },
+          { key: 'done', label: 'done' },
+          { key: 'failed', label: 'failed' },
+          { key: 'dead', label: 'dead' },
+        ].map((s) => (
+          <div key={s.key} style={tileStyle}>
+            <div style={tileLabel}>{s.label}</div>
+            <div style={tileValue}>{(c as Record<string, number>)[s.key] ?? 0}</div>
           </div>
         ))}
       </div>
 
-      <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:"var(--muted)",marginBottom:10}}>
-        <div>当前在途: <span style={{color:inFlight>0?"#38bdf8":"var(--muted)",fontWeight:600}}>{inFlight}</span></div>
-        <div>上次成功: <span style={{color:"var(--text)"}}>{fmtTime(data?.last_completed_at||null)}</span></div>
-        {data?.last_failed_at && <div>上次失败: <span style={{color:"var(--crimson)"}}>{fmtTime(data.last_failed_at)}</span></div>}
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 11.5, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', marginBottom: 12 }}>
+        <div>in-flight: <span style={{ color: 'var(--v6-fg)' }}>{inFlight}</span></div>
+        <div>last ok: <span style={{ color: 'var(--v6-fg)' }}>{fmtTime(data?.last_completed_at || null)}</span></div>
+        {data?.last_failed_at && (
+          <div>last fail: <span style={{ color: 'var(--v6-danger)' }}>{fmtTime(data.last_failed_at)}</span></div>
+        )}
       </div>
 
-      <button className="btn btn-ghost btn-sm" style={{fontSize:10,marginBottom:8}} onClick={()=>setExpanded(v=>!v)}>
-        {expanded ? "▼ 收起" : "▶ 展开"} 最近 {recent.length} 条任务
+      <button className="v6-btn v6-btn--xs" onClick={() => setExpanded((v) => !v)} style={{ marginBottom: 10 }}>
+        {expanded ? 'Hide' : 'Show'} recent {recent.length} jobs
       </button>
 
-      {expanded && (
-        recent.length === 0 ? (
-          <div style={{padding:"10px",color:"var(--muted)",fontSize:12,textAlign:"center"}}>暂无管线任务记录</div>
+      {expanded &&
+        (recent.length === 0 ? (
+          <div className="v6-empty">No pipeline jobs yet.</div>
         ) : (
-          <div style={{maxHeight:260,overflow:"auto",background:"rgba(0,0,0,.25)",borderRadius:8,padding:"4px 8px"}}>
-            <table style={{width:"100%",fontSize:11,fontFamily:"var(--mono)",borderCollapse:"collapse"}}>
+          <div style={{ maxHeight: 260, overflow: 'auto' }}>
+            <table className="v6-table">
               <thead>
-                <tr style={{color:"var(--muted)",textAlign:"left"}}>
-                  <th style={{padding:"6px 4px"}}>状态</th>
-                  <th style={{padding:"6px 4px"}}>类型</th>
-                  <th style={{padding:"6px 4px"}}>创建时间</th>
-                  <th style={{padding:"6px 4px"}}>耗时</th>
-                  <th style={{padding:"6px 4px"}}>错误</th>
+                <tr>
+                  <th>Status</th>
+                  <th>Task</th>
+                  <th>Created</th>
+                  <th>Duration</th>
+                  <th>Error</th>
                 </tr>
               </thead>
               <tbody>
-                {recent.map(j=>(
-                  <tr key={j.id} style={{borderTop:"1px solid var(--border)"}}>
-                    <td style={{padding:"6px 4px"}}><StatusBadge status={j.status}/></td>
-                    <td style={{padding:"6px 4px",color:"var(--text)"}}>{j.task_type}</td>
-                    <td style={{padding:"6px 4px",color:"var(--muted)"}}>{fmtTime(j.created_at)}</td>
-                    <td style={{padding:"6px 4px",color:"var(--text)"}}>{fmtDuration(j.started_at, j.completed_at)}</td>
-                    <td style={{padding:"6px 4px",color:"var(--crimson)",maxWidth:240,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} title={j.error_msg||""}>{j.error_msg||"-"}</td>
+                {recent.map((j) => (
+                  <tr key={j.id}>
+                    <td><StatusBadge status={j.status} /></td>
+                    <td style={{ fontFamily: 'var(--v6-font-mono)' }}>{j.task_type}</td>
+                    <td style={{ color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>{fmtTime(j.created_at)}</td>
+                    <td style={{ fontFamily: 'var(--v6-font-mono)' }}>{fmtDuration(j.started_at, j.completed_at)}</td>
+                    <td style={{ color: 'var(--v6-danger)', maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--v6-font-mono)' }} title={j.error_msg || ''}>
+                      {j.error_msg || '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )
-      )}
+        ))}
     </div>
   );
 }
 
-function CanvasPanel(){
+function CanvasPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [canvases,setCanvases]=useState<any[]>([]);
-  const [activeAgent,setActiveAgent]=useState<string>("");
-  const [loading,setLoading]=useState(false);
-  const [taskId,setTaskId]=useState("main");
-  const svgRef=useRef<HTMLDivElement>(null);
-  
-  async function load(){
+  const [canvases, setCanvases] = useState<any[]>([]);
+  const [activeAgent, setActiveAgent] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [taskId, setTaskId] = useState('main');
+  const svgRef = useRef<HTMLDivElement>(null);
+
+  async function load() {
     setLoading(true);
-    try{
-      const r=await fetch("/canvas/"+taskId,{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});
-      const d=await r.json();
-      const arr = Array.isArray(d) ? d : (d.task_id ? [d] : []);
+    try {
+      const r = await fetch('/canvas/' + taskId, {
+        headers: { Authorization: 'Bearer ' + (localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '') },
+      });
+      const d = await r.json();
+      const arr = Array.isArray(d) ? d : d.task_id ? [d] : [];
       setCanvases(arr);
-      if (arr.length > 0 && !arr.find(x => x.agent_id === activeAgent)) {
-        setActiveAgent(arr[0].agent_id || "default");
+      if (arr.length > 0 && !arr.find((x) => x.agent_id === activeAgent)) {
+        setActiveAgent(arr[0].agent_id || 'default');
       } else if (arr.length === 0) {
-        setActiveAgent("");
+        setActiveAgent('');
       }
-    }catch{
+    } catch {
       setCanvases([]);
     }
     setLoading(false);
   }
-  
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{load()},[taskId]);
+  useEffect(() => { load(); }, [taskId]);
 
   useEffect(() => {
-    let md = "graph TD\n  A[暂无任务] --> B[开始使用后自动生成]";
+    let md = 'graph TD\n  A[No tasks yet] --> B[Will appear here]';
     if (canvases.length > 0 && activeAgent) {
-      const c = canvases.find(x => x.agent_id === activeAgent) || canvases[0];
+      const c = canvases.find((x) => x.agent_id === activeAgent) || canvases[0];
       if (c && c.canvas_mermaid) md = c.canvas_mermaid;
     }
     let isCancelled = false;
-    setTimeout(async ()=>{
-      if(svgRef.current && !isCancelled){
-        try{
-          const mermaid=(await import("mermaid")).default;
-          mermaid.initialize({startOnLoad:false,theme:"dark",themeVariables:{primaryColor:"#00f0d4",primaryTextColor:"#e0e0e0",lineColor:"#4A6080"}});
-          const{svg}=await mermaid.render("mermaid-canvas-"+Date.now(),md);
-          if(!isCancelled) svgRef.current.innerHTML=svg;
-        }catch{if(!isCancelled) svgRef.current.innerHTML='<div style=color:var(--muted)>图谱渲染失败</div>'}
+    setTimeout(async () => {
+      if (svgRef.current && !isCancelled) {
+        try {
+          const mermaid = (await import('mermaid')).default;
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+              primaryColor: '#101013',
+              primaryTextColor: '#ECECF0',
+              primaryBorderColor: '#26262C',
+              lineColor: '#7A7A82',
+              secondaryColor: '#1A1A1F',
+              tertiaryColor: '#050507',
+              background: '#08080B',
+              mainBkg: '#101013',
+              nodeBorder: '#26262C',
+              fontFamily: 'Geist, sans-serif',
+            },
+          });
+          const { svg } = await mermaid.render('mermaid-canvas-' + Date.now(), md);
+          if (!isCancelled) svgRef.current.innerHTML = svg;
+        } catch {
+          if (!isCancelled) svgRef.current.innerHTML = '<div style="color:var(--v6-fg-muted);font-family:var(--v6-font-mono);font-size:12px">Render failed</div>';
+        }
       }
-    },100);
+    }, 100);
     return () => { isCancelled = true; };
   }, [canvases, activeAgent]);
 
-  return(<div className="card"><div className="card-title">📋 任务画布 (多Agent协作)</div>
-    <div style={{display:"flex",gap:8,marginBottom:12}}>
-      <input value={taskId} onChange={e=>setTaskId(e.target.value)} style={{flex:1,background:"rgba(4,8,16,.85)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",color:"var(--text)",fontSize:13}} placeholder="任务ID (默认: main)"/>
-      <button className="btn btn-teal" onClick={load} disabled={loading}>刷新</button>
-    </div>
-    
-    {canvases.length > 0 && (
-      <div style={{display:'flex',gap:6,marginBottom:12,borderBottom:'1px solid var(--border)',paddingBottom:8,overflowX:'auto'}}>
-        {canvases.map(c => (
-          <button 
-            key={c.agent_id} 
-            className={`btn ${activeAgent===c.agent_id ? 'btn-teal' : 'btn-ghost'}`} 
-            style={{padding:'4px 12px',fontSize:11,whiteSpace:'nowrap'}}
-            onClick={() => setActiveAgent(c.agent_id)}
-          >
-            🤖 {c.agent_id || 'default'}
-          </button>
-        ))}
+  return (
+    <div className="v6-card">
+      <div className="v6-card__head">
+        <div className="v6-card__title">
+          Task canvas
+          <span className="v6-card__title-hint">multi-agent collaboration view</span>
+        </div>
       </div>
-    )}
 
-    {loading?<div style={{color:"var(--muted)",fontSize:13}}>加载中...</div>:
-    <div ref={svgRef} style={{background:"rgba(0,0,0,.3)",borderRadius:10,padding:16,minHeight:100,overflow:"auto"}}/>}
-    <div style={{fontSize:10,color:"var(--muted)",marginTop:8}}>同一 Task 下的不同 Agent 画布互相隔离，互不干扰</div>
-  </div>)
+      <div className="v6-toolbar">
+        <input
+          className="v6-input-global"
+          value={taskId}
+          onChange={(e) => setTaskId(e.target.value)}
+          placeholder="task id (default: main)"
+        />
+        <button className="v6-btn" onClick={load} disabled={loading}>
+          {loading ? '…' : 'Refresh'}
+        </button>
+      </div>
+
+      {canvases.length > 0 && (
+        <div className="v6-chips">
+          {canvases.map((c) => (
+            <button
+              key={c.agent_id}
+              className="v6-chip"
+              aria-current={activeAgent === c.agent_id ? 'page' : undefined}
+              onClick={() => setActiveAgent(c.agent_id)}
+            >
+              {c.agent_id || 'default'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="v6-empty">Loading…</div>
+      ) : (
+        <div
+          ref={svgRef}
+          style={{
+            background: 'var(--v6-bg-sunken)',
+            border: '1px solid var(--v6-border)',
+            borderRadius: 'var(--v6-radius-md)',
+            padding: 18,
+            minHeight: 120,
+            overflow: 'auto',
+          }}
+        />
+      )}
+      <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', marginTop: 10 }}>
+        Each agent under the same task keeps an isolated canvas.
+      </div>
+    </div>
+  );
 }
 
 function AuditPanel() {
