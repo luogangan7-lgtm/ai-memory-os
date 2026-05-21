@@ -391,9 +391,11 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
     if not pg_repo: raise HTTPException(503)
     total = await pg_repo.count_by_team(team_id)
 
-    # Fetch real token usage from DB
     total_tokens = 0
     pipeline_calls = 0
+    new_today = 0
+    total_documents = 0
+    active_agents: list[str] = []
     try:
         from backend.memory.pg_repo import safe_uuid
         async with pg_repo.pool.acquire() as conn:
@@ -408,6 +410,32 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
                 team_id
             )
             pipeline_calls = int(pipe_row["p"]) if pipe_row else 0
+
+            # Memories added in the last 24 hours
+            today_row = await conn.fetchrow(
+                "SELECT COUNT(*) as n FROM memories WHERE team_id = $1 AND created_at >= now() - interval '24 hours'",
+                team_id
+            )
+            new_today = int(today_row["n"]) if today_row else 0
+
+            # Total uploaded documents
+            doc_row = await conn.fetchrow(
+                "SELECT COUNT(*) as n FROM documents WHERE team_id = $1",
+                team_id
+            )
+            total_documents = int(doc_row["n"]) if doc_row else 0
+
+            # Distinct non-default agents active in the last 7 days
+            agent_rows = await conn.fetch(
+                """SELECT DISTINCT agent_id FROM memories
+                   WHERE team_id = $1
+                     AND agent_id IS NOT NULL
+                     AND agent_id NOT IN ('', 'default', 'system')
+                     AND created_at >= now() - interval '7 days'
+                   ORDER BY agent_id LIMIT 10""",
+                team_id
+            )
+            active_agents = [r["agent_id"] for r in agent_rows]
     except Exception as e:
         logger.warning("[stats] %s", e)
 
@@ -417,6 +445,9 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
         "total_tokens": total_tokens,
         "pipeline_calls": pipeline_calls,
         "tokens_saved": total_tokens // 5,
+        "new_today": new_today,
+        "total_documents": total_documents,
+        "active_agents": active_agents,
         "agent": 0,
     }
 

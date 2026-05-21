@@ -6,18 +6,30 @@ import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocume
 import type { PipelineStatus, PipelineJob } from '../api/types';
 import { CortexMark } from '../components/CortexMark';
 
-type DashTab = "memory" | "connect" | "persona" | "myllm" | "canvas";
+type DashTab = "overview" | "memory" | "connect" | "myllm" | "canvas" | "persona";
 const DASH_TABS: { id: DashTab; label: string }[] = [
+  { id: "overview", label: "概览" },
   { id: "memory", label: "知识库" },
   { id: "connect", label: "接入" },
   { id: "myllm", label: "LLM" },
-  { id: "persona", label: "画像" },
   { id: "canvas", label: "画布" },
+  { id: "persona", label: "画像" },
 ];
 
 function Dashboard() {
-  const [tab, setTab] = useState<DashTab>("memory");
+  const [tab, setTab] = useState<DashTab>("overview");
   const { logout, token, mcpKey } = useAuth();
+
+  // Allow child panels to trigger navigation without prop drilling
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const dest = (e as CustomEvent).detail as DashTab;
+      if (dest) setTab(dest);
+    };
+    window.addEventListener('cortex-nav', handler);
+    return () => window.removeEventListener('cortex-nav', handler);
+  }, []);
+
   return (
     <div className="v6-app">
       <div className="v6-app__shell">
@@ -46,13 +58,225 @@ function Dashboard() {
           </div>
         </nav>
         <main className="v6-app__main">
+          {tab === "overview" && <OverviewPanel onNavigate={setTab} />}
           {tab === "memory" && <MemoryPanel />}
           {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
           {tab === "myllm" && <MyLLMPanel />}
-          {tab === "persona" && <PersonaPanel />}
           {tab === "canvas" && <CanvasPanel />}
+          {tab === "persona" && <PersonaPanel />}
         </main>
       </div>
+    </div>
+  );
+}
+
+// ── Overview (default post-login dashboard) ────────────────────────────────
+function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
+  const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+  const authHeader = () => ({ Authorization: 'Bearer ' + getToken() });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [stats, setStats] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [llm, setLlm] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [pipeline, setPipeline] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [recentMem, setRecentMem] = useState<any[]>([]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [s, l, p, m] = await Promise.all([
+        fetch('/stats', { headers: authHeader() }).then((r) => r.json()),
+        fetch('/api/user/llm', { headers: authHeader() }).then((r) => r.json()),
+        fetch('/api/user/llm/pipeline/status', { headers: authHeader() }).then((r) => r.json()).catch(() => null),
+        fetch('/memory/recent?limit=8', { headers: authHeader() }).then((r) => r.json()).catch(() => []),
+      ]);
+      setStats(s);
+      setLlm(l);
+      setPipeline(p);
+      setRecentMem(Array.isArray(m) ? m : []);
+    } catch { /* non-fatal */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 5000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n || 0);
+  const fmtDate = (s: string) => {
+    if (!s) return '—';
+    try { return new Date(s).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+    catch { return s; }
+  };
+
+  const llmOk = llm?.provider && llm?.model;
+  const agentCount = stats?.active_agents?.length ?? 0;
+  const pipelineCounts = pipeline?.counts || {};
+  const pipelineRecent = (pipeline?.recent || []).slice(0, 5);
+
+  const SOURCE_LABELS: Record<string, string> = { document: 'doc', knowledge: 'knowledge', human: 'chat', agent: 'agent' };
+
+  // Onboarding: show if user has almost nothing set up
+  const isNew = !llmOk && (stats?.total_memories ?? 0) < 3;
+
+  return (
+    <div className="v6-card">
+      <div className="v6-card__head">
+        <div className="v6-card__title">
+          Overview
+          <span className="v6-card__title-hint">auto-refresh 5s</span>
+        </div>
+        <button className="v6-btn v6-btn--xs" onClick={refresh}>Refresh</button>
+      </div>
+
+      {isNew ? (
+        /* ── Onboarding empty state ── */
+        <>
+          <div style={{ marginBottom: 18, fontSize: 13.5, color: 'var(--v6-fg-muted)' }}>
+            3 件事让 Cortex 跑起来：
+          </div>
+          <div className="v6-onboarding">
+            <div className={`v6-onboarding__step ${llmOk ? 'v6-onboarding__step--done' : ''}`}>
+              <span className="v6-onboarding__num">{llmOk ? '✓' : '1'}</span>
+              <div className="v6-onboarding__body">
+                <div className="v6-onboarding__title">配置 LLM</div>
+                <div className="v6-onboarding__desc">选一个 provider，填入 API key。可选带 FREE 标识的模型，零成本启动。</div>
+                {!llmOk && <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('myllm')}>Go to LLM →</button>}
+              </div>
+            </div>
+            <div className="v6-onboarding__step">
+              <span className="v6-onboarding__num">2</span>
+              <div className="v6-onboarding__body">
+                <div className="v6-onboarding__title">接入一个 AI agent</div>
+                <div className="v6-onboarding__desc">在 Cursor / Claude Desktop / Cline 中添加 MCP 配置，agent 就能自动把知识写入记忆。</div>
+                <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('connect')}>Go to Connect →</button>
+              </div>
+            </div>
+            <div className="v6-onboarding__step">
+              <span className="v6-onboarding__num">3</span>
+              <div className="v6-onboarding__body">
+                <div className="v6-onboarding__title">写入第一条记忆</div>
+                <div className="v6-onboarding__desc">让 agent 在对话中自动调用 memory_store，或在知识库页面上传文档。</div>
+                <button className="v6-btn v6-btn--xs" style={{ marginTop: 10 }} onClick={() => onNavigate('memory')}>Go to Library →</button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* ── 4 metric tiles ── */}
+          <div className="v6-metric-grid">
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">Total memories</div>
+              <div className="v6-metric-tile__value">{fmt(stats?.total_memories ?? 0)}</div>
+              <div className="v6-metric-tile__sub">{fmt(stats?.total_documents ?? 0)} docs</div>
+            </div>
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">New today</div>
+              <div className="v6-metric-tile__value">{fmt(stats?.new_today ?? 0)}</div>
+              <div className="v6-metric-tile__sub">last 24h</div>
+            </div>
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">Active agents</div>
+              <div className="v6-metric-tile__value">{agentCount}</div>
+              <div className="v6-metric-tile__sub">{agentCount > 0 ? stats.active_agents.slice(0, 2).join(', ') : 'none in 7d'}</div>
+            </div>
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">Pipeline (24h)</div>
+              <div className="v6-metric-tile__value">{fmt((pipelineCounts as Record<string,number>)['done'] ?? 0)}</div>
+              <div className="v6-metric-tile__sub">
+                <b style={{ color: pipelineCounts['failed'] ? 'var(--v6-danger)' : undefined }}>
+                  {pipelineCounts['failed'] ?? 0} failed
+                </b>
+                {' · '}{pipelineCounts['pending'] ?? 0} pending
+              </div>
+            </div>
+          </div>
+
+          {/* ── Pipeline ── */}
+          <div className="v6-section-label" style={{ marginBottom: 10 }}>
+            <span>Pipeline</span>
+            <span className="v6-section-label__count">{pipeline?.in_flight ?? 0} in flight</span>
+          </div>
+          {pipelineRecent.length === 0 ? (
+            <div className="v6-empty" style={{ padding: '24px 0' }}>No pipeline jobs yet.</div>
+          ) : (
+            <div className="v6-modellist" style={{ marginBottom: 20 }}>
+              {pipelineRecent.map((j: { id: string; status: string; task_type: string; created_at: string; started_at: string; completed_at: string; error_msg: string }) => (
+                <div key={j.id} className="v6-usage-row">
+                  <div className="v6-usage-row__label" style={{ fontFamily: 'var(--v6-font-mono)', fontSize: 12 }}>
+                    <span className="v6-tag" style={{ marginRight: 6 }}>{j.status}</span>
+                    {j.task_type}
+                  </div>
+                  <div className="v6-usage-row__nums">
+                    {j.error_msg && <span style={{ color: 'var(--v6-danger)' }}>{j.error_msg.slice(0, 30)}</span>}
+                    <span>{fmtDate(j.created_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Health ── */}
+          <div className="v6-section-label"><span>Health</span></div>
+          <div className="v6-health-list" style={{ marginBottom: 20 }}>
+            <div className="v6-health-item">
+              <span className={`v6-health-item__dot ${llmOk ? 'v6-health-item__dot--ok' : 'v6-health-item__dot--warn'}`} />
+              <span className="v6-health-item__label">LLM</span>
+              <span className="v6-health-item__detail">
+                {llmOk ? `${llm.provider} / ${llm.model}` : 'Not configured — '}
+                {!llmOk && (
+                  <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontFamily: 'var(--v6-font-mono)', padding: 0 }} onClick={() => onNavigate('myllm')}>configure →</button>
+                )}
+              </span>
+            </div>
+            <div className="v6-health-item">
+              <span className={`v6-health-item__dot ${agentCount > 0 ? 'v6-health-item__dot--ok' : 'v6-health-item__dot--warn'}`} />
+              <span className="v6-health-item__label">MCP</span>
+              <span className="v6-health-item__detail">
+                {agentCount > 0 ? `${agentCount} agent${agentCount > 1 ? 's' : ''} active (7d)` : 'No agents active yet'}
+                {agentCount === 0 && <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, fontFamily: 'var(--v6-font-mono)', padding: 0, marginLeft: 4 }} onClick={() => onNavigate('connect')}>connect →</button>}
+              </span>
+            </div>
+            <div className="v6-health-item">
+              <span className="v6-health-item__dot v6-health-item__dot--ok" />
+              <span className="v6-health-item__label">Backend</span>
+              <span className="v6-health-item__detail">healthy</span>
+            </div>
+          </div>
+
+          {/* ── Recent memories ── */}
+          {recentMem.length > 0 && (
+            <>
+              <div className="v6-section-label">
+                <span>Recent memories</span>
+                <button style={{ background: 'none', border: 'none', color: 'var(--v6-fg-muted)', cursor: 'pointer', fontSize: 11, fontFamily: 'var(--v6-font-mono)' }} onClick={() => onNavigate('memory')}>view all →</button>
+              </div>
+              <div className="v6-list">
+                {recentMem.map((m, i) => (
+                  <div key={i} className="v6-list__item">
+                    <div className="v6-list__item-head">
+                      <div className="v6-list__item-main">
+                        <div className="v6-list__item-title">{m.title || 'Untitled'}</div>
+                        <div className="v6-list__item-meta">
+                          <span className="v6-tag">{SOURCE_LABELS[m.source_type] || m.source_type || 'chat'}</span>
+                          {m.category && <span className="v6-tag">{m.category}</span>}
+                        </div>
+                      </div>
+                      <div className="v6-list__item-aside">
+                        <span>{fmtDate(m.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -982,12 +1206,13 @@ function MyLLMPanel() {
         </div>
       </div>
 
-      {/* BYOK disclaimer — make the commercial model explicit */}
+      {/* BYOK: keep the commercial model transparent up front */}
       <div className="v6-byok">
         <span className="v6-byok__icon">i</span>
         <div>
-          Cortex runs your memory pipeline against <strong>your own LLM key</strong>. Requests go directly to the provider you pick;
-          billing is between you and that provider. Cortex never proxies or marks up the LLM cost. Pick a <span className="v6-freebadge" style={{ marginLeft: 2, marginRight: 2 }}>FREE</span> model below if you want zero spend.
+          <strong>你的 key，你的账单 — Cortex 不抽成。</strong>
+          {" "}请求直发你选择的 provider，费用由你向 provider 直接结算。
+          需要零成本？选下方带 <span className="v6-freebadge" style={{ margin: '0 3px' }}>FREE</span> 标识的模型即可。
         </div>
       </div>
 
@@ -1131,7 +1356,80 @@ function MyLLMPanel() {
         </>
       )}
 
-      <PipelineStatusPanel />
+      <UsagePanel />
+    </div>
+  );
+}
+
+function UsagePanel() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [usage, setUsage] = useState<any>(null);
+  const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+  useEffect(() => {
+    fetch('/user/stats', { headers: { Authorization: 'Bearer ' + getToken() } })
+      .then((r) => r.json())
+      .then(setUsage)
+      .catch(() => {});
+  }, []);
+
+  if (!usage) return null;
+  const models: { provider_name: string; model_name: string; prompt: number; completion: number; total: number }[] =
+    usage.usage_by_model || [];
+  const totalPrompt = models.reduce((s, m) => s + (m.prompt || 0), 0);
+  const totalCompletion = models.reduce((s, m) => s + (m.completion || 0), 0);
+  const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--v6-border)' }}>
+      <div className="v6-section-label">
+        <span>Usage & billing (all time)</span>
+        <span className="v6-section-label__count" style={{ fontWeight: 400 }}>
+          costs paid directly to provider
+        </span>
+      </div>
+
+      <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+        <div className="v6-metric-tile">
+          <div className="v6-metric-tile__label">Prompt tokens</div>
+          <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>
+        </div>
+        <div className="v6-metric-tile">
+          <div className="v6-metric-tile__label">Completion tokens</div>
+          <div className="v6-metric-tile__value">{fmt(totalCompletion)}</div>
+        </div>
+        <div className="v6-metric-tile">
+          <div className="v6-metric-tile__label">Est. cost</div>
+          <div className="v6-metric-tile__value">
+            {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
+          </div>
+          <div className="v6-metric-tile__sub">billing directly to provider</div>
+        </div>
+      </div>
+
+      {models.length > 0 && (
+        <div className="v6-modellist">
+          {models.map((m, i) => (
+            <div key={i} className="v6-usage-row">
+              <div className="v6-usage-row__label">{m.model_name || m.provider_name}</div>
+              <div className="v6-usage-row__nums">
+                <span>↑ <b>{fmt(m.prompt || 0)}</b></span>
+                <span>↓ <b>{fmt(m.completion || 0)}</b></span>
+                <span>= <b>{fmt(m.total || 0)}</b> tokens</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, fontSize: 11.5, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>
+        Pipeline status → <button
+          style={{ background: 'none', border: 'none', color: 'var(--v6-fg)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}
+          onClick={() => {
+            // Signal parent to navigate to overview — use custom event
+            window.dispatchEvent(new CustomEvent('cortex-nav', { detail: 'overview' }));
+          }}
+        >Overview tab</button>
+      </div>
     </div>
   );
 }
@@ -1163,7 +1461,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="v6-tag">{map[status] || status}</span>;
 }
 
-function PipelineStatusPanel() {
+export function PipelineStatusPanel() {
   const [data, setData] = useState<PipelineStatus | null>(null);
   const [err, setErr] = useState<string>('');
   const [expanded, setExpanded] = useState(false);

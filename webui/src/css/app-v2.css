@@ -429,6 +429,141 @@
 .v6-statusbar--ok { color: #2DBFA8; border-color: color-mix(in srgb, #2DBFA8 35%, var(--v6-border)); }
 .v6-statusbar--err { color: var(--v6-danger); border-color: color-mix(in srgb, var(--v6-danger) 35%, var(--v6-border)); }
 
+/* ── Overview / Dashboard metrics ───────────────────────────────────────── */
+.v6-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.v6-metric-tile {
+  background: var(--v6-bg-elev);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-lg);
+  padding: 18px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v6-metric-tile__label {
+  font-size: 10.5px;
+  font-family: var(--v6-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--v6-fg-muted);
+}
+.v6-metric-tile__value {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--v6-fg);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.v6-metric-tile__sub {
+  font-size: 11.5px;
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-mono);
+}
+.v6-metric-tile__sub b { color: var(--v6-fg); }
+
+/* Health / status rows */
+.v6-health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.v6-health-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--v6-border);
+  font-size: 13px;
+}
+.v6-health-item:last-child { border-bottom: none; }
+.v6-health-item__dot {
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--v6-border-strong);
+}
+.v6-health-item__dot--ok { background: #2DBFA8; }
+.v6-health-item__dot--warn { background: #E5A23B; }
+.v6-health-item__dot--err { background: var(--v6-danger); }
+.v6-health-item__label {
+  font-weight: 500;
+  color: var(--v6-fg);
+  min-width: 68px;
+}
+.v6-health-item__detail {
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Usage/billing breakdown (inside MyLLM) */
+.v6-usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--v6-border);
+  gap: 12px;
+  font-size: 12.5px;
+}
+.v6-usage-row:last-child { border-bottom: none; }
+.v6-usage-row__label { color: var(--v6-fg); font-weight: 500; }
+.v6-usage-row__nums {
+  display: inline-flex;
+  gap: 14px;
+  font-family: var(--v6-font-mono);
+  font-size: 11.5px;
+  color: var(--v6-fg-muted);
+}
+.v6-usage-row__nums b { color: var(--v6-fg); font-weight: 600; }
+
+/* Onboarding empty state */
+.v6-onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 0;
+}
+.v6-onboarding__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  background: var(--v6-bg-elev);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+}
+.v6-onboarding__num {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--v6-border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--v6-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v6-fg-muted);
+}
+.v6-onboarding__step--done .v6-onboarding__num {
+  background: #2DBFA8;
+  border-color: #2DBFA8;
+  color: #000;
+}
+.v6-onboarding__body { flex: 1; }
+.v6-onboarding__title { font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+.v6-onboarding__desc { font-size: 12.5px; color: var(--v6-fg-muted); line-height: 1.5; }
+
 /* ── BYOK disclaimer banner (LLM panel) ────────────────────────────────── */
 .v6-byok {
   display: flex;
