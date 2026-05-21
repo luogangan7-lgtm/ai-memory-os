@@ -1,7 +1,13 @@
 # Cortex UI 待完成任务清单
 
 > 本文档供 AI Agent (Codex + DeepSeek) 独立执行。
-> 阅读前请先了解项目结构：[docs/UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md)
+> **必须先阅读**：
+> - [docs/UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) — 设计规范
+> - [docs/AGENT_RULES.md](./AGENT_RULES.md) — 强制守则，声明完成前必须满足验收标准
+> - [docs/KNOWN_ISSUES.md](./KNOWN_ISSUES.md) — 当前已知缺陷
+
+**每个任务完成后必须提供**：改动文件列表 + 验收命令输出 + 已知限制声明。  
+"Build 成功"不等于"功能完成"。
 
 ---
 
@@ -35,6 +41,16 @@
 
 **优先顺序**：Dashboard → Memories → Tenants → Providers → 其他
 
+**T1 验收标准（每个页面都要验证）**：
+```bash
+# 1. 访问对应页面
+# 2. 检查：没有 teal/violet glow，没有 backdrop-filter blur
+# 3. 检查：数据来自真实 API（Network tab 可见 XHR 请求）
+# 4. 检查：表格行删除/操作功能正常（能点击，API 有响应）
+# 5. 检查：响应式不溢出（缩小浏览器到 800px）
+```
+**禁止**：把真实数据换成 hardcoded 数组来"让页面看起来有内容"。
+
 **Dashboard.tsx 特殊要求**：
 - 4 个 stat card 改用 `.v6-metric-tile`，带 3D hover（参考 OverviewPanel 的 `onPointerMove` handleTilt 实现）
 - 图表组件（如果有）暂时保留或用空 placeholder 替代
@@ -49,6 +65,8 @@
 
 #### T2：Landing Hero Spline 3D 嵌入
 
+**⚠️ 前置条件**：需要用户提供 Spline 场景 URL。没有 URL 时**不要用假 canvas 或 placeholder div 声称已实现**。
+
 **文件**：`webui/src/pages/UserApp.tsx` → `LoginOverlay` → Landing 模式
 
 **要求**：
@@ -62,6 +80,15 @@
 ```tsx
 import { Application } from '@splinetool/runtime';
 // 在 useEffect 里初始化 canvas
+```
+
+**T2 验收标准**：
+```bash
+# 只有拿到 Spline URL 后才能验收
+# 验收方式：浏览器打开 /app/，Hero 区域有 3D 场景渲染（不是黑色空白）
+# 检查：页面加载时间 < 5 秒（Spline 不能严重拖慢 LCP）
+# 检查：Spline canvas 不遮挡"Get started"等操作按钮
+# 如果没有 URL，实现 CSS-only 动效代替，明确标注"Spline 待接入"
 ```
 
 ---
@@ -80,6 +107,16 @@ import { Application } from '@splinetool/runtime';
 - 双语：所有 label 中英混合
 
 **复用**：`webui/src/data/models.ts` 的 `PROVIDERS` 数据（已包含 `signupUrl`、`free` 字段）
+
+**T3 验收标准**：
+```bash
+# 访问 /manage/ → 导航到 "模型配置 Providers"
+# 1. provider 卡片网格正常显示（至少 10 张卡）
+# 2. 点击某张卡 → model 列表展开，显示真实 model 数据（来自 models.ts）
+# 3. FREE badge 正确显示在免费模型上（如 GLM-4-Flash, Groq Llama-4）
+# 4. "Get key ↗" 链接跳转到正确的 provider 网站
+# 禁止：用空卡片 placeholder 凑数
+```
 
 ---
 
@@ -100,6 +137,15 @@ const toggleTheme = () => {
   const current = html.getAttribute('data-theme');
   html.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
 };
+```
+
+**T4 验收标准**：
+```bash
+# 1. 顶栏有 sun/moon 图标按钮
+# 2. 点击 → 背景从 #08080B 变为 #FCFCFD（或反向）
+# 3. 再点击 → 变回来
+# 4. 刷新页面后恢复暗色默认（除非 localStorage 保存了偏好）
+# 注意：不是用 CSS class 切换，而是 data-theme 属性驱动 CSS variables
 ```
 
 ---
@@ -133,9 +179,27 @@ const toggleTheme = () => {
 .v6-drawer--open { transform: translateX(0); }
 ```
 
-**Backend API**（需要新增或验证已有）：
-- `GET /memory/{id}` — 单条记忆详情（检查 routes.py 是否有）
-- `GET /memory/{id}/chunks` — 分块列表（可能没有，需要新增）
+**Backend API 依赖**（必须验证以下 API 真实可用，不能假设已实现）：
+
+```bash
+# 先验证这两个 API 是否存在并返回真实数据
+curl -H "Authorization: Bearer <user_token>" http://127.0.0.1:8003/memory/<real_memory_id>
+# 期望：{"id":"...","title":"...","content":"完整内容（不截断）","source_type":"..."}
+
+curl -H "Authorization: Bearer <user_token>" http://127.0.0.1:8003/memory/<real_memory_id>/chunks
+# 如果返回 404 → 需要新增这个 endpoint
+# 期望：[{"chunk_index":0,"content":"...","token_count":128,"qdrant_point_id":"..."}]
+```
+
+**T5 验收标准**：
+```bash
+# 1. 点击记忆列表任意一行 → 右侧滑出 drawer（宽度约 40%）
+# 2. drawer 内显示：完整 content（不 clamp）+ chunks 列表 + [Copy ID] [Delete]
+# 3. 按 Esc 键关闭 drawer
+# 4. 点 Delete → 确认后 API 调用 DELETE /memory/{id}，列表刷新，drawer 关闭
+# 5. 刷新页面后 drawer 不再显示（状态不持久化到 URL）
+# 禁止：drawer 里显示 "chunks: (loading...)" 永不加载，或显示假数据
+```
 
 ---
 
@@ -148,6 +212,25 @@ const toggleTheme = () => {
 1. 5s polling 自动刷新（与 OverviewPanel 的 setInterval 机制一致）
 2. completed_steps / next_steps 在 mermaid 图下面拆出来作 **checklist** 展示
 3. Mermaid 图只作 overview 用，checklist 才是用户真正能交互的
+
+**⚠️ 注意**：这是 Issue-05 的修复，见 KNOWN_ISSUES.md  
+
+**T6 验收标准**：
+```bash
+# 准备：先让 Agent 调用 memory_task_canvas_update 写入一些内容
+
+# 1. 打开 Canvas tab，记录当前 completed_steps 和 next_steps 数量
+# 2. 通过 MCP 让 Agent 再调用一次 canvas_update，加一个 next step
+# 3. 不手动刷新页面，等待 5-10 秒
+# 4. Canvas 内容自动更新 → 动态刷新实现成功
+
+# 5. 检查 checklist：completed_steps 显示为带删除线的绿色条目
+# 6. 检查 checklist：next_steps 显示为待完成条目（○ 符号）
+# 7. 验证数据来自 DB：
+docker exec ai-memory-os-postgres-1 psql -U memoryos -d memory_os \
+  -c "SELECT agent_id, completed_steps, next_steps FROM task_canvas WHERE team_id='<your_team_id>';"
+# 确认 DB 里的 JSON 数据和页面显示一致
+```
 
 **代码参考（checklist 渲染）**：
 ```tsx
