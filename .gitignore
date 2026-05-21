@@ -13,6 +13,12 @@ desktop/dist/
 desktop/bin/memory-os-backend*
 release/
 
+# Build caches / test artifacts
+*.tsbuildinfo
+.vite/
+webui/playwright-report/
+webui/test-results/
+
 # OS
 .DS_Store
 Thumbs.db
