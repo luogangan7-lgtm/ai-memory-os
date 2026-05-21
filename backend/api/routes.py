@@ -11,8 +11,6 @@ from fastapi import UploadFile, File, Form
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from datetime import datetime, timezone
-from fastapi import UploadFile, File, Form
 
 from backend.auth.middleware import create_access_token, get_current_team, get_agent_id, get_user_context
 from backend.memory.pg_repo import MemoryRepo
@@ -289,22 +287,22 @@ async def upload_file(
         metadata={"filename": file.filename, "size": len(text)},
     )
 
-    # 5. Record Document Meta in Postgres documents table (for file tracking)
-    await pg_repo.insert_document(
-        team_id=team_id,
-        filename=file.filename,
-        minio_key=object_name,
-        chunk_count=1, # simplified
-        file_size=len(file_bytes),
-        tags=tags.split(",") if tags else []
-    )
-
-    # 6. Ingest chunks into Qdrant for RAG search
-    await ingestion.ingest(
+    # 5. Ingest chunks into Vector Store and chunks table
+    chunks_results = await ingestion.ingest(
         content=text, memory_id=memory_id,
         team_id=team_id, workspace_id="default",
         embedding_fn=registry.embed_single,
         title=file.filename, category=final_category, source_type=source_type,
+    )
+
+    # 6. Record Document Meta in Postgres documents table (for file tracking)
+    await pg_repo.insert_document(
+        team_id=team_id,
+        filename=file.filename,
+        minio_key=object_name,
+        chunk_count=len(chunks_results) if chunks_results else 1,
+        file_size=len(file_bytes),
+        tags=tags.split(",") if tags else []
     )
 
     return {
@@ -323,8 +321,43 @@ async def list_documents(team_id: str = Depends(get_current_team)):
 @router.delete("/memory/documents/{doc_id}")
 async def delete_document(doc_id: str, team_id: str = Depends(get_current_team)):
     if not pg_repo: raise HTTPException(503)
+    from backend.memory.pg_repo import safe_uuid
+    
+    # 1. Fetch document metadata to find minio_key
+    async with pg_repo.pool.acquire() as conn:
+        doc = await conn.fetchrow("SELECT * FROM documents WHERE id = $1 AND team_id = $2", safe_uuid(doc_id), team_id)
+    if not doc:
+        raise HTTPException(404, "Document not found")
+        
+    doc_dict = dict(doc)
+    minio_key = doc_dict.get("minio_key")
+    
+    # 2. Find and delete corresponding memories and their Qdrant vectors
+    source_uri = f"minio://{minio_key}" if minio_key else ""
+    if source_uri:
+        async with pg_repo.pool.acquire() as conn:
+            mem_rows = await conn.fetch("SELECT id FROM memories WHERE source_uri = $1 AND team_id = $2", source_uri, team_id)
+        for r in mem_rows:
+            mem_id = str(r["id"])
+            await pg_repo.delete(mem_id, team_id)
+            if qdrant_store:
+                try:
+                    await qdrant_store.delete(mem_id, team_id=team_id)
+                except Exception as e:
+                    print(f"[delete_document] Qdrant delete failed for memory {mem_id}: {e}")
+
+    # 3. Delete from MinIO
+    if minio_key:
+        try:
+            minio = MinIOStore()
+            minio.delete(minio_key)
+        except Exception as e:
+            print(f"[delete_document] MinIO delete failed for key {minio_key}: {e}")
+
+    # 4. Delete document entry from DB
     ok = await pg_repo.delete_document(doc_id, team_id)
     return {"ok": ok}
+
 
 @router.delete("/memory/{memory_id}")
 async def delete_memory(
@@ -685,7 +718,7 @@ async def restore_memories(data: dict, team_id: str = Depends(get_current_team))
 async def knowledge_gaps(team_id: str = Depends(get_current_team)):
     """Show knowledge gaps: topics needing more coverage."""
     if not pg_repo: raise HTTPException(503)
-    engine = ReflectionEngine(pg_repo, graph_store, registry=registry)
+    engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
     gaps = await engine._detect_gaps(team_id)
     return {"gaps": gaps, "note": "Topics with <2 sources or low confidence need review"}
 
@@ -696,7 +729,7 @@ async def run_reflection(
     """Run a full reflection cycle: auto-promote, decay freshness, detect duplicates."""
     if not pg_repo:
         raise HTTPException(status_code=503, detail="Database not ready")
-    engine = ReflectionEngine(pg_repo, graph_store, registry=registry)
+    engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
     report = await engine.reflect_all(team_id)
     return report
 
@@ -861,15 +894,9 @@ async def get_longterm(
     ]
 
 
-@router.get("/stats")
-async def get_root_stats_alias():
-    """Root-level stats endpoint redirecting to admin dashboard stats."""
-    from backend.api.admin import get_dashboard_stats
-    return await get_dashboard_stats()
-
 
 @router.get("/user/stats")
-async def get_user_stats(team_id: str = Depends(get_current_team)):
+async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
     """Retrieve user usage breakdown, monthly metrics and RAG savings."""
     total_tokens = 0
     saved_tokens = 0
@@ -1026,6 +1053,5 @@ async def get_user_audit_logs(
         return {"logs": []}
     finally:
         await conn.close()
-
 
 
