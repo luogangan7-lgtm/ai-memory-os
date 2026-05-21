@@ -6379,13 +6379,13 @@ const getServerUrl=()=>window.location.hostname+(window.location.port?':'+window
 const[agent,setAgent]=useState<'cursor'|'claude'|'openclaw'|'cline'|'continue'|'roo'|'codex'>('cursor');
 const[copied,setCopied]=useState(false);
 
-const configs={cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""],env:{}}}},null,2),
-claude:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp"],env:{MOS_TOKEN:token,MOS_SERVER:"http://"+getServerUrl()}}}},null,2),
+const configs={cursor:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],env:{}}}},null,2),
+claude:JSON.stringify({mcpServers:{"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp"],env:{MOS_TOKEN:token,MOS_SERVER:"http://"+getServerUrl()}}}},null,2),
 openclaw:"SSE 地址: http://"+getServerUrl()+"/mcp?token="+token,
-cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2),
-continue:JSON.stringify({experimental:{modelContextProtocolServers:[{transport:{type:"stdio",command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""]}}]}},null,2),
-roo:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","@ai-memory-os/mcp","--token="+token,"--server=http://"+getServerUrl()+""],alwaysAllow:["memory_search","memory_store"]}},null,2),
-codex:"# ~/.codex/config.toml\n[[mcp_servers]]\nname = \"ai-memory-os\"\ncommand = \"npx\"\nargs = [\"-y\", \"@ai-memory-os/mcp\", \"--token="+token+"\", \"--server=http://"+getServerUrl()+"\"]"};
+cline:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],disabled:false,autoApprove:["memory_search","memory_list","memory_status"]}},null,2),
+continue:JSON.stringify({experimental:{modelContextProtocolServers:[{transport:{type:"stdio",command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""]}}]}},null,2),
+roo:JSON.stringify({"ai-memory-os":{command:"npx",args:["-y","ai-memory-os-mcp","--token="+token,"--server=http://"+getServerUrl()+""],alwaysAllow:["memory_search","memory_store"]}},null,2),
+codex:"# ~/.codex/config.toml\n[[mcp_servers]]\nname = \"ai-memory-os\"\ncommand = \"npx\"\nargs = [\"-y\", \"ai-memory-os-mcp\", \"--token="+token+"\", \"--server=http://"+getServerUrl()+"\"]"};
 
 const FILE_PATHS={cursor:'~/.cursor/mcp.json',claude:'~/Library/Application Support/Claude/claude_desktop_config.json',openclaw:'OpenClaw → Settings → MCP Servers',cline:'VS Code → Cline → MCP Servers',continue:'~/.continue/config.json',roo:'VS Code → Roo Code → MCP Servers',codex:'~/.codex/config.toml'};
 

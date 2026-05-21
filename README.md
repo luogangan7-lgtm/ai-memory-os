@@ -129,7 +129,7 @@ npm run build
 以 **Cursor** 为例，只需打开 `Settings` -> `Models` -> `MCP`，点击 `Add New MCP Server`，输入：
 * **Name**: `ai-memory-os`
 * **Type**: `command`
-* **Command**: `npx -y @ai-memory-os/mcp --token=<您的MCP-Token> --server=http://localhost:8003`
+* **Command**: `npx -y ai-memory-os-mcp --token=<您的MCP-Token> --server=http://localhost:8003`
 
 ### 2. SSE 网络流接入 (OpenClaw / Dify / 商业网关)
 将网关地址指向后端的 SSE 节点：
