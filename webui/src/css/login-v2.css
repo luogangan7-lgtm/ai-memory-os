@@ -57,12 +57,12 @@
 .v6-nav__brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-family: var(--v6-font-mono);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  color: var(--v6-fg-muted);
-  text-transform: uppercase;
+  gap: 12px;
+  font-family: var(--v6-font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--v6-fg);
 }
 /* The breathing element is now the logo's inner solid node (V6Logo with
    breathing prop). It pulses opacity and scale around its own center. */
@@ -103,14 +103,18 @@
   border-color: var(--v6-border-strong);
   background: var(--v6-bg-sunken);
 }
+/* Primary = outlined by default; only fills in on hover/active. This keeps the
+   page from reading as a wall of white slabs while still letting the lone Hero
+   CTA carry weight via the border + crisp text. */
 .v6-btn--primary {
-  background: var(--v6-accent);
-  border-color: var(--v6-accent);
-  color: #fff;
+  background: transparent;
+  border-color: var(--v6-fg);
+  color: var(--v6-fg);
 }
 .v6-btn--primary:hover {
-  background: var(--v6-accent-hover);
-  border-color: var(--v6-accent-hover);
+  background: var(--v6-fg);
+  border-color: var(--v6-fg);
+  color: var(--v6-bg);
 }
 .v6-btn--ghost {
   background: transparent;

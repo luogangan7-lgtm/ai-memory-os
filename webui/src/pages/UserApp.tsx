@@ -88,7 +88,7 @@ export function LoginOverlay() {
       <div className="v6-auth__page">
         <nav className="v6-nav">
           <div className="v6-nav__brand">
-            <CortexMark size={22} breathing />
+            <CortexMark size={28} breathing />
             <span>Cortex</span>
           </div>
           <div className="v6-nav__actions">
@@ -100,7 +100,7 @@ export function LoginOverlay() {
                   </button>
                 )}
                 {mode !== "signup" && (
-                  <button className="v6-btn v6-btn--primary" onClick={() => setMode("signup")}>
+                  <button className="v6-btn" onClick={() => setMode("signup")}>
                     Sign up
                   </button>
                 )}
