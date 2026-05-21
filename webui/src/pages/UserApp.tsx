@@ -6,32 +6,55 @@ import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocume
 import type { PipelineStatus, PipelineJob } from '../api/types';
 import { CortexMark } from '../components/CortexMark';
 
+type DashTab = "memory" | "connect" | "persona" | "myllm" | "canvas" | "audit";
+const DASH_TABS: { id: DashTab; label: string }[] = [
+  { id: "memory", label: "知识库" },
+  { id: "connect", label: "接入" },
+  { id: "myllm", label: "LLM" },
+  { id: "persona", label: "画像" },
+  { id: "canvas", label: "画布" },
+  { id: "audit", label: "操作记录" },
+];
+
 function Dashboard() {
-  const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm" | "canvas" | "audit">("memory");
+  const [tab, setTab] = useState<DashTab>("memory");
   const { logout, token, mcpKey } = useAuth();
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div className="logo-orb" style={{ margin: "0 auto 16px", width: 56, height: 56, fontSize: 26, borderRadius: 16 }}>🧠</div>
-        <div className="page-title" style={{ textAlign: "center" }}>我的记忆空间</div>
-        <div className="page-sub" style={{ textAlign: "center" }}>记忆管理 · MCP 接入</div>
-        <LLMStatusBar />
-        <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={logout}>退出登录</button>
+    <div className="v6-app">
+      <div className="v6-app__shell">
+        <nav className="v6-app__nav">
+          <div className="v6-app__nav-brand">
+            <CortexMark size={26} breathing />
+            <span>Cortex</span>
+          </div>
+          <div className="v6-app__tabs">
+            {DASH_TABS.map((t) => (
+              <button
+                key={t.id}
+                className="v6-app__tab"
+                aria-current={tab === t.id ? "page" : undefined}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="v6-app__nav-right">
+            <LLMStatusBar />
+            <button className="v6-btn v6-btn--ghost" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        </nav>
+        <main className="v6-app__main">
+          {tab === "memory" && <MemoryPanel />}
+          {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
+          {tab === "myllm" && <MyLLMPanel />}
+          {tab === "persona" && <PersonaPanel />}
+          {tab === "canvas" && <CanvasPanel />}
+          {tab === "audit" && <AuditPanel />}
+        </main>
       </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 24 }}>
-        <button className={`btn ${tab === "memory" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("memory")}>知识库</button>
-        <button className={`btn ${tab === "connect" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("connect")}>接入大模型</button>
-        <button className={`btn ${tab === "myllm" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("myllm")}>🤖 我的 LLM</button>
-        <button className={`btn ${tab === "persona" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("persona")}>👤 用户画像</button>
-        <button className={`btn ${tab === "canvas" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("canvas")}>📋 任务画布</button>
-        <button className={`btn ${tab === "audit" ? "btn-teal" : "btn-ghost"}`} onClick={() => setTab("audit")}>📜 操作记录</button>
-      </div>
-      {tab === "memory" && <MemoryPanel />}
-      {tab === "connect" && <ConnectPanel token={mcpKey || token} />}
-      {tab === "myllm" && <MyLLMPanel />}
-      {tab === "persona" && <PersonaPanel />}
-      {tab === "canvas" && <CanvasPanel />}
-      {tab === "audit" && <AuditPanel />}
     </div>
   );
 }
@@ -715,15 +738,38 @@ return(<div className='card'><div className='card-title'>🔑 接入配置</div>
 <button className='btn btn-teal btn-sm' style={{fontSize:11}} onClick={()=>{navigator.clipboard.writeText(SYSTEM_PROMPTS[pType]);setCopied(true);setTimeout(()=>setCopied(false),2000)}}>📋 复制提示词</button></div>
 </div>)}
 
-function PersonaPanel(){
-const [persona,setPersona]=useState("");
-  const [loading,setLoading]=useState(false);
-async function load(){setLoading(true);try{const r=await fetch("/persona/default",{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});const d=await r.json();setPersona(d.persona_md||"暂无画像 — 多使用系统后自动生成")}catch{setPersona("加载失败")}setLoading(false)}
-useEffect(()=>{load()},[]);
-return(<div className="card"><div className="card-title">👤 用户画像</div>
-{loading?<div style={{color:"var(--muted)",fontSize:13}}>生成中...</div>:
-<pre style={{fontSize:13,color:"var(--text)",whiteSpace:"pre-wrap",lineHeight:1.8,fontFamily:"var(--font)"}}>{persona}</pre>}
-<button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={load}>刷新</button></div>)}
+function PersonaPanel() {
+  const [persona, setPersona] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function load() {
+    setLoading(true);
+    try {
+      const r = await fetch("/persona/default", {
+        headers: { Authorization: "Bearer " + (localStorage.getItem("admin_token") || localStorage.getItem("mos_admin_token") || "") },
+      });
+      const d = await r.json();
+      setPersona(d.persona_md || "暂无画像 — 多使用系统后自动生成");
+    } catch {
+      setPersona("加载失败");
+    }
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+  return (
+    <div className="v6-card">
+      <div className="v6-card__title">
+        Persona
+        <span className="v6-card__title-hint">long-term user profile</span>
+      </div>
+      <div className="v6-card__body">
+        {loading ? <div style={{ color: "var(--v6-fg-muted)" }}>Loading…</div> : <pre>{persona}</pre>}
+      </div>
+      <div className="v6-card__actions">
+        <button className="v6-btn" onClick={load}>Refresh</button>
+      </div>
+    </div>
+  );
+}
 
 function MyLLMPanel(){
 const getToken=()=>localStorage.getItem("admin_token")||localStorage.getItem("mos_admin_token")||"";
@@ -958,54 +1004,86 @@ function CanvasPanel(){
   </div>)
 }
 
-function AuditPanel(){
+function AuditPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [logs,setLogs]=useState<any[]>([]);
-  const [loading,setLoading]=useState(false);
-  async function load(){
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  async function load() {
     setLoading(true);
-    try{
-      const r=await fetch("/audit-logs?limit=30",{headers:{"Authorization":"Bearer "+(localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'')}});
-      const d=await r.json();
-      setLogs(d.logs||[]);
-    }catch{setLogs([])}
+    try {
+      const r = await fetch("/audit-logs?limit=30", {
+        headers: { Authorization: "Bearer " + (localStorage.getItem("admin_token") || localStorage.getItem("mos_admin_token") || "") },
+      });
+      const d = await r.json();
+      setLogs(d.logs || []);
+    } catch { setLogs([]); }
     setLoading(false);
   }
-  useEffect(()=>{load()},[]);
-  return(<div className="card"><div className="card-title">📜 操作记录</div>
-    {loading?<div style={{color:"var(--muted)",fontSize:13}}>加载中...</div>:
-    logs.length===0?<div style={{color:"var(--muted)",fontSize:13}}>暂无操作记录</div>:
-    <div style={{maxHeight:400,overflow:"auto"}}>{logs.map((l,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid var(--border)",fontSize:12,fontFamily:"var(--mono)"}}>
-      <span style={{color:"var(--teal)"}}>{l.action||"?"}</span>
-      <span style={{color:"var(--muted)",marginLeft:8}}>{l.created_at||""}</span>
-      {l.target_id&&<span style={{color:"var(--dim)",marginLeft:8}}>{l.target_id.slice(0,20)}</span>}
-    </div>)}</div>}
-  </div>)
-}
-
-function LLMStatusBar(){
-  const [llm,setLlm]=useState<{provider:string;model:string;connected:boolean}|null>(null);
-  useEffect(()=>{
-    fetch("/api/user/llm",{headers:{Authorization:"Bearer "+(localStorage.getItem("admin_token")||"")}}).then(r=>r.json()).then(d=>{
-      if(!d.provider){setLlm(null);return;}
-      setLlm({provider:d.provider,model:d.model,connected:true});
-    }).catch(()=>setLlm(null));
-  },[]);
-  const provInfo = ALL_PROVIDERS.find(x=>x.id===llm?.provider);
-  const provName = provInfo?.name || llm?.provider || "";
-  const regionFlag = provInfo?.region==="cn"?"🇨🇳":provInfo?.region==="intl"?"🌐":"";
+  useEffect(() => { load(); }, []);
   return (
-    <div style={{textAlign:"center",marginBottom:16}}>
-      {llm ? (
-        <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(0,240,212,.06)",border:"1px solid rgba(0,240,212,.15)",borderRadius:10,padding:"8px 18px",fontSize:12}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:llm.connected?"var(--emerald)":"var(--amber)",boxShadow:llm.connected?"0 0 6px var(--emerald)":"0 0 6px var(--amber)"}}/>
-          <span style={{color:"var(--muted)"}}>当前 LLM:</span>
-          <span style={{color:"var(--teal)",fontWeight:600}}>{regionFlag} {provName} / {llm.model}</span>
-          <span style={{color:llm.connected?"var(--emerald)":"var(--amber)",fontSize:10}}>{llm.connected?"● 在线":"○ 待检测"}</span>
-        </div>
+    <div className="v6-card">
+      <div className="v6-card__title">
+        Activity
+        <span className="v6-card__title-hint">latest 30 events</span>
+      </div>
+      {loading ? (
+        <div className="v6-empty">Loading…</div>
+      ) : logs.length === 0 ? (
+        <div className="v6-empty">No activity yet.</div>
       ) : (
-        <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>window.location.hash="#/app"}>⚡ 未配置 LLM — 点击前往设置</button>
+        <div style={{ maxHeight: 480, overflow: "auto" }}>
+          <table className="v6-table">
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Time</th>
+                <th>Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((l, i) => (
+                <tr key={i}>
+                  <td style={{ fontFamily: "var(--v6-font-mono)" }}>{l.action || "?"}</td>
+                  <td style={{ color: "var(--v6-fg-muted)", fontFamily: "var(--v6-font-mono)" }}>{l.created_at || ""}</td>
+                  <td style={{ color: "var(--v6-fg-muted)", fontFamily: "var(--v6-font-mono)", fontSize: 11.5 }}>
+                    {l.target_id ? l.target_id.slice(0, 24) : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
-  )
+  );
+}
+
+function LLMStatusBar() {
+  const [llm, setLlm] = useState<{ provider: string; model: string; connected: boolean } | null>(null);
+  useEffect(() => {
+    fetch("/api/user/llm", { headers: { Authorization: "Bearer " + (localStorage.getItem("admin_token") || "") } })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.provider) { setLlm(null); return; }
+        setLlm({ provider: d.provider, model: d.model, connected: true });
+      })
+      .catch(() => setLlm(null));
+  }, []);
+  const provInfo = ALL_PROVIDERS.find((x) => x.id === llm?.provider);
+  const provName = provInfo?.name || llm?.provider || "";
+  if (!llm) {
+    return (
+      <span className="v6-llmpill">
+        <span className="v6-llmpill__dot v6-llmpill__dot--warn" />
+        No LLM configured
+      </span>
+    );
+  }
+  return (
+    <span className="v6-llmpill" title={`${provName} / ${llm.model}`}>
+      <span className={`v6-llmpill__dot ${llm.connected ? "v6-llmpill__dot--ok" : "v6-llmpill__dot--warn"}`} />
+      <strong>{provName}</strong>
+      <span>/ {llm.model}</span>
+    </span>
+  );
 }

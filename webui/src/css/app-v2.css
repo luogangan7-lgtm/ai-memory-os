@@ -1,0 +1,244 @@
+/* ── App shell v2 — used by the post-login UserApp Dashboard. Reads the v6-*
+   tokens declared in index.css. Same matte / monochrome rules as login-v2. ── */
+
+.v6-app {
+  font-family: var(--v6-font-sans);
+  background: var(--v6-bg);
+  color: var(--v6-fg);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  font-feature-settings: 'cv11', 'ss01';
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient + grain, identical to login-v2 so the brand reads continuously
+   across login -> dashboard. */
+.v6-app::before {
+  content: '';
+  position: fixed;
+  top: -20vh; right: -10vw;
+  width: 70vw; height: 60vh;
+  background: radial-gradient(ellipse at center, var(--v6-accent-soft), transparent 65%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+.v6-app::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: var(--v6-grain-opacity);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.v6-app__shell {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── Top nav ─────────────────────────────────────────────────────────────── */
+.v6-app__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--v6-border);
+  background: var(--v6-bg);
+  gap: 24px;
+}
+.v6-app__nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--v6-fg);
+  flex-shrink: 0;
+}
+.v6-app__tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  justify-content: center;
+}
+.v6-app__tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  padding: 8px 12px;
+  border-radius: var(--v6-radius-md);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s var(--v6-ease), background 0.15s var(--v6-ease);
+  white-space: nowrap;
+}
+.v6-app__tab:hover {
+  color: var(--v6-fg);
+  background: var(--v6-bg-sunken);
+}
+.v6-app__tab[aria-current="page"] {
+  color: var(--v6-fg);
+  background: var(--v6-bg-sunken);
+}
+.v6-app__tab[aria-current="page"]::after {
+  content: '';
+  position: absolute;
+  left: 12px; right: 12px; bottom: -17px;
+  height: 1px;
+  background: var(--v6-fg);
+}
+.v6-app__nav-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.v6-app__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--v6-font-mono);
+  font-size: 12px;
+  color: var(--v6-fg-muted);
+}
+.v6-app__user-dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--v6-fg);
+  opacity: 0.55;
+}
+
+/* ── Main content area ───────────────────────────────────────────────────── */
+.v6-app__main {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 28px 80px;
+}
+
+/* ── Generic card primitive (replaces .card from old cyberpunk CSS) ──────── */
+.v6-card {
+  background: var(--v6-bg-elev);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-lg);
+  padding: 24px;
+}
+.v6-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--v6-fg);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v6-card__title-hint {
+  font-family: var(--v6-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--v6-fg-muted);
+  letter-spacing: 0.04em;
+}
+.v6-card__body {
+  color: var(--v6-fg);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.v6-card__body pre {
+  font-family: var(--v6-font-mono);
+  font-size: 12.5px;
+  color: var(--v6-fg);
+  white-space: pre-wrap;
+  line-height: 1.7;
+  background: var(--v6-bg-sunken);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+  padding: 14px 16px;
+  max-height: 480px;
+  overflow: auto;
+}
+.v6-card__actions {
+  margin-top: 14px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* ── LLM status pill (replaces the old teal-glow LLMStatusBar) ───────────── */
+.v6-llmpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--v6-bg-elev);
+  border: 1px solid var(--v6-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--v6-fg-muted);
+}
+.v6-llmpill__dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--v6-fg-muted);
+}
+.v6-llmpill__dot--ok { background: #2DBFA8; }
+.v6-llmpill__dot--warn { background: #E5A23B; }
+.v6-llmpill strong {
+  color: var(--v6-fg);
+  font-weight: 600;
+}
+
+/* ── Empty state inside Audit etc. ───────────────────────────────────────── */
+.v6-empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--v6-fg-muted);
+  font-size: 13px;
+}
+
+/* ── Tables (used by AuditPanel) ─────────────────────────────────────────── */
+.v6-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.v6-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--v6-fg-muted);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--v6-border);
+  font-family: var(--v6-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.v6-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--v6-border);
+  color: var(--v6-fg);
+}
+.v6-table tr:last-child td { border-bottom: none; }
+.v6-table tr:hover td { background: var(--v6-bg-sunken); }
+
+@media (max-width: 760px) {
+  .v6-app__nav { padding: 14px 18px; flex-wrap: wrap; gap: 12px; }
+  .v6-app__tabs { order: 3; width: 100%; justify-content: flex-start; }
+  .v6-app__main { padding: 24px 18px 60px; }
+}
