@@ -1,9 +1,15 @@
 """API Key encryption/decryption using AES-256-GCM."""
-import os, base64
+import os, base64, logging
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 _MASTER_KEY = os.environ.get("MEMORY_OS_MASTER_KEY", "")
 _key_bytes = base64.b64decode(_MASTER_KEY) if _MASTER_KEY else None
+
+if _key_bytes is None:
+    logging.getLogger("crypto").warning(
+        "MEMORY_OS_MASTER_KEY is not set — provider API keys will be stored in PLAINTEXT. "
+        "Set MEMORY_OS_MASTER_KEY to a base64-encoded 32-byte value to enable AES-256-GCM at rest."
+    )
 
 def encrypt(plaintext: str) -> str:
     """Encrypt API key, returns base64(nonce + ciphertext)."""
