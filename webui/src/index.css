@@ -16,9 +16,9 @@
   --v6-fg-faint: #A1A1A8;
   --v6-border: #E6E6E9;
   --v6-border-strong: #D4D4D8;
-  --v6-accent: #6E56CF;
-  --v6-accent-hover: #5D45BD;
-  --v6-accent-soft: rgba(110, 86, 207, 0.10);
+  --v6-accent: #0E8C7D;
+  --v6-accent-hover: #0A7268;
+  --v6-accent-soft: rgba(14, 140, 125, 0.10);
   --v6-danger: #E5484D;
   --v6-grain-opacity: 0.025;
   --v6-radius-sm: 6px;
@@ -39,9 +39,9 @@
     --v6-fg-faint: #4E4E55;
     --v6-border: #1A1A1F;
     --v6-border-strong: #26262C;
-    --v6-accent: #9E8AE5;
-    --v6-accent-hover: #B5A4ED;
-    --v6-accent-soft: rgba(158, 138, 229, 0.10);
+    --v6-accent: #2DBFA8;
+    --v6-accent-hover: #44D2BC;
+    --v6-accent-soft: rgba(45, 191, 168, 0.10);
     --v6-grain-opacity: 0.05;
   }
 }

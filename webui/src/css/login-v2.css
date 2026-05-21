@@ -64,24 +64,15 @@
   color: var(--v6-fg-muted);
   text-transform: uppercase;
 }
-.v6-nav__dot {
-  width: 8px; height: 8px;
-  border-radius: 999px;
-  background: var(--v6-accent);
-  box-shadow: 0 0 0 0 var(--v6-accent-soft);
+/* The breathing element is now the logo's inner solid node (V6Logo with
+   breathing prop). It pulses opacity and scale around its own center. */
+.v6-logo__core {
   animation: v6-breathe 2.4s ease-in-out infinite;
+  transform-origin: 13.6px 10.4px;
 }
 @keyframes v6-breathe {
-  0%, 100% {
-    opacity: 0.55;
-    transform: scale(1);
-    box-shadow: 0 0 0 0 var(--v6-accent-soft);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.18);
-    box-shadow: 0 0 0 6px transparent;
-  }
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50%      { opacity: 1;    transform: scale(1.08); }
 }
 .v6-nav__actions {
   display: inline-flex;

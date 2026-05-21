@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
 import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocument } from '../api/endpoints';
 import type { PipelineStatus, PipelineJob } from '../api/types';
+import { V6Logo } from '../components/V6Logo';
 
 function Dashboard() {
   const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm" | "canvas" | "audit">("memory");
@@ -87,7 +88,7 @@ export function LoginOverlay() {
       <div className="v6-auth__page">
         <nav className="v6-nav">
           <div className="v6-nav__brand">
-            <span className="v6-nav__dot" aria-hidden="true" />
+            <V6Logo size={20} breathing />
             <span>AI MEMORY OS · V6</span>
           </div>
           <div className="v6-nav__actions">
