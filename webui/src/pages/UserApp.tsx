@@ -1364,9 +1364,10 @@ function UsagePanel() {
 
   if (!usage) return null;
   const models: { provider_name: string; model_name: string; prompt: number; completion: number; total: number }[] =
-    usage.usage_by_model || [];
+    (usage.usage_by_model || []).filter((m: { total: number }) => (m.total || 0) > 0);
   const totalPrompt = models.reduce((s, m) => s + (m.prompt || 0), 0);
   const totalCompletion = models.reduce((s, m) => s + (m.completion || 0), 0);
+  const hasData = totalPrompt + totalCompletion > 0;
   const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
 
   return (
@@ -1378,37 +1379,48 @@ function UsagePanel() {
         </span>
       </div>
 
-      <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
-        <div className="v6-metric-tile">
-          <div className="v6-metric-tile__label">输入 Prompt Tokens</div>
-          <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>
-        </div>
-        <div className="v6-metric-tile">
-          <div className="v6-metric-tile__label">输出 Completion Tokens</div>
-          <div className="v6-metric-tile__value">{fmt(totalCompletion)}</div>
-        </div>
-        <div className="v6-metric-tile">
-          <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
-          <div className="v6-metric-tile__value">
-            {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
+      {!hasData ? (
+        <div className="v6-empty" style={{ padding: '20px 0', textAlign: 'left' }}>
+          <div style={{ fontSize: 13, color: 'var(--v6-fg-muted)' }}>
+            暂无使用记录 · No usage yet
           </div>
-          <div className="v6-metric-tile__sub">直接结算给 provider</div>
+          <div style={{ fontSize: 11.5, color: 'var(--v6-fg-faint)', marginTop: 4, fontFamily: 'var(--v6-font-mono)' }}>
+            通过 MCP 接入 Agent 或使用 completions 代理后，Token 消耗会在此实时显示。
+          </div>
         </div>
-      </div>
-
-      {models.length > 0 && (
-        <div className="v6-modellist">
-          {models.map((m, i) => (
-            <div key={i} className="v6-usage-row">
-              <div className="v6-usage-row__label">{m.model_name || m.provider_name}</div>
-              <div className="v6-usage-row__nums">
-                <span>↑ <b>{fmt(m.prompt || 0)}</b></span>
-                <span>↓ <b>{fmt(m.completion || 0)}</b></span>
-                <span>= <b>{fmt(m.total || 0)}</b> tokens</span>
-              </div>
+      ) : (
+        <>
+          <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">输入 Prompt Tokens</div>
+              <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>
             </div>
-          ))}
-        </div>
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">输出 Completion Tokens</div>
+              <div className="v6-metric-tile__value">{fmt(totalCompletion)}</div>
+            </div>
+            <div className="v6-metric-tile">
+              <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
+              <div className="v6-metric-tile__value">
+                {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
+              </div>
+              <div className="v6-metric-tile__sub">直接结算给 provider</div>
+            </div>
+          </div>
+
+          <div className="v6-modellist">
+            {models.map((m, i) => (
+              <div key={i} className="v6-usage-row">
+                <div className="v6-usage-row__label">{m.model_name || m.provider_name}</div>
+                <div className="v6-usage-row__nums">
+                  <span>输入 <b>{fmt(m.prompt || 0)}</b></span>
+                  <span>输出 <b>{fmt(m.completion || 0)}</b></span>
+                  <span>合计 <b>{fmt(m.total || 0)}</b> tokens</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <div style={{ marginTop: 12, fontSize: 11.5, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)' }}>

@@ -951,13 +951,6 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
     except Exception:
         pass
         
-    # Fallbacks for empty database to ensure gorgeous chart rendering
-    if total_tokens == 0:
-        total_tokens = 24500
-        saved_tokens = 8400
-        saved_usd = 0.0168
-        rag_hits = 12
-
     month_tokens = 0
     try:
         if pg_repo:
@@ -968,8 +961,6 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
             """, pg_repo.safe_uuid(team_id))
     except Exception:
         pass
-    if month_tokens == 0:
-        month_tokens = 15800
 
     week_writes = 0
     try:
@@ -981,8 +972,6 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
             """, team_id)
     except Exception:
         pass
-    if week_writes == 0:
-        week_writes = 7
 
     usage_by_model = []
     try:
