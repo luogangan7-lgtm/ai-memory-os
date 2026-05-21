@@ -13,14 +13,14 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: memoryos
-      POSTGRES_PASSWORD: memoryos
-      POSTGRES_DB: memory_os
+      POSTGRES_USER: ${POSTGRES_USER:-memoryos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-memoryos}
+      POSTGRES_DB: ${POSTGRES_DB:-memory_os}
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./backend/schemas/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U memoryos -d memory_os"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-memoryos} -d ${POSTGRES_DB:-memory_os}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -32,12 +32,12 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/password
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_PLUGINS: '["apoc"]'
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1'"]
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-password} 'RETURN 1'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -50,16 +50,26 @@ services:
       - "9001:9001"
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
   backend:
@@ -70,14 +80,14 @@ services:
       - HOST_PHYSICAL_IPS=192.168.50.167,192.168.50.36
       - MEMORY_OS_PG_HOST=postgres
       - MEMORY_OS_PG_PORT=5432
-      - MEMORY_OS_PG_USER=memoryos
-      - MEMORY_OS_PG_PASSWORD=memoryos
-      - MEMORY_OS_PG_DB=memory_os
+      - MEMORY_OS_PG_USER=${POSTGRES_USER:-memoryos}
+      - MEMORY_OS_PG_PASSWORD=${POSTGRES_PASSWORD:-memoryos}
+      - MEMORY_OS_PG_DB=${POSTGRES_DB:-memory_os}
       - MEMORY_OS_QDRANT_HOST=qdrant
       - MEMORY_OS_QDRANT_PORT=6333
       - MEMORY_OS_NEO4J_URI=bolt://neo4j:7687
       - MEMORY_OS_NEO4J_USER=neo4j
-      - MEMORY_OS_NEO4J_PASSWORD=password
+      - MEMORY_OS_NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
       - MEMORY_OS_USE_STANDALONE=false
       - ALLOW_REMOTE_ADMIN=true
       - CODEX_HOME=/app/config
@@ -86,6 +96,9 @@ services:
       - MEMORY_OS_PROVIDERS=/app/config/memory-os/providers.json
       - MEMORY_OS_ROUTING=/app/config/memory-os/routing.json
       - MEMORY_OS_MINIO_ENDPOINT=minio:9000
+      - MEMORY_OS_MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-admin}
+      - MEMORY_OS_MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-password}
+      - MEMORY_OS_MASTER_KEY=${MEMORY_OS_MASTER_KEY:-}
     volumes:
       - backend_config:/app/config
       - ./webui-dist:/app/webui-dist:ro
@@ -97,6 +110,10 @@ services:
       qdrant:
         condition: service_started
       neo4j:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
