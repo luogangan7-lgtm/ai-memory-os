@@ -44,6 +44,37 @@ async def _process_one(row):
     async with lock:
         try:
             if task_type == 'memory_pipeline':
+                # Check if the user has an active LLM config
+                has_llm = False
+                from backend.api.user_providers import _user_llm_configs
+                user_cfg = _user_llm_configs.get(team, {})
+                if user_cfg.get("api_key") and user_cfg.get("base_url"):
+                    has_llm = True
+                else:
+                    try:
+                        cfg = await _repo.get_active_user_provider_config(team)
+                        if cfg and cfg.get("api_key"):
+                            has_llm = True
+                            # Cache in-memory for future requests
+                            from backend.memory.pg_repo import safe_uuid
+                            cached_cfg = {
+                                "provider": cfg.get("provider_name", ""),
+                                "model": cfg.get("model_name", ""),
+                                "api_key": cfg.get("api_key", ""),
+                                "base_url": cfg.get("api_base_url", ""),
+                            }
+                            _user_llm_configs[team] = cached_cfg
+                            _user_llm_configs[str(safe_uuid(team))] = cached_cfg
+                    except Exception:
+                        pass
+
+                if not has_llm:
+                    logger.info(f"User {team} has no active LLM config. Pausing pipeline task {qid} with 'waiting_key' status.")
+                    await _repo.pool.execute(
+                        "UPDATE pipeline_queue SET status='waiting_key', started_at=NULL WHERE id=$1", qid
+                    )
+                    return
+
                 import json
                 payload = json.loads(row["payload_json"]) if isinstance(row["payload_json"], str) else row["payload_json"]
                 conv_id = payload.get("conv_id")

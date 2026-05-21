@@ -74,6 +74,28 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
     except Exception as e:
         print(f"Failed to enqueue pending memories: {e}")
 
+    # Update waiting_key tasks in pipeline_queue to pending
+    try:
+        from backend.api.routes import pg_repo
+        from backend.memory.pg_repo import safe_uuid
+        if pg_repo:
+            if hasattr(pg_repo, "db_path"):  # SQLite
+                import aiosqlite
+                async with aiosqlite.connect(pg_repo.db_path) as db:
+                    await db.execute(
+                        "UPDATE pipeline_queue SET status='pending' WHERE (team_id=? OR team_id=?) AND status='waiting_key'",
+                        (team_id, str(safe_uuid(team_id)))
+                    )
+                    await db.commit()
+            elif pg_repo.pool:  # PostgreSQL
+                async with pg_repo.pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE pipeline_queue SET status='pending' WHERE (team_id=$1 OR team_id=$2) AND status='waiting_key'",
+                        team_id, str(safe_uuid(team_id))
+                    )
+    except Exception as e:
+        print(f"Failed to resume waiting_key tasks: {e}")
+
     return {"status": "saved", "team_id": team_id}
 
 @router.post("/test")
