@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api/client';
 import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocument } from '../api/endpoints';
 import type { PipelineStatus, PipelineJob } from '../api/types';
-import { V6Logo } from '../components/V6Logo';
+import { CortexMark } from '../components/CortexMark';
 
 function Dashboard() {
   const [tab, setTab] = useState<"memory" | "connect" | "persona" | "myllm" | "canvas" | "audit">("memory");
@@ -88,8 +88,8 @@ export function LoginOverlay() {
       <div className="v6-auth__page">
         <nav className="v6-nav">
           <div className="v6-nav__brand">
-            <V6Logo size={20} breathing />
-            <span>AI MEMORY OS · V6</span>
+            <CortexMark size={22} breathing />
+            <span>Cortex</span>
           </div>
           <div className="v6-nav__actions">
             {isUserApp ? (
@@ -121,12 +121,12 @@ export function LoginOverlay() {
         {mode === "landing" && (
           <>
             <section className="v6-hero">
-              <span className="v6-hero__tag">multi-agent · long-term memory · v6</span>
+              <span className="v6-hero__tag">long-term memory for AI agents</span>
               <h1 className="v6-hero__title">
-                Give your AI agents <em>memory that lasts</em>.
+                Memory that <em>lasts</em>, across every agent.
               </h1>
               <p className="v6-hero__sub">
-                通过 MCP 协议，让 Cursor / Claude Desktop / Cline 等 AI Agent 共享一个永久的、加密的、可检索的记忆库。
+                Cortex 通过 MCP 协议为 Cursor / Claude Desktop / Cline 等 AI Agent 提供一个永久的、加密的、可检索的共享记忆库。
               </p>
               <div className="v6-hero__cta">
                 <button className="v6-btn v6-btn--primary" onClick={() => setMode("signup")}>
@@ -189,9 +189,9 @@ export function LoginOverlay() {
               </h2>
               <p className="v6-authcard__sub">
                 {mode === "signup"
-                  ? "注册账号以使用 Memory Workspace"
+                  ? "注册账号以接入 Cortex 记忆"
                   : isUserApp
-                  ? "使用邮箱和密码登录你的记忆空间"
+                  ? "登录 Cortex 进入你的记忆空间"
                   : "使用管理员账户登录 Command Deck"}
               </p>
               <form onSubmit={handleSubmit}>
