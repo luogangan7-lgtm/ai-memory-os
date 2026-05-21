@@ -6,14 +6,13 @@ import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocume
 import type { PipelineStatus, PipelineJob } from '../api/types';
 import { CortexMark } from '../components/CortexMark';
 
-type DashTab = "memory" | "connect" | "persona" | "myllm" | "canvas" | "audit";
+type DashTab = "memory" | "connect" | "persona" | "myllm" | "canvas";
 const DASH_TABS: { id: DashTab; label: string }[] = [
   { id: "memory", label: "知识库" },
   { id: "connect", label: "接入" },
   { id: "myllm", label: "LLM" },
   { id: "persona", label: "画像" },
   { id: "canvas", label: "画布" },
-  { id: "audit", label: "操作记录" },
 ];
 
 function Dashboard() {
@@ -52,7 +51,6 @@ function Dashboard() {
           {tab === "myllm" && <MyLLMPanel />}
           {tab === "persona" && <PersonaPanel />}
           {tab === "canvas" && <CanvasPanel />}
-          {tab === "audit" && <AuditPanel />}
         </main>
       </div>
     </div>
@@ -693,10 +691,37 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
     window.location.hostname + (window.location.port ? ':' + window.location.port : ':8003');
   const [agent, setAgent] = useState<'cursor' | 'claude' | 'openclaw' | 'cline' | 'continue' | 'roo' | 'codex'>('cursor');
   const [copiedKey, setCopiedKey] = useState<string>('');
-  const copy = (key: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(''), 1500);
+  const copy = async (key: string, text: string) => {
+    // navigator.clipboard requires a secure context — fails silently on plain
+    // http://192.168.x.x deployments. Fall back to the legacy textarea trick.
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch { /* fall through */ }
+    if (!ok) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* nothing else to try */ }
+    }
+    if (ok) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(''), 1500);
+    } else {
+      setCopiedKey('error');
+      setTimeout(() => setCopiedKey(''), 2000);
+    }
   };
 
   const configs: Record<string, string> = {
@@ -884,9 +909,8 @@ function PersonaPanel() {
 function MyLLMPanel() {
   const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
   const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() });
-  const PROVIDERS = ALL_PROVIDERS.filter((x) => !x.region || x.region !== 'local').map((x) => ({
-    id: x.id, name: x.name, region: x.region, base: x.baseUrl, models: x.models.map((m) => m.id),
-  }));
+  // Hide local-only providers (Ollama etc.) from a hosted product perspective.
+  const PROVIDERS = ALL_PROVIDERS.filter((x) => !x.region || x.region !== 'local');
 
   const [p, setP] = useState('');
   const [k, setK] = useState('');
@@ -894,7 +918,13 @@ function MyLLMPanel() {
   const [b, setB] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+
   const prov = PROVIDERS.find((x) => x.id === p);
+  const chatModels = (prov?.models || []).filter((mm) => mm.type === 'chat' || mm.type === 'reasoning');
+  const freeChatCount = (px: typeof PROVIDERS[number]) =>
+    px.models.filter((mm) => (mm.type === 'chat' || mm.type === 'reasoning') && mm.free).length;
+  const chatCount = (px: typeof PROVIDERS[number]) =>
+    px.models.filter((mm) => mm.type === 'chat' || mm.type === 'reasoning').length;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -905,13 +935,15 @@ function MyLLMPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (p && prov) {
-      setB(prov.base);
-      if (!m || !prov.models.includes(m)) setM(prov.models[0] || '');
+      setB(prov.baseUrl);
+      const chatIds = chatModels.map((cm) => cm.id);
+      if (!m || !chatIds.includes(m)) setM(chatIds[0] || '');
     }
     if (!p) setM('');
   }, [p]);
 
   async function save() {
+    if (!p || !m) { setMsg('Pick a provider and model first'); return; }
     setBusy(true);
     try {
       await fetch('/api/user/llm', {
@@ -932,91 +964,171 @@ function MyLLMPanel() {
         body: JSON.stringify({ api_key: k, base_url: b, model: m }),
       });
       const d = await r.json();
-      setMsg(d.connected ? 'Connection OK' : 'Failed: ' + (d.error || d.status));
+      setMsg(d.connected ? 'Connection OK · key reaches the provider' : 'Failed: ' + (d.error || d.status));
     } catch { setMsg('Test failed'); }
     setBusy(false);
   }
 
-  const msgKind = msg === 'Saved' || msg === 'Connection OK' ? 'ok' : msg ? 'err' : '';
-  const selectStyle: React.CSSProperties = {
-    width: '100%',
-    background: 'var(--v6-bg)',
-    color: 'var(--v6-fg)',
-    border: '1px solid var(--v6-border)',
-    borderRadius: 'var(--v6-radius-md)',
-    padding: '9px 12px',
-    fontSize: 13,
-    fontFamily: 'var(--v6-font-sans)',
-  };
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: 11,
-    fontFamily: 'var(--v6-font-mono)',
-    color: 'var(--v6-fg-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    marginBottom: 6,
-  };
+  const msgKind = msg === 'Saved' || msg.startsWith('Connection OK') ? 'ok' : msg ? 'err' : '';
+  const cnProviders = PROVIDERS.filter((x) => x.region === 'cn');
+  const intlProviders = PROVIDERS.filter((x) => x.region === 'intl');
 
   return (
     <div className="v6-card">
       <div className="v6-card__head">
         <div className="v6-card__title">
           LLM provider
-          <span className="v6-card__title-hint">drives the memory pipeline (L1/L2/L3)</span>
+          <span className="v6-card__title-hint">your key, your bill</span>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      {/* BYOK disclaimer — make the commercial model explicit */}
+      <div className="v6-byok">
+        <span className="v6-byok__icon">i</span>
         <div>
-          <label style={labelStyle}>Provider</label>
-          <select value={p} onChange={(e) => setP(e.target.value)} style={selectStyle}>
-            <option value="">— Select —</option>
-            <optgroup label="China">
-              {PROVIDERS.filter((x) => x.region === 'cn').map((x) => (
-                <option key={x.id} value={x.id}>{x.name} ({x.models.length})</option>
-              ))}
-            </optgroup>
-            <optgroup label="International">
-              {PROVIDERS.filter((x) => x.region === 'intl').map((x) => (
-                <option key={x.id} value={x.id}>{x.name} ({x.models.length})</option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Model</label>
-          <select value={m} onChange={(e) => setM(e.target.value)} disabled={!p} style={selectStyle}>
-            {prov?.models.map((x) => <option key={x} value={x}>{x}</option>)}
-          </select>
+          Cortex runs your memory pipeline against <strong>your own LLM key</strong>. Requests go directly to the provider you pick;
+          billing is between you and that provider. Cortex never proxies or marks up the LLM cost. Pick a <span className="v6-freebadge" style={{ marginLeft: 2, marginRight: 2 }}>FREE</span> model below if you want zero spend.
         </div>
       </div>
 
-      <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>API Key</label>
-        <input
-          className="v6-input-global"
-          type="password"
-          value={k}
-          onChange={(e) => setK(e.target.value)}
-          placeholder="sk-..."
-          style={{ width: '100%' }}
-        />
+      {/* Provider grid — China */}
+      <div className="v6-section-label">
+        <span>中国厂商</span>
+        <span className="v6-section-label__count">{cnProviders.length}</span>
+      </div>
+      <div className="v6-provider-grid">
+        {cnProviders.map((x) => (
+          <button
+            key={x.id}
+            className="v6-provider-card"
+            aria-current={p === x.id ? 'page' : undefined}
+            onClick={() => { setP(x.id); setK(''); }}
+            type="button"
+          >
+            <div className="v6-provider-card__name">
+              {x.nameZh}
+              <span className="v6-provider-card__region">CN</span>
+            </div>
+            <div className="v6-provider-card__meta">
+              {chatCount(x)} models{freeChatCount(x) > 0 && <> · <b>{freeChatCount(x)} free</b></>}
+            </div>
+            {x.signupUrl && (
+              <a
+                className="v6-provider-card__signup"
+                href={x.signupUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Get key ↗
+              </a>
+            )}
+          </button>
+        ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="v6-btn v6-btn--primary" onClick={save} disabled={busy}>
-          {busy ? '…' : 'Save'}
-        </button>
-        <button className="v6-btn" onClick={test} disabled={busy || !k}>
-          Test connection
-        </button>
+      {/* Provider grid — Intl */}
+      <div className="v6-section-label">
+        <span>海外厂商</span>
+        <span className="v6-section-label__count">{intlProviders.length}</span>
+      </div>
+      <div className="v6-provider-grid">
+        {intlProviders.map((x) => (
+          <button
+            key={x.id}
+            className="v6-provider-card"
+            aria-current={p === x.id ? 'page' : undefined}
+            onClick={() => { setP(x.id); setK(''); }}
+            type="button"
+          >
+            <div className="v6-provider-card__name">
+              {x.name}
+              <span className="v6-provider-card__region">INTL</span>
+            </div>
+            <div className="v6-provider-card__meta">
+              {chatCount(x)} models{freeChatCount(x) > 0 && <> · <b>{freeChatCount(x)} free</b></>}
+            </div>
+            {x.signupUrl && (
+              <a
+                className="v6-provider-card__signup"
+                href={x.signupUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Get key ↗
+              </a>
+            )}
+          </button>
+        ))}
       </div>
 
-      {msg && (
-        <div className={`v6-statusbar ${msgKind === 'ok' ? 'v6-statusbar--ok' : msgKind === 'err' ? 'v6-statusbar--err' : ''}`} style={{ marginTop: 14, marginBottom: 0 }}>
-          {msg}
-        </div>
+      {/* Model list of selected provider */}
+      {prov && chatModels.length > 0 && (
+        <>
+          <div className="v6-section-label">
+            <span>{prov.nameZh} · models</span>
+            <span className="v6-section-label__count">
+              {chatModels.filter((mm) => mm.free).length} free · {chatModels.length} total
+            </span>
+          </div>
+          <div className="v6-modellist">
+            {chatModels.map((mm) => (
+              <div
+                key={mm.id}
+                className="v6-model-row"
+                aria-current={m === mm.id ? 'true' : undefined}
+                onClick={() => setM(mm.id)}
+              >
+                <div className="v6-model-row__main">
+                  <div className="v6-model-row__name">
+                    {mm.name}
+                    {mm.recommended && <span className="v6-modelrow-star">★</span>}
+                  </div>
+                  {mm.note && <div className="v6-model-row__note">{mm.note}</div>}
+                </div>
+                <div className="v6-model-row__aside">
+                  {mm.ctx && <span>{Math.round(mm.ctx / 1000)}K ctx</span>}
+                  {mm.free ? <span className="v6-freebadge">FREE</span> : <span className="v6-pricebadge">{mm.price || 'paid'}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* API key + actions */}
+      {prov && (
+        <>
+          <div className="v6-section-label">
+            <span>API key</span>
+          </div>
+          <input
+            className="v6-input-global"
+            type="password"
+            value={k}
+            onChange={(e) => setK(e.target.value)}
+            placeholder={`Paste your ${prov.name} API key`}
+            style={{ width: '100%', marginBottom: 12 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="v6-btn v6-btn--primary" onClick={save} disabled={busy || !m}>
+              {busy ? '…' : 'Save'}
+            </button>
+            <button className="v6-btn" onClick={test} disabled={busy || !k || !m}>
+              Test connection
+            </button>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 11.5, fontFamily: 'var(--v6-font-mono)', color: 'var(--v6-fg-muted)', alignSelf: 'center' }}>
+              endpoint: {b || prov.baseUrl}
+            </span>
+          </div>
+          {msg && (
+            <div className={`v6-statusbar ${msgKind === 'ok' ? 'v6-statusbar--ok' : msgKind === 'err' ? 'v6-statusbar--err' : ''}`} style={{ marginTop: 14, marginBottom: 0 }}>
+              {msg}
+            </div>
+          )}
+        </>
       )}
 
       <PipelineStatusPanel />
@@ -1306,7 +1418,9 @@ function CanvasPanel() {
   );
 }
 
-function AuditPanel() {
+// Exported for the admin Audit page; no longer rendered from the user dashboard.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function AuditPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);

@@ -429,10 +429,213 @@
 .v6-statusbar--ok { color: #2DBFA8; border-color: color-mix(in srgb, #2DBFA8 35%, var(--v6-border)); }
 .v6-statusbar--err { color: var(--v6-danger); border-color: color-mix(in srgb, var(--v6-danger) 35%, var(--v6-border)); }
 
+/* ── BYOK disclaimer banner (LLM panel) ────────────────────────────────── */
+.v6-byok {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--v6-bg-sunken);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+  margin-bottom: 20px;
+  font-size: 12.5px;
+  color: var(--v6-fg-muted);
+  line-height: 1.55;
+}
+.v6-byok__icon {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--v6-border-strong);
+  color: var(--v6-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--v6-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+.v6-byok strong { color: var(--v6-fg); }
+
+/* ── Provider card grid ────────────────────────────────────────────────── */
+.v6-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.v6-provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: var(--v6-bg-elev);
+  border: 1px solid var(--v6-border);
+  border-radius: var(--v6-radius-md);
+  cursor: pointer;
+  transition: border-color 0.2s var(--v6-ease), background 0.2s;
+  text-align: left;
+  font-family: var(--v6-font-sans);
+  appearance: none;
+  color: inherit;
+}
+.v6-provider-card:hover {
+  border-color: var(--v6-border-strong);
+  background: var(--v6-bg-sunken);
+}
+.v6-provider-card[aria-current="page"] {
+  border-color: var(--v6-fg);
+  background: var(--v6-bg-sunken);
+}
+.v6-provider-card__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--v6-fg);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.v6-provider-card__region {
+  font-size: 10px;
+  font-family: var(--v6-font-mono);
+  color: var(--v6-fg-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.v6-provider-card__meta {
+  font-size: 11.5px;
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-mono);
+}
+.v6-provider-card__meta b {
+  color: var(--v6-fg);
+  font-weight: 600;
+}
+.v6-provider-card__signup {
+  font-size: 11px;
+  font-family: var(--v6-font-mono);
+  color: var(--v6-fg-muted);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--v6-border-strong);
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.v6-provider-card__signup:hover { color: var(--v6-fg); }
+
+/* ── Model list row (inside the selected provider's models) ────────────── */
+.v6-modellist {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  border-top: 1px solid var(--v6-border);
+}
+.v6-model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--v6-border);
+  cursor: pointer;
+  transition: background 0.15s var(--v6-ease);
+}
+.v6-model-row:hover { background: var(--v6-bg-sunken); }
+.v6-model-row[aria-current="true"] {
+  background: var(--v6-bg-sunken);
+}
+.v6-model-row[aria-current="true"] .v6-model-row__name::before {
+  content: '●';
+  color: var(--v6-fg);
+  margin-right: 6px;
+  font-size: 10px;
+}
+.v6-model-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.v6-model-row__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v6-fg);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v6-model-row__note {
+  font-size: 11.5px;
+  color: var(--v6-fg-muted);
+  font-family: var(--v6-font-mono);
+}
+.v6-model-row__aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-family: var(--v6-font-mono);
+  font-size: 11px;
+  color: var(--v6-fg-muted);
+}
+
+/* ── Free / Paid badges ────────────────────────────────────────────────── */
+.v6-freebadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-family: var(--v6-font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, #2DBFA8 14%, transparent);
+  border: 1px solid color-mix(in srgb, #2DBFA8 35%, var(--v6-border));
+  color: #2DBFA8;
+  border-radius: 4px;
+}
+.v6-pricebadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-family: var(--v6-font-mono);
+  border: 1px solid var(--v6-border);
+  background: var(--v6-bg-sunken);
+  color: var(--v6-fg-muted);
+  border-radius: 4px;
+}
+.v6-modelrow-star {
+  color: var(--v6-fg);
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+/* ── LLM panel sections ────────────────────────────────────────────────── */
+.v6-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-family: var(--v6-font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--v6-fg-muted);
+  margin: 18px 0 10px;
+}
+.v6-section-label__count {
+  color: var(--v6-fg);
+  font-weight: 600;
+}
+
 @media (max-width: 760px) {
   .v6-app__nav { padding: 14px 18px; flex-wrap: wrap; gap: 12px; }
   .v6-app__tabs { order: 3; width: 100%; justify-content: flex-start; }
   .v6-app__main { padding: 24px 18px 60px; }
   .v6-list__item-head { flex-direction: column; }
   .v6-list__item-aside { align-self: flex-start; }
+  .v6-provider-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
