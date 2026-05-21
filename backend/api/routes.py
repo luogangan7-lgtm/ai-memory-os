@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import os
 import uuid
+import logging
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import UploadFile, File, Form
 
 from fastapi import APIRouter, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 
 
 from backend.auth.middleware import create_access_token, get_current_team, get_agent_id, get_user_context
@@ -344,7 +347,7 @@ async def delete_document(doc_id: str, team_id: str = Depends(get_current_team))
                 try:
                     await qdrant_store.delete(mem_id, team_id=team_id)
                 except Exception as e:
-                    print(f"[delete_document] Qdrant delete failed for memory {mem_id}: {e}")
+                    logger.warning("[delete_document] Qdrant delete failed for memory %s: %s", mem_id, e)
 
     # 3. Delete from MinIO
     if minio_key:
@@ -352,7 +355,7 @@ async def delete_document(doc_id: str, team_id: str = Depends(get_current_team))
             minio = MinIOStore()
             minio.delete(minio_key)
         except Exception as e:
-            print(f"[delete_document] MinIO delete failed for key {minio_key}: {e}")
+            logger.warning("[delete_document] MinIO delete failed for key %s: %s", minio_key, e)
 
     # 4. Delete document entry from DB
     ok = await pg_repo.delete_document(doc_id, team_id)
@@ -406,7 +409,7 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
             )
             pipeline_calls = int(pipe_row["p"]) if pipe_row else 0
     except Exception as e:
-        print(f"[stats] warn: {e}")
+        logger.warning("[stats] %s", e)
 
     return {
         "total": total,
@@ -505,13 +508,7 @@ async def store_memory(
                 agent_id=final_agent_id
             )
         except Exception as e:
-            import traceback
-            print(f"CRITICAL: Ingestion failed for memory {memory_id}: {str(e)}")
-            traceback.print_exc()
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Ingestion failed for {memory_id} (will retry later): {e}"
-            )
+            logger.exception("Ingestion failed for memory %s (will retry later): %s", memory_id, e)
 
     # Create graph node and relations
     if graph_store:
@@ -547,8 +544,7 @@ async def store_memory(
                 )
             )
         except Exception as e:
-            print(f"[pipeline-trigger] warn: {e}")
-            print(f"[pipeline-trigger] warn: {e}")
+            logger.warning("[pipeline-trigger] %s", e)
 
     return MemoryResponse(
         id=memory_id, team_id=team_id, workspace_id=req.workspace_id,
@@ -1049,7 +1045,7 @@ async def get_user_audit_logs(
             logs.append(d)
         return {"logs": logs}
     except Exception as e:
-        print(f"[audit] Failed to fetch user audit logs: {e}")
+        logger.warning("[audit] Failed to fetch user audit logs: %s", e)
         return {"logs": []}
     finally:
         await conn.close()

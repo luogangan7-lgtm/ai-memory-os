@@ -1,5 +1,6 @@
 # AI Memory OS - Auth Middleware
 from __future__ import annotations
+import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
@@ -7,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from backend.services.config import settings
 
+logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 def create_access_token(team_id: str, role: str = "user") -> str:
@@ -21,7 +23,7 @@ def create_access_token(team_id: str, role: str = "user") -> str:
 
 async def get_user_context(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> dict:
     if credentials is None:
-        print("get_user_context: credentials is None", flush=True)
+        logger.debug("get_user_context: missing credentials")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required")
     token = credentials.credentials
     
@@ -47,7 +49,7 @@ async def get_user_context(credentials: HTTPAuthorizationCredentials | None = De
             "role": role
         }
     except JWTError as e:
-        print(f"get_user_context: JWT decode failed for token '{token[:15]}...': {e}", flush=True)
+        logger.debug("get_user_context: JWT decode failed: %s", e)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 async def get_current_team(ctx: dict = Depends(get_user_context)) -> str:

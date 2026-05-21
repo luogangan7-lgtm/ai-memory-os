@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import json, time, subprocess, os
+import json, time, subprocess, os, logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from backend.manager.registry import ModelRegistry
 from backend.auth.middleware import get_current_team, require_admin
 from backend.providers.base import ProviderConfig
+
+logger = logging.getLogger(__name__)
 
 def is_setup_complete() -> bool:
     """Check if the system has been initialized."""
@@ -217,8 +219,7 @@ async def _perform_engine_test(engine_type: str, provider_name: str, model_id: s
             "provider": provider_name
         }
     except Exception as e:
-        import traceback
-        print(f"DEBUG: Test Failed: {str(e)}\n{traceback.format_exc()}")
+        logger.exception("provider test failed: %s", e)
         return {"status": "error", "error": str(e)}
 
 
@@ -654,7 +655,7 @@ async def get_throughput():
                     values[i] += int(row["tokens"] or 0)
         await conn.close()
     except Exception as e:
-        print("Throughput error:", e)
+        logger.warning("Throughput error: %s", e)
 
     return {"labels": labels, "values": values}
 
@@ -713,7 +714,7 @@ async def get_monitoring():
         finally:
             await conn.close()
     except Exception as e:
-        print("Monitoring error:", e)
+        logger.warning("Monitoring error: %s", e)
 
     return {
         "token_labels": labels,
@@ -955,7 +956,7 @@ async def _run_background_reflection(teams: list[str]):
         try:
             await engine.reflect_all(team_id)
         except Exception as e:
-            print(f"[reflection] background run failed for team {team_id}: {e}")
+            logger.warning("[reflection] background run failed for team %s: %s", team_id, e)
 
 @router.post("/reflection/trigger")
 async def trigger_reflection(background_tasks: BackgroundTasks):
@@ -1251,7 +1252,7 @@ async def delete_document_admin(doc_id: str, admin: bool = Depends(require_admin
                 try:
                     await _qdrant_store.delete(mem_id, team_id=team_id)
                 except Exception as e:
-                    print(f"[delete_document_admin] Qdrant delete failed for memory {mem_id}: {e}")
+                    logger.warning("[delete_document_admin] Qdrant delete failed for memory %s: %s", mem_id, e)
 
     # 3. Delete from MinIO
     if minio_key:
@@ -1259,7 +1260,7 @@ async def delete_document_admin(doc_id: str, admin: bool = Depends(require_admin
             minio = MinIOStore()
             minio.delete(minio_key)
         except Exception as e:
-            print(f"[delete_document_admin] MinIO delete failed for key {minio_key}: {e}")
+            logger.warning("[delete_document_admin] MinIO delete failed for key %s: %s", minio_key, e)
 
     # 4. Delete document entry
     async with _pg_repo.pool.acquire() as conn:

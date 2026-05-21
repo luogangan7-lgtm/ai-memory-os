@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Request, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
-import httpx, json, asyncio, tiktoken
+import httpx, json, asyncio, tiktoken, logging
 from datetime import datetime, timezone
 from backend.auth.middleware import get_current_team, get_agent_id
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["proxy"])
 
 def count_tokens(text: str) -> int:
@@ -73,7 +74,7 @@ async def chat_completions(
             from backend.services.context_compiler import ContextCompiler
             knowledge_context = ContextCompiler.compile_context(results, user_msg, max_tokens=max_context_tokens)
     except Exception as e:
-        print(f"[Memory OS] Background memory retrieval failed: {e}")
+        logger.warning("Background memory retrieval failed: %s", e)
 
     # 3. Message Deduplication and System Context Injection
     existing_contents = {m["content"] for m in messages}
@@ -135,7 +136,7 @@ async def chat_completions(
                             total_tokens=p_tok + c_tok
                         )
                     except Exception as e:
-                        print(f"[token-log] warning: {e}")
+                        logger.warning("[token-log] %s", e)
                     
                     # Trigger L1-L3 memory extraction pipeline
                     try:
@@ -151,7 +152,7 @@ async def chat_completions(
                             )
                         )
                     except Exception as pe:
-                        print(f"[pipeline-trigger] warn: {pe}")
+                        logger.warning("[pipeline-trigger] %s", pe)
                 return resp_json
         except Exception as e:
             raise HTTPException(500, f"Upstream connection failed: {str(e)}")
@@ -196,7 +197,7 @@ async def chat_completions(
                             total_tokens=prompt_tokens + completion_tokens
                         )
                     except Exception as e:
-                        print(f"[token-log] warning: {e}")
+                        logger.warning("[token-log] %s", e)
                     
                     # Trigger L1-L3 memory extraction pipeline
                     try:
@@ -212,9 +213,9 @@ async def chat_completions(
                             )
                         )
                     except Exception as pe:
-                        print(f"[pipeline-trigger] warn: {pe}")
+                        logger.warning("[pipeline-trigger] %s", pe)
             except Exception as stream_err:
-                print(f"[Memory OS] Upstream streaming failed: {stream_err}")
+                logger.error("Upstream streaming failed: %s", stream_err)
 
         return StreamingResponse(sse_stream_generator(), media_type="text/event-stream")
 
