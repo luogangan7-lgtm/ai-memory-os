@@ -39,10 +39,8 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://platform.deepseek.com/api_keys',
     features: ['Chat', 'Reasoning'],
     models: [
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', type: 'chat', recommended: true, ctx: 65536, price: '¥1.0/M' },
-      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', type: 'chat', ctx: 65536, price: '¥4.0/M' },
-      { id: 'deepseek-chat', name: 'DeepSeek V3.2', type: 'chat', ctx: 128000, price: '¥1.99/M', note: '当前主力对话' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek R1', type: 'reasoning', ctx: 64000, price: '¥4.0/M', note: '推理强化' },
+      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', type: 'chat', recommended: true, ctx: 1048576, price: '$0.14/$0.28/M', note: '含 thinking/non-thinking 双模式' },
+      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', type: 'chat', ctx: 1048576, price: '$0.435/$0.87/M', note: '75%off 至 5/31, 其后 $1.74/$3.48/M' },
     ],
   },
   {
