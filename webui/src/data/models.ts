@@ -151,7 +151,7 @@ export const PROVIDERS: ProviderInfo[] = [
     features: ['Chat', 'Embedding', 'Rerank'],
     models: [
       { id: 'command-a', name: 'Command-A', type: 'chat', recommended: true, ctx: 128000, price: '$0.50/$1.50/M' },
-      { id: 'command-a-reasoning', name: 'Command-A Reasoning', type: 'reasoning', ctx: 128000, note: '深度推理' },
+      { id: 'command-a-reasoning', name: 'Command-A Reasoning', type: 'reasoning', ctx: 128000, note: '深度推理', price: '$1.0/M' },
       { id: 'rerank-v3.5', name: 'Rerank-V3.5', type: 'rerank', recommended: true, price: '$2.0/1K搜索' },
       { id: 'embed-english-v3', name: 'Embed-English-V3', type: 'embedding', ctx: 512, price: '$0.10/M', note: '1024d' },
       { id: 'embed-multilingual-v3', name: 'Embed-Multilingual-V3', type: 'embedding', recommended: true, ctx: 512, price: '$0.10/M', note: '1024d' },
