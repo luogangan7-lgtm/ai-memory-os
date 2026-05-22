@@ -85,7 +85,7 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'glm-4-flash-250414', name: 'GLM-4 Flash 250414', type: 'chat', free: true, ctx: 128000, note: '高频版免费' },
       { id: 'embedding-3', name: 'Embedding-3', type: 'embedding', recommended: true, price: '¥0.50/M', note: '1024d' },
       { id: 'embedding-2', name: 'Embedding-2', type: 'embedding', price: '¥0.20/M', note: '1024d' },
-      { id: 'glm-4-rerank', name: 'GLM-4 Rerank', type: 'rerank', recommended: true, note: '8K ctx' },
+      { id: 'glm-4-rerank', name: 'GLM-4 Rerank', type: 'rerank', recommended: true, price: '¥0.5/M', note: '8K ctx' },
     ],
   },
   {
@@ -154,14 +154,14 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://dashboard.cohere.com/api-keys',
     features: ['Chat', 'Embedding', 'Rerank'],
     models: [
-      { id: 'command-a', name: 'Command-A', type: 'chat', recommended: true, ctx: 256000 },
+      { id: 'command-a', name: 'Command-A', type: 'chat', recommended: true, ctx: 256000, price: '$1.0/M' },
       { id: 'command-r7b', name: 'Command-R7B', type: 'chat', free: true, ctx: 128000, note: 'Trial 免费' },
-      { id: 'rerank-v3.5', name: 'Rerank-V3.5', type: 'rerank', recommended: true },
+      { id: 'rerank-v3.5', name: 'Rerank-V3.5', type: 'rerank', recommended: true, price: '$2.0/1K搜索' },
       { id: 'embed-english-v3', name: 'Embed-English-V3', type: 'embedding', ctx: 512, price: '$0.10/M', note: '1024d' },
       { id: 'embed-multilingual-v3', name: 'Embed-Multilingual-V3', type: 'embedding', recommended: true, ctx: 512, price: '$0.10/M', note: '1024d' },
       { id: 'embed-multilingual-light-v3', name: 'Embed-Multilingual-Light-V3', type: 'embedding', ctx: 512, price: '$0.03/M', note: '384d 经济' },
-      { id: 'rerank-english-v3.0', name: 'Rerank-English-V3', type: 'rerank', price: '$2.0/1K搜索', note: '4K ctx' },
-      { id: 'rerank-multilingual-v3.0', name: 'Rerank-Multilingual-V3', type: 'rerank', price: '$2.0/1K搜索', note: '4K ctx' },
+      { id: 'rerank-english-v3.0', name: 'Rerank-English-V3', type: 'rerank', price: '$2.0/1K搜索', note: '4K ctx, 按搜索量计费' },
+      { id: 'rerank-multilingual-v3.0', name: 'Rerank-Multilingual-V3', type: 'rerank', price: '$2.0/1K搜索', note: '4K ctx, 按搜索量计费' },
     ],
   },
   {
@@ -170,8 +170,8 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://console.x.ai/team',
     features: ['Chat'],
     models: [
-      { id: 'grok-4', name: 'Grok-4', type: 'chat', recommended: true, ctx: 1000000 },
-      { id: 'grok-4-mini', name: 'Grok-4-Mini', type: 'chat', ctx: 1000000 },
+      { id: 'grok-4', name: 'Grok-4', type: 'chat', recommended: true, ctx: 1000000, price: '$5/$15/M' },
+      { id: 'grok-4-mini', name: 'Grok-4-Mini', type: 'chat', ctx: 1000000, price: '$2/$8/M' },
     ],
   },
   {
@@ -180,9 +180,9 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://console.groq.com/keys',
     features: ['Chat'],
     models: [
-      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Versatile)', type: 'chat', recommended: true, ctx: 128000, note: '极速旗舰' },
-      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Instant)', type: 'chat', ctx: 128000, note: '低延迟' },
-      { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill Llama 70B', type: 'reasoning', ctx: 128000, note: '深度推理' },
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Versatile)', type: 'chat', recommended: true, ctx: 128000, note: '极速旗舰', free: true },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Instant)', type: 'chat', ctx: 128000, note: '低延迟', free: true },
+      { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill Llama 70B', type: 'reasoning', ctx: 128000, note: '深度推理', free: true },
       { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama-4-Scout-17B', type: 'chat', free: true, ctx: 131072, note: '免费 + 极速推理' },
       { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama-4-Maverick-17B', type: 'chat', free: true, ctx: 131072, note: '免费 + 极速推理' },
     ],
@@ -193,9 +193,9 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://api.together.xyz/settings/api-keys',
     features: ['Chat', 'Embedding'],
     models: [
-      { id: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', name: 'Llama-4-Maverick', type: 'chat', recommended: true, ctx: 131072 },
-      { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek-V3', type: 'chat', ctx: 131072 },
-      { id: 'Qwen/Qwen2.5-72B-Instruct-Turbo', name: 'Qwen2.5-72B', type: 'chat', ctx: 32768 },
+      { id: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', name: 'Llama-4-Maverick', type: 'chat', recommended: true, ctx: 131072, price: '$0.20/M' },
+      { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek-V3', type: 'chat', ctx: 131072, price: '$0.89/M' },
+      { id: 'Qwen/Qwen2.5-72B-Instruct-Turbo', name: 'Qwen2.5-72B', type: 'chat', ctx: 32768, price: '$0.88/M' },
     ],
   },
   {
@@ -254,8 +254,8 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://console.cloud.tencent.com/hunyuan/api-key',
     features: ['Chat', 'Embedding'],
     models: [
-      { id: 'hunyuan-2.0-thinking', name: 'Hunyuan 2.0 (Thinking)', type: 'reasoning', recommended: true, ctx: 128000, note: '深度思考' },
-      { id: 'hunyuan-2.0-instruct', name: 'Hunyuan 2.0 (Instruct)', type: 'chat', ctx: 128000 },
+      { id: 'hunyuan-2.0-thinking', name: 'Hunyuan 2.0 (Thinking)', type: 'reasoning', recommended: true, ctx: 128000, note: '深度思考', price: '¥4.0/M' },
+      { id: 'hunyuan-2.0-instruct', name: 'Hunyuan 2.0 (Instruct)', type: 'chat', ctx: 128000, price: '¥2.0/M' },
       { id: 'hunyuan-turbos-latest', name: 'Hunyuan Turbo S Latest', type: 'chat', ctx: 32768, price: '¥0.8/M' },
       { id: 'hunyuan-turbos', name: 'Hunyuan Turbo S', type: 'chat', ctx: 32768, price: '¥0.8/M' },
       { id: 'hunyuan-lite', name: 'Hunyuan Lite', type: 'chat', free: true, ctx: 256000, note: '永久免费 256K' },
@@ -309,7 +309,7 @@ export const PROVIDERS: ProviderInfo[] = [
     signupUrl: 'https://platform.moonshot.cn/console/api-keys',
     features: ['Chat'],
     models: [
-      { id: 'kimi-latest', name: 'Kimi Latest', type: 'chat', recommended: true, ctx: 128000, note: '自动指向最新' },
+      { id: 'kimi-latest', name: 'Kimi Latest', type: 'chat', recommended: true, ctx: 128000, note: '自动指向最新', price: '¥2.0/M' },
       { id: 'kimi-k2.5', name: 'Kimi k2.5', type: 'chat', ctx: 256000, price: '¥2.4/M' },
       { id: 'moonshot-v1-8k', name: 'Kimi v1 (8K)', type: 'chat', ctx: 8192, price: '¥1.2/M' },
       { id: 'moonshot-v1-32k', name: 'Kimi v1 (32K)', type: 'chat', ctx: 32768, price: '¥2.4/M' },
