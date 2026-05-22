@@ -120,3 +120,54 @@ async def payment_notify(request: Request):
         return {"status": "ok", "message": f"Upgraded to Pro, expires {expires.date()}"}
     finally:
         await conn.close()
+
+
+async def poll_arbitrum_payments():
+    """Background task: poll Arbitrum for incoming USDT transfers every 60s."""
+    import asyncio, httpx
+    while True:
+        await asyncio.sleep(60)
+        try:
+            if not ARB_WALLET or not ARBISCAN_KEY:
+                continue
+            # Check recent USDT transfers to our wallet
+            url = (f"{ARBISCAN_API}?module=account&action=tokentx"
+                   f"&contractaddress={USDT_CONTRACT}&address={ARB_WALLET}"
+                   f"&sort=desc&apikey={ARBISCAN_KEY}")
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(url)
+                data = resp.json()
+                if data.get("status") != "1":
+                    continue
+                from backend.api.db_helper import get_db_conn
+                conn = await get_db_conn()
+                try:
+                    for tx in data.get("result", [])[:20]:
+                        value = int(tx.get("value", "0")) / 1e6  # USDT 6 decimals
+                        if value <= 0:
+                            continue
+                        # Find matching pending order by amount
+                        row = await conn.fetchrow(
+                            "SELECT * FROM orders WHERE status='pending' AND total_fee=$1 "
+                            "ORDER BY created_at DESC LIMIT 1", int(value))
+                        if row:
+                            await conn.execute(
+                                "UPDATE orders SET status='paid', paid_at=NOW() WHERE id=$1",
+                                row["id"])
+                            from datetime import datetime, timedelta, timezone
+                            expires = datetime.now(timezone.utc) + timedelta(days=30 * (row["duration_months"] or 1))
+                            await conn.execute(
+                                "UPDATE accounts SET plan='pro', plan_expires_at=$1 WHERE team_id=$2",
+                                expires, row["team_id"])
+                            print(f"[payment] Order {row['out_trade_no']} auto-confirmed via chain")
+                finally:
+                    await conn.close()
+        except Exception as e:
+            print(f"[payment] Poll error: {e}")
+
+# Start poller in background
+import asyncio as _asyncio
+try:
+    _asyncio.ensure_future(poll_arbitrum_payments())
+except Exception:
+    pass

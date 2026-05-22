@@ -18,7 +18,7 @@ async def get_user_llm(team_id: str = Depends(get_current_team)):
                     "provider": cfg.get("provider_name", ""),
                     "model": cfg.get("model_name", ""),
                     "has_key": True,
-                    "api_key": decrypt(cfg.get("api_key", "")),
+                    "api_key": cfg.get("api_key", ""),
                     "base_url": cfg.get("api_base_url", "")
                 }
     except Exception:
@@ -70,7 +70,7 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
             await pg_repo.save_user_provider_config(
                 user_id=team_id,
                 provider_name=provider,
-                api_key=encrypt(api_key),
+                api_key=api_key,
                 api_base_url=base_url,
                 model_name=model,
                 is_active=True

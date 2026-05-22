@@ -69,16 +69,10 @@ async def _process_one(row):
                     try:
                         cfg = await _repo.get_active_user_provider_config(team)
                         if cfg and cfg.get("api_key"):
-                            from backend.utils.crypto import decrypt
-                            raw_key = cfg.get("api_key", "")
-                            try:
-                                raw_key = decrypt(raw_key) or raw_key
-                            except Exception:
-                                pass
                             cached_cfg = {
                                 "provider": cfg.get("provider_name", ""),
                                 "model": cfg.get("model_name", ""),
-                                "api_key": raw_key,
+                                "api_key": cfg.get("api_key", ""),
                                 "base_url": cfg.get("api_base_url", "") or "",
                             }
                             if _cfg_valid(cached_cfg):
