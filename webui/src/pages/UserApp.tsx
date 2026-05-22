@@ -1599,7 +1599,7 @@ function UsagePanel() {
   return (
     <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--v6-border)' }}>
       <div className="v6-section-label">
-        <span>用量与计费 · Usage & Billing（累计）</span>
+        <span>用量与计费 · Usage & Billing（今日）</span>
         <span className="v6-section-label__count" style={{ fontWeight: 400 }}>
           费用直接结算给 provider
         </span>
@@ -1630,7 +1630,7 @@ function UsagePanel() {
                 <div className="v6-metric-tile">
                   <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
                   <div className="v6-metric-tile__value">
-                    {usage.cost_usd ? '$' + usage.cost_usd.toFixed(3) : '—'}
+                    {usage.cost_estimate?.total_cny ? '¥' + usage.cost_estimate.total_cny.toFixed(3) : '—'}
                   </div>
                   <div className="v6-metric-tile__sub">直接结算给 provider</div>
                 </div>

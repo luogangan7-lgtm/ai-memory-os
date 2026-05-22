@@ -1010,6 +1010,33 @@ async def get_longterm(
 
 
 
+
+def _estimate_cost(usage_by_model: list) -> dict:
+    """Estimate cost based on model pricing from models.ts data."""
+    # Price lookup (CN: ¥/M tokens, INTL: $/M tokens)
+    PRICES = {
+        "deepseek": {"deepseek-v4-flash": (1.0, 4.0), "deepseek-v4-pro": (4.0, 12.0)},
+        "alibaba": {"qwen3.6-plus": (0.8, 2.0), "qwen3.6-flash": (0.2, 0.5), "qwen3.6-max-preview": (2.5, 8.0)},
+        "zhipu": {"glm-4.7": (0, 0), "glm-4-flash": (0, 0), "glm-5": (2.0, 8.0), "glm-5-turbo": (0.5, 2.0)},
+        "openai": {"gpt-4o": (5.0, 15.0), "gpt-4o-mini": (0.15, 0.6), "o1": (15.0, 60.0), "o3-mini": (1.1, 4.4)},
+        "anthropic": {"claude-haiku-4-5-20251001": (1.0, 5.0), "claude-sonnet-4-6": (3.0, 15.0), "claude-opus-4-7": (5.0, 25.0)},
+        "google": {"gemini-3.1-pro-preview": (2.0, 10.0), "gemini-3-flash": (0.5, 2.0)},
+    }
+    total_cost = 0.0
+    breakdown = []
+    for m in usage_by_model:
+        prov = m.get("provider_name", "")
+        model = m.get("model_name", "")
+        prompt = int(m.get("prompt_tokens", 0) or 0)
+        completion = int(m.get("completion_tokens", 0) or 0)
+        pricing = PRICES.get(prov, {}).get(model)
+        if pricing and (prompt + completion) > 0:
+            input_price, output_price = pricing
+            cost = (prompt / 1_000_000) * input_price + (completion / 1_000_000) * output_price
+            total_cost += cost
+            breakdown.append({"provider": prov, "model": model, "cost_cny": round(cost, 4)})
+    return {"total_cny": round(total_cost, 4), "breakdown": breakdown}
+
 @router.get("/user/stats")
 async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
     """Retrieve user usage breakdown, monthly metrics and RAG savings."""
@@ -1065,14 +1092,14 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
             m_tok = await conn.fetchrow("""
                 SELECT COALESCE(SUM(total_tokens), 0) as total
                 FROM user_token_usage
-                WHERE user_id = $1 AND created_at >= datetime('now', '-30 days')
+                WHERE user_id = $1 AND created_at >= datetime('now', '-1 day')
             """, user_id_query)
             month_tokens = int(m_tok["total"] or 0) if m_tok else 0
         else:
             m_tok = await conn.fetchrow("""
                 SELECT COALESCE(SUM(total_tokens), 0) as total
                 FROM user_token_usage
-                WHERE user_id = $1 AND created_at >= now() - interval '30 days'
+                WHERE user_id = $1 AND created_at >= now() - interval '1 day'
             """, user_id_query)
             month_tokens = int(m_tok["total"] or 0) if m_tok else 0
 
@@ -1143,6 +1170,7 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
         
     return {
         "total_tokens": total_tokens,
+        "cost_estimate": _estimate_cost(usage_by_model),
         "month_tokens": month_tokens,
         "saved_tokens": saved_tokens,
         "saved_usd": saved_usd,
