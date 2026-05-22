@@ -198,6 +198,15 @@ async def process_queue():
                 if res and res != "UPDATE 0":
                     logger.warning(f"Recovered zombie pipeline tasks: {res}")
 
+            # Retry failed jobs (up to 3 total attempts)
+            await _repo.pool.execute(
+                "UPDATE pipeline_queue SET status='pending', retry_count=COALESCE(retry_count,0)+1 "
+                "WHERE status='failed' AND COALESCE(retry_count,0) < 3 "
+                "AND created_at > NOW() - INTERVAL '24 hours'")
+            # Mark retry-exhausted jobs as dead
+            await _repo.pool.execute(
+                "UPDATE pipeline_queue SET status='dead' "
+                "WHERE status='failed' AND COALESCE(retry_count,0) >= 3")
             rows = await _repo.pool.fetch(
                 "SELECT * FROM pipeline_queue WHERE status='pending' ORDER BY created_at LIMIT $1", _concurrency)
             if not rows:
