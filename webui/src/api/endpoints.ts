@@ -104,8 +104,9 @@ export const login = (id: string, password: string, isUserApp: boolean = false) 
   });
 };
 
-export const signup = (username: string, email: string, password: string) =>
+export const signup = (username: string, email: string, password: string, code: string = "") =>
   api.post("/auth/register", {
+    code,
     username,
     email,
     password,

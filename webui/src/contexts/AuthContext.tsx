@@ -15,7 +15,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (id: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string) => Promise<void>;
+  signup: (username: string, email: string, password: string, code?: string) => Promise<void>;
   logout: () => void;
   error: string | null;
 }
@@ -69,11 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signup = useCallback(async (username: string, email: string, password: string) => {
+  const signup = useCallback(async (username: string, email: string, password: string, code?: string) => {
     setError(null);
     try {
       const { signup: apiSignup } = await import("../api/endpoints");
-      await apiSignup(username, email, password);
+      await apiSignup(username, email, password, code);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "注册失败";
       setError(msg);

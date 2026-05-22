@@ -350,10 +350,23 @@ export function LoginOverlay() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   if (isAuthenticated) return <Dashboard />;
+
+  async function sendCode(){
+    if(!email){setLocalError("请先输入邮箱");return;}
+    setSendingCode(true);setLocalError(null);
+    try{
+      const r=await fetch("/auth/send-code",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+      const d=await r.json();
+      setLocalError(d.sent?"验证码已发送到邮箱":"发送失败");
+    }catch{setLocalError("发送失败");}
+    setSendingCode(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -366,7 +379,7 @@ export function LoginOverlay() {
           setLoading(false);
           return;
         }
-        await signup(username, email, password);
+        await signup(username, email, password, code);
         setLocalError(null);
         alert("注册成功！请使用邮箱登录。");
         setMode("signin");
@@ -530,6 +543,15 @@ export function LoginOverlay() {
                     autoComplete={isUserApp ? "email" : "username"}
                   />
                 </div>
+                {mode === "signup" && (
+                  <div className="v6-field">
+                    <label className="v6-field__label">验证码 Verification Code</label>
+                    <div style={{display:"flex",gap:8}}>
+                      <input className="v6-input" type="text" value={code} onChange={e=>setCode(e.target.value)} placeholder="6位数字" maxLength={6} style={{flex:1}}/>
+                      <button type="button" className="v6-btn v6-btn--ghost" onClick={sendCode} disabled={sendingCode} style={{whiteSpace:"nowrap"}}>{sendingCode?"发送中...":"获取验证码"}</button>
+                    </div>
+                  </div>
+                )}
                 <div className="v6-field">
                   <label className="v6-field__label">密码 Password</label>
                   <input
