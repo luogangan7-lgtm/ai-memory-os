@@ -1065,6 +1065,8 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
     window.location.hostname + (window.location.port ? ':' + window.location.port : ':8003');
   const [agent, setAgent] = useState<'cursor' | 'claude' | 'openclaw' | 'cline' | 'continue' | 'roo' | 'codex'>('cursor');
   const [copiedKey, setCopiedKey] = useState<string>('');
+  const [sub, setSub] = useState<any>(null);
+  useEffect(()=>{fetch("/api/payment/subscription").then(r=>r.json()).then(setSub).catch(()=>{})},[]);
   const copy = async (key: string, text: string) => {
     // navigator.clipboard requires a secure context — fails silently on plain
     // http://192.168.x.x deployments. Fall back to the legacy textarea trick.
@@ -1160,6 +1162,29 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
           {status.label}
         </span>
       </div>
+
+      {sub && (
+        <div style={{marginBottom:20,padding:"14px 18px",background:"var(--v6-bg-sunken)",border:"1px solid var(--v6-border)",borderRadius:"var(--v6-radius-md)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <span style={{fontSize:13,fontWeight:600,color:"var(--v6-fg)"}}>{sub.plan==="pro"?"Pro 订阅":sub.plan==="exempt"?"白名单":""}{sub.plan==="free"?"免费体验":""}</span>
+              {sub.plan==="free" && <span style={{marginLeft:10,fontSize:12,color:"var(--v6-fg-muted)"}}>已用 {sub.mcp_call_count}/{sub.mcp_call_limit} 次 MCP 调用</span>}
+              {sub.plan==="pro" && sub.days_remaining!=null && <span style={{marginLeft:10,fontSize:12,color:"var(--v6-fg-muted)"}}>剩余 {sub.days_remaining} 天</span>}
+            </div>
+            {(sub.plan==="free" && sub.mcp_call_count>=40) && <span style={{fontSize:11,color:"var(--v6-accent)",fontWeight:600}}>即将用尽</span>}
+          </div>
+          {sub.plan==="free" && (
+            <div style={{marginTop:10,height:6,background:"var(--v6-bg-surface)",borderRadius:3,overflow:"hidden"}}>
+              <div style={{width:Math.min(100,(sub.mcp_call_count/sub.mcp_call_limit)*100)+"%",height:"100%",background:sub.mcp_call_count>=40?"var(--v6-accent)":"var(--v6-teal)",borderRadius:3,transition:"width .4s"}}/>
+            </div>
+          )}
+          {sub.mcp_call_count>=50 && sub.plan==="free" && (
+            <div style={{marginTop:10,padding:"10px 14px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:8,fontSize:12,color:"#ef4444"}}>
+              ⚠️ 免费额度已用完。MCP 连接已暂停。联系管理员升级为 Pro。
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 11, color: 'var(--v6-fg-muted)', fontFamily: 'var(--v6-font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>

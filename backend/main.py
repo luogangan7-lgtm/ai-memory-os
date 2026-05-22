@@ -83,6 +83,8 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_cleanup_scheduler())
     from backend.scheduler.freshness_decay import start_decay_scheduler
     asyncio.create_task(start_decay_scheduler())
+    from backend.scheduler.plan_expiry import start_plan_expiry_scheduler
+    asyncio.create_task(start_plan_expiry_scheduler())
     refl = ReflectionEngine(pg, gs, registry=registry, retrieval=rp)
     sched = ReflectionScheduler(refl, interval_minutes=30)
     await sched.start()
