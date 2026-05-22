@@ -1304,17 +1304,16 @@ function MyLLMPanel() {
   const chatCount = (px: typeof PROVIDERS[number]) =>
     px.models.filter((mm) => mm.type === 'chat' || mm.type === 'reasoning').length;
 
+  const savedCfg = useRef<{provider:string; model:string; base:string}>({provider:'', model:'', base:''});
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetch('/api/user/llm', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => {
-        setP(d.provider || '');
-        setM(d.model || '');
-        setB(d.base_url || '');
-        if (d.has_key) {
-          setK('••••••••');
-        }
+        savedCfg.current = { provider: d.provider || '', model: d.model || '', base: d.base_url || '' };
+        if (d.has_key) setK('••••••••');
+        // Don't auto-expand — user clicks to select
       });
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1388,7 +1387,17 @@ function MyLLMPanel() {
             key={x.id}
             className="v6-provider-card"
             aria-current={p === x.id ? 'page' : undefined}
-            onClick={() => { setP(p === x.id ? '' : x.id); setK(''); }}
+            onClick={() => {
+                if (p === x.id) { setP(''); setK(''); setM(''); }
+                else {
+                  setP(x.id);
+                  setK('');
+                  if (x.id === savedCfg.current.provider) {
+                    setM(savedCfg.current.model);
+                    setB(savedCfg.current.base);
+                  }
+                }
+              }}
             type="button"
           >
             <div className="v6-provider-card__name">
@@ -1424,7 +1433,17 @@ function MyLLMPanel() {
             key={x.id}
             className="v6-provider-card"
             aria-current={p === x.id ? 'page' : undefined}
-            onClick={() => { setP(p === x.id ? '' : x.id); setK(''); }}
+            onClick={() => {
+                if (p === x.id) { setP(''); setK(''); setM(''); }
+                else {
+                  setP(x.id);
+                  setK('');
+                  if (x.id === savedCfg.current.provider) {
+                    setM(savedCfg.current.model);
+                    setB(savedCfg.current.base);
+                  }
+                }
+              }}
             type="button"
           >
             <div className="v6-provider-card__name">
