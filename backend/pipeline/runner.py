@@ -22,6 +22,14 @@ async def enqueue(team_id: str, session_id: str, messages: list[dict]) -> int | 
     conv_id = await record_conversation(team_id, session_id, messages)
     if not conv_id: return None
 
+    # Circuit breaker: skip if team has 5+ recent consecutive failures (misconfigured LLM)
+    fail_count = await _repo.pool.fetchval(
+        "SELECT count(*) FROM (SELECT status FROM pipeline_queue WHERE team_id=$1 ORDER BY created_at DESC LIMIT 10) s WHERE s.status IN ('failed','dead')",
+        team_id)
+    if fail_count and int(fail_count) >= 5:
+        logger.warning(f"[runner] Circuit breaker: skipping pipeline for {team_id} (5+ recent failures)")
+        return None
+
     import json
     payload_json = json.dumps({"session_id": session_id, "conv_id": conv_id}, ensure_ascii=False)
     row = await _repo.pool.fetchrow(
