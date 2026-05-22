@@ -92,7 +92,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'anthropic', name: 'Anthropic', nameZh: 'Anthropic', region: 'intl',
     baseUrl: 'https://api.anthropic.com/v1',
     signupUrl: 'https://console.anthropic.com/settings/keys',
-    features: ['Chat', 'Vision', 'Reasoning'],
+    features: ['Chat', 'Vision', 'Reasoning', 'Embedding'],
     models: [
       { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', type: 'chat', recommended: true, ctx: 1000000, price: '$5/$25/M', note: '旗舰' },
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', type: 'chat', ctx: 1000000, price: '$3/$15/M' },
@@ -113,15 +113,16 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', type: 'chat', ctx: 128000, price: '$0.15/$0.6/M' },
       { id: 'o1', name: 'o1', type: 'reasoning', ctx: 200000, price: '$15.0/M' },
       { id: 'o3-mini', name: 'o3 Mini', type: 'reasoning', ctx: 200000, price: '$1.1/M' },
-      { id: 'text-embedding-3-small', name: 'Text-Embedding-3-Small', type: 'embedding', recommended: true, price: '$0.02/M' },
-      { id: 'text-embedding-3-large', name: 'Text-Embedding-3-Large', type: 'embedding', price: '$0.13/M' },
+      { id: 'text-embedding-3-small', name: 'Text-Embedding-3-Small', type: 'embedding', recommended: true, price: '$0.02/M', note: '1536d' },
+      { id: 'text-embedding-3-large', name: 'Text-Embedding-3-Large', type: 'embedding', price: '$0.13/M', note: '3072d' },
+      { id: 'text-embedding-ada-002', name: 'Text-Embedding-Ada-002', type: 'embedding', price: '$0.10/M', note: '1536d legacy' },
     ],
   },
   {
     id: 'google', name: 'Google', nameZh: 'Google Gemini', region: 'intl',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     signupUrl: 'https://aistudio.google.com/apikey',
-    features: ['Chat', 'Vision', 'Reasoning'],
+    features: ['Chat', 'Vision', 'Reasoning', 'Embedding'],
     models: [
       { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', type: 'chat', recommended: true, ctx: 2097152, price: '$2.0/$10/M', note: '2M上下文' },
       { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', type: 'chat', ctx: 2097152, price: '$0.30/$1.2/M' },
@@ -131,6 +132,8 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'gemini-2.5-pro', name: 'Gemini-2.5-Pro', type: 'chat', free: true, ctx: 1048576, note: '100 req/day 免费' },
       { id: 'gemini-2.5-flash', name: 'Gemini-2.5-Flash', type: 'chat', free: true, ctx: 1048576, note: '250 req/day 免费' },
       { id: 'gemini-2.5-flash-lite', name: 'Gemini-2.5-Flash-Lite', type: 'chat', free: true, ctx: 1048576, note: '1000 req/day 免费' },
+      { id: 'text-embedding-004', name: 'Text-Embedding-004', type: 'embedding', recommended: true, price: '$0.025/M', note: '768d' },
+      { id: 'embedding-001', name: 'Embedding-001', type: 'embedding', price: '$0.01/M', note: '768d 经济' },
     ],
   },
   {
@@ -153,9 +156,12 @@ export const PROVIDERS: ProviderInfo[] = [
     models: [
       { id: 'command-a', name: 'Command-A', type: 'chat', recommended: true, ctx: 256000 },
       { id: 'command-r7b', name: 'Command-R7B', type: 'chat', free: true, ctx: 128000, note: 'Trial 免费' },
-      { id: 'embed-english-v3', name: 'Embed-English-V3', type: 'embedding' },
-      { id: 'embed-multilingual-v3', name: 'Embed-Multilingual-V3', type: 'embedding', recommended: true },
       { id: 'rerank-v3.5', name: 'Rerank-V3.5', type: 'rerank', recommended: true },
+      { id: 'embed-english-v3', name: 'Embed-English-V3', type: 'embedding', ctx: 512, price: '$0.10/M', note: '1024d' },
+      { id: 'embed-multilingual-v3', name: 'Embed-Multilingual-V3', type: 'embedding', recommended: true, ctx: 512, price: '$0.10/M', note: '1024d' },
+      { id: 'embed-multilingual-light-v3', name: 'Embed-Multilingual-Light-V3', type: 'embedding', ctx: 512, price: '$0.03/M', note: '384d 经济' },
+      { id: 'rerank-english-v3.0', name: 'Rerank-English-V3', type: 'rerank', price: '$2.0/1K搜索', note: '4K ctx' },
+      { id: 'rerank-multilingual-v3.0', name: 'Rerank-Multilingual-V3', type: 'rerank', price: '$2.0/1K搜索', note: '4K ctx' },
     ],
   },
   {
