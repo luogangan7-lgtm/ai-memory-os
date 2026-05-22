@@ -367,7 +367,7 @@ async def delete_document(doc_id: str, team_id: str = Depends(get_current_team))
             await pg_repo.delete(mem_id, team_id)
             if qdrant_store:
                 try:
-                    await qdrant_store.delete(mem_id, team_id=team_id)
+                    qdrant_store.delete(mem_id, team_id=team_id)
                 except Exception as e:
                     logger.warning("[delete_document] Qdrant delete failed for memory %s: %s", mem_id, e)
 
@@ -383,6 +383,55 @@ async def delete_document(doc_id: str, team_id: str = Depends(get_current_team))
     ok = await pg_repo.delete_document(doc_id, team_id)
     return {"ok": ok}
 
+
+@router.get("/memory/backup")
+async def backup_memories(team_id: str = Depends(get_current_team)):
+    """Export all memories for a team as JSON."""
+    if not pg_repo:
+        raise HTTPException(status_code=503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM memories WHERE team_id = $1 ORDER BY created_at", team_id)
+    import json
+    from datetime import datetime
+    data = [dict(r) for r in rows]
+    for d in data:
+        for k, v in d.items():
+            if isinstance(v, datetime): d[k] = v.isoformat()
+    return {"team_id": team_id, "count": len(data), "memories": data}
+
+@router.post("/memory/restore")
+async def restore_memories(data: dict, team_id: str = Depends(get_current_team)):
+    """Import memories from a backup JSON."""
+    if not pg_repo:
+        raise HTTPException(status_code=503)
+    memories = data.get("memories", [])
+    count = 0
+    for m in memories:
+        if m.get("team_id") == team_id or data.get("force", False):
+            m["team_id"] = team_id
+            await pg_repo.insert(**m)
+            count += 1
+    return {"restored": count}
+
+
+@router.get("/memory/gaps")
+async def knowledge_gaps(team_id: str = Depends(get_current_team)):
+    """Show knowledge gaps: topics needing more coverage."""
+    if not pg_repo: raise HTTPException(503)
+    engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
+    gaps = await engine._detect_gaps(team_id)
+    return {"gaps": gaps, "note": "Topics with <2 sources or low confidence need review"}
+
+@router.post("/memory/reflect")
+async def run_reflection(
+    team_id: str = Depends(get_current_team),
+):
+    """Run a full reflection cycle: auto-promote, decay freshness, detect duplicates."""
+    if not pg_repo:
+        raise HTTPException(status_code=503, detail="Database not ready")
+    engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
+    report = await engine.reflect_all(team_id)
+    return report
 
 
 @router.get("/memory/{memory_id}")
@@ -400,7 +449,7 @@ async def get_memory_detail(
     chunk_count = 0
     try:
         async with pg_repo.pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT COUNT(*) as c FROM chunks WHERE memory_id = $1", memory_id)
+            row = await conn.fetchrow("SELECT COUNT(*) as c FROM chunks WHERE memory_id = $1", memory["id"])
             chunk_count = row["c"] if row else 0
     except: pass
     return {**memory, "chunk_count": chunk_count}
@@ -419,7 +468,7 @@ async def get_memory_chunks(
     async with pg_repo.pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT chunk_index, content, token_count FROM chunks WHERE memory_id = $1 ORDER BY chunk_index",
-            memory_id
+            memory["id"]
         )
     return [dict(r) for r in rows]
 @router.delete("/memory/{memory_id}")
@@ -439,9 +488,10 @@ async def delete_memory(
         raise HTTPException(403, "Access denied")
         
     # 3. Perform deletion
-    ok = await pg_repo.delete(memory_id, ctx["team_id"])
+    resolved_id = str(memory["id"])
+    ok = await pg_repo.delete(resolved_id, ctx["team_id"])
     if qdrant_store and ok:
-        await qdrant_store.delete(memory_id, team_id=ctx["team_id"])
+        qdrant_store.delete(resolved_id, team_id=ctx["team_id"])
     return {"deleted": ok}
 
 
@@ -553,7 +603,11 @@ async def store_memory(
             if not cfg:
                 async with pg_repo.pool.acquire() as conn:
                     r = await conn.fetchrow(
-                        "SELECT * FROM user_provider_configs WHERE is_active=true AND api_key IS NOT NULL AND api_key != '' AND (user_id=$1 OR user_id=$2) ORDER BY updated_at DESC LIMIT 1",
+                        """SELECT * FROM user_provider_configs
+                           WHERE is_active=true AND api_key IS NOT NULL AND api_key != ''
+                             AND (user_id=$1 OR user_id=$2)
+                           ORDER BY validated_at DESC NULLS LAST, created_at DESC
+                           LIMIT 1""",
                         team_id, str(__import__('backend.memory.pg_repo', fromlist=['safe_uuid']).safe_uuid(team_id))
                     )
                     cfg = dict(r) if r else None
@@ -790,56 +844,6 @@ async def search_memory(
 
 
 
-
-
-@router.get("/memory/backup")
-async def backup_memories(team_id: str = Depends(get_current_team)):
-    """Export all memories for a team as JSON."""
-    if not pg_repo:
-        raise HTTPException(status_code=503)
-    async with pg_repo.pool.acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM memories WHERE team_id = $1 ORDER BY created_at", team_id)
-    import json
-    from datetime import datetime
-    data = [dict(r) for r in rows]
-    for d in data:
-        for k, v in d.items():
-            if isinstance(v, datetime): d[k] = v.isoformat()
-    return {"team_id": team_id, "count": len(data), "memories": data}
-
-@router.post("/memory/restore")
-async def restore_memories(data: dict, team_id: str = Depends(get_current_team)):
-    """Import memories from a backup JSON."""
-    if not pg_repo:
-        raise HTTPException(status_code=503)
-    memories = data.get("memories", [])
-    count = 0
-    for m in memories:
-        if m.get("team_id") == team_id or data.get("force", False):
-            m["team_id"] = team_id
-            await pg_repo.insert(**m)
-            count += 1
-    return {"restored": count}
-
-
-@router.get("/memory/gaps")
-async def knowledge_gaps(team_id: str = Depends(get_current_team)):
-    """Show knowledge gaps: topics needing more coverage."""
-    if not pg_repo: raise HTTPException(503)
-    engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
-    gaps = await engine._detect_gaps(team_id)
-    return {"gaps": gaps, "note": "Topics with <2 sources or low confidence need review"}
-
-@router.post("/memory/reflect")
-async def run_reflection(
-    team_id: str = Depends(get_current_team),
-):
-    """Run a full reflection cycle: auto-promote, decay freshness, detect duplicates."""
-    if not pg_repo:
-        raise HTTPException(status_code=503, detail="Database not ready")
-    engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
-    report = await engine.reflect_all(team_id)
-    return report
 
 
 

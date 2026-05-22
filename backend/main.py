@@ -100,9 +100,15 @@ app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifesp
 # Prometheus metrics
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
-# Hardened CORS: Allow localhost and the current local IP
-ALLOWED_ORIGINS = ["*"]
-app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+# Hardened CORS: Allow localhost, LAN IPs, and current host
+import os as _os
+_local_origins = [
+    "http://localhost:8003", "http://localhost:5173",
+    "http://127.0.0.1:8003", "http://127.0.0.1:5173",
+    "http://192.168.50.167:8003", "http://192.168.50.167:5173",
+]
+ALLOWED_ORIGINS = _os.environ.get("ALLOWED_ORIGINS", "").split(",") if _os.environ.get("ALLOWED_ORIGINS") else _local_origins
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 # Rate limiting middleware
 from backend.services.rate_limit import rate_limit_middleware

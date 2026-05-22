@@ -247,16 +247,6 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
           {/* ── 管线任务列表 ── */}
           <div className="v6-section-label" style={{ marginBottom: 10 }}>
             <span>记忆管线 · Pipeline</span>
-            <button
-              className="v6-btn v6-btn--xs"
-              onClick={async () => {
-                try { await fetch('/api/api/user/llm/pipeline/trigger', { method: 'POST', headers: authHeader() }); refresh(); }
-                catch {}
-              }}
-              style={{ marginLeft: 8 }}
-            >
-              触发 Trigger
-            </button>
             <span className="v6-section-label__count">
               {pipeline?.in_flight ?? 0} 正在处理
             </span>
@@ -1292,7 +1282,14 @@ function MyLLMPanel() {
   useEffect(() => {
     fetch('/api/user/llm', { headers: authHeaders() })
       .then((r) => r.json())
-      .then((d) => { setP(d.provider || ''); setM(d.model || ''); setB(d.base_url || ''); });
+      .then((d) => {
+        setP(d.provider || '');
+        setM(d.model || '');
+        setB(d.base_url || '');
+        if (d.has_key) {
+          setK('••••••••');
+        }
+      });
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -1323,7 +1320,7 @@ function MyLLMPanel() {
       const r = await fetch('/api/user/llm/test', {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ api_key: k, base_url: b, model: m }),
+        body: JSON.stringify({ provider: p, api_key: k, base_url: b, model: m }),
       });
       const d = await r.json();
       setMsg(d.connected ? '连接成功 Connected ✓' : '连接失败 Failed: ' + (d.error || d.status));
@@ -1504,10 +1501,15 @@ function UsagePanel() {
   const [usage, setUsage] = useState<any>(null);
   const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
   useEffect(() => {
-    fetch('/user/stats', { headers: { Authorization: 'Bearer ' + getToken() } })
-      .then((r) => r.json())
-      .then(setUsage)
-      .catch(() => {});
+    const fetchStats = () => {
+      fetch('/user/stats', { headers: { Authorization: 'Bearer ' + getToken() } })
+        .then((r) => r.json())
+        .then(setUsage)
+        .catch(() => {});
+    };
+    fetchStats();
+    const id = setInterval(fetchStats, 5000);
+    return () => clearInterval(id);
   }, []);
 
   if (!usage) return null;

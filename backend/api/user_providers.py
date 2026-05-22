@@ -29,33 +29,50 @@ async def get_user_llm(team_id: str = Depends(get_current_team)):
 
 @router.post("")
 async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
+    provider = data.get("provider", "")
+    model = data.get("model", "")
+    api_key = data.get("api_key", "")
+    base_url = data.get("base_url", "")
+
+    # If the API key is empty or a placeholder mask, look up the existing decrypted key
+    if not api_key or api_key == "••••••••":
+        # 1. Try from in-memory config first
+        old_cfg = _user_llm_configs.get(team_id, {})
+        if old_cfg.get("provider") == provider and old_cfg.get("api_key") and old_cfg.get("api_key") != "••••••••":
+            api_key = old_cfg["api_key"]
+        else:
+            # 2. Try from DB
+            try:
+                from backend.api.routes import pg_repo
+                if pg_repo:
+                    db_cfg = await pg_repo.get_user_provider_config(team_id, provider)
+                    if db_cfg and db_cfg.get("api_key") and db_cfg.get("api_key") != "••••••••":
+                        api_key = db_cfg["api_key"]
+            except Exception as e:
+                print(f"Error fetching old config for key reuse: {e}")
+
     # Save to memory for pipeline access (store under both team_id string and UUID keys)
     cfg = {
-        "provider": data.get("provider", ""),
-        "model": data.get("model", ""),
-        "api_key": data.get("api_key", ""),
-        "base_url": data.get("base_url", ""),
+        "provider": provider,
+        "model": model,
+        "api_key": api_key,
+        "base_url": base_url,
     }
     _user_llm_configs[team_id] = cfg
     from backend.memory.pg_repo import safe_uuid
     _user_llm_configs[str(safe_uuid(team_id))] = cfg
-    # Deactivate ALL old configs for this user, then save new one
+    # Save to DB: save_user_provider_config atomically deactivates all old configs
+    # and inserts/updates the new one in a single transaction — no separate UPDATE needed.
     try:
         from backend.api.routes import pg_repo
         from backend.memory.pg_repo import safe_uuid
         if pg_repo and pg_repo.pool:
-            uid = str(safe_uuid(team_id))
-            async with pg_repo.pool.acquire() as conn:
-                await conn.execute(
-                    "UPDATE user_provider_configs SET is_active=false WHERE (user_id=$1 OR user_id=$2)",
-                    team_id, uid
-                )
             await pg_repo.save_user_provider_config(
                 user_id=team_id,
-                provider_name=data.get("provider", ""),
-                api_key=encrypt(data.get("api_key", "")),
-                api_base_url=data.get("base_url", ""),
-                model_name=data.get("model", ""),
+                provider_name=provider,
+                api_key=encrypt(api_key),
+                api_base_url=base_url,
+                model_name=model,
                 is_active=True
             )
     except Exception as e:
@@ -103,6 +120,27 @@ async def test_user_llm(data: dict, team_id: str = Depends(get_current_team)):
     key = data.get("api_key", "")
     base = data.get("base_url", "")
     model = data.get("model", "")
+    provider = data.get("provider", "")
+
+    if not key or key == "••••••••":
+        # 1. Try from in-memory config first
+        old_cfg = _user_llm_configs.get(team_id, {})
+        if (not provider or old_cfg.get("provider") == provider) and old_cfg.get("api_key") and old_cfg.get("api_key") != "••••••••":
+            key = old_cfg["api_key"]
+        else:
+            # 2. Try from DB
+            try:
+                from backend.api.routes import pg_repo
+                if pg_repo:
+                    if provider:
+                        db_cfg = await pg_repo.get_user_provider_config(team_id, provider)
+                    else:
+                        db_cfg = await pg_repo.get_active_user_provider_config(team_id)
+                    if db_cfg and db_cfg.get("api_key") and db_cfg.get("api_key") != "••••••••":
+                        key = db_cfg["api_key"]
+            except Exception:
+                pass
+
     if not key or not base:
         raise HTTPException(400, "API Key and Base URL required")
     try:
@@ -110,7 +148,22 @@ async def test_user_llm(data: dict, team_id: str = Depends(get_current_team)):
             r = await c.post(f"{base}/chat/completions", json={
                 "model": model, "messages": [{"role":"user","content":"hi"}], "max_tokens":5
             }, headers={"Authorization": f"Bearer {key}"})
-            return {"connected": r.status_code == 200, "status": r.status_code}
+            if r.status_code == 200:
+                return {"connected": True, "status": 200}
+            
+            # Try to extract the raw error message from the provider response
+            error_msg = f"HTTP {r.status_code}"
+            try:
+                err_json = r.json()
+                if isinstance(err_json, dict) and "error" in err_json:
+                    err_obj = err_json["error"]
+                    if isinstance(err_obj, dict):
+                        error_msg = err_obj.get("message") or err_obj.get("code") or error_msg
+                    elif isinstance(err_obj, str):
+                        error_msg = err_obj
+            except Exception:
+                pass
+            return {"connected": False, "status": r.status_code, "error": error_msg}
     except Exception as e:
         return {"connected": False, "error": str(e)}
 

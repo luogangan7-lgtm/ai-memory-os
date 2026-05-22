@@ -1,9 +1,7 @@
-"""Pipeline runner
-from backend.memory.pg_repo import safe_uuid
- with queue-based high-concurrency support."""
+"""Pipeline runner with queue-based high-concurrency support."""
 from __future__ import annotations
 import asyncio, logging, os
-from backend.memory.pg_repo import MemoryRepo
+from backend.memory.pg_repo import MemoryRepo, safe_uuid
 
 logger = logging.getLogger("pipeline")
 _repo: MemoryRepo | None = None

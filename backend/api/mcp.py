@@ -359,13 +359,27 @@ async def mcp_post_handler(
             elif tool_name == "memory_delete":
                 memory_id = arguments.get("memory_id", "")
                 try:
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    await conn.execute(
-                        "DELETE FROM memories WHERE (id=$1 OR title=$1) AND team_id=$2",
-                        memory_id, team_id)
-                    await conn.close()
-                    result_text = "Memory deleted successfully."
+                    from backend.api.routes import pg_repo, qdrant_store
+                    if not pg_repo:
+                        raise Exception("pg_repo not initialized")
+
+                    # 1. Fetch memory to check ownership and get actual UUID
+                    memory = await pg_repo.get(memory_id)
+                    if not memory:
+                        result_text = "Memory not found."
+                    elif memory.get("team_id") != team_id:
+                        result_text = "Access denied: memory does not belong to this team."
+                    else:
+                        # 2. Perform deletion in Postgres
+                        resolved_id = str(memory["id"])
+                        ok = await pg_repo.delete(resolved_id, team_id)
+                        # 3. Perform deletion in Qdrant
+                        if qdrant_store and ok:
+                            try:
+                                qdrant_store.delete(resolved_id, team_id=team_id)
+                            except Exception as qe:
+                                logger.warning(f"Qdrant delete failed in memory_delete tool: {qe}")
+                        result_text = "Memory deleted successfully."
                 except Exception as e:
                     result_text = f"memory_delete failed: {e}"
 

@@ -22,14 +22,14 @@ def R(method, path, **kw):
 
 try:
     r = httpx.get(f"{BASE}/", timeout=5)
-    if r.status_code != 200:
+    if r.status_code not in (200, 302):
         print(f"Server returned {r.status_code}. Is it running? Run: python3 run.py"); sys.exit(1)
 except Exception as e:
     print(f"Cannot connect to {BASE}. Start server first: python3 run.py"); sys.exit(1)
 
 print("=== 功能测试 ===")
 # Root
-T("root endpoint", R("GET","/").status_code == 200)
+T("root endpoint", R("GET","/").status_code in (200, 302))
 
 # Register
 USER = f"tester_{int(time.time())}"

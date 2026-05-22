@@ -275,8 +275,20 @@ class MemoryRepo:
         return kw["id"]
 
     async def get(self, mid):
+        import uuid
+        is_uuid = False
+        parsed_uuid = None
+        try:
+            parsed_uuid = uuid.UUID(str(mid))
+            is_uuid = True
+        except (ValueError, TypeError, AttributeError):
+            pass
+
         async with self.pool.acquire() as conn:
-            r = await conn.fetchrow("SELECT * FROM memories WHERE id=$1", mid)
+            if is_uuid:
+                r = await conn.fetchrow("SELECT * FROM memories WHERE id=$1 OR title=$2", parsed_uuid, str(mid))
+            else:
+                r = await conn.fetchrow("SELECT * FROM memories WHERE title=$1", str(mid))
         return dict(r) if r else None
 
     async def get_by_ids(self, ids):
@@ -356,9 +368,21 @@ class MemoryRepo:
             return await conn.fetchval("SELECT count(DISTINCT team_id) FROM accounts") or 0
 
     async def delete(self, mid, team_id):
+        import uuid
+        is_uuid = False
+        parsed_uuid = None
+        try:
+            parsed_uuid = uuid.UUID(str(mid))
+            is_uuid = True
+        except (ValueError, TypeError, AttributeError):
+            pass
+
         async with self.pool.acquire() as conn:
-            r = await conn.execute("DELETE FROM memories WHERE id=$1 AND team_id=$2", mid, team_id)
-            return "DELETE 1" in r
+            if is_uuid:
+                r = await conn.execute("DELETE FROM memories WHERE (id=$1 OR title=$2) AND team_id=$3", parsed_uuid, str(mid), team_id)
+            else:
+                r = await conn.execute("DELETE FROM memories WHERE title=$1 AND team_id=$2", str(mid), team_id)
+            return "DELETE 1" in r or "DELETE" in r
 
     async def save_version(self, memory_id: str, title: str, content: str, editor_id: str):
         """Save a version snapshot before update."""
@@ -402,7 +426,10 @@ class MemoryRepo:
     async def get_active_user_provider_config(self, user_id: str) -> Optional[dict]:
         async with self.pool.acquire() as conn:
             r = await conn.fetchrow(
-                "SELECT * FROM user_provider_configs WHERE user_id=$1 AND is_active=true LIMIT 1",
+                """SELECT * FROM user_provider_configs
+                   WHERE user_id=$1 AND is_active=true
+                   ORDER BY validated_at DESC NULLS LAST, created_at DESC
+                   LIMIT 1""",
                 safe_uuid(user_id)
             )
             if not r: return None

@@ -25,8 +25,11 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
     """Call LLM and return (content, total_tokens). Returns (None, 0) on failure."""
     is_user = team_id and team_id != "default"
 
-    # Try to load user config if not cached in-memory
-    if is_user and team_id not in _user_llm_configs:
+    # Always read from DB first — this is the single source of truth and ensures
+    # the model used in the pipeline exactly matches what the user configured in the UI.
+    # In-memory cache is only a fallback when DB is unreachable.
+    user_cfg = {}
+    if is_user:
         try:
             from backend.api.routes import pg_repo
             if pg_repo:
@@ -34,18 +37,23 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
                 if cfg and cfg.get("api_key"):
                     user_cfg = {
                         "provider": cfg.get("provider_name", ""),
-                        "model": cfg.get("model_name", ""),
-                        "api_key": cfg.get("api_key", ""),
+                        "model":    cfg.get("model_name", ""),
+                        "api_key":  cfg.get("api_key", ""),
                         "base_url": cfg.get("api_base_url", ""),
                     }
+                    # Keep cache up-to-date so it reflects current DB state
                     _user_llm_configs[team_id] = user_cfg
                     from backend.memory.pg_repo import safe_uuid
                     _user_llm_configs[str(safe_uuid(team_id))] = user_cfg
         except Exception as e:
-            print(f"[llm_client] failed to load user config from db: {e}")
+            print(f"[llm_client] DB read failed, falling back to cache: {e}")
+            # DB unavailable — use in-memory cache as degraded fallback
+            user_cfg = _user_llm_configs.get(team_id, {})
 
-    # 1. Check user's own LLM config first (per-team isolation)
-    user_cfg = _user_llm_configs.get(team_id, {})
+    # If DB returned nothing and we have no cache either, check cache once more
+    if is_user and not user_cfg:
+        user_cfg = _user_llm_configs.get(team_id, {})
+
     api_key = user_cfg.get("api_key", "")
     # Resolve base_url: use explicit value or fall back to provider default
     base_url = user_cfg.get("base_url", "") or ""
@@ -55,7 +63,9 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
 
     if api_key and base_url:
         try:
-            async with httpx.AsyncClient(timeout=30)(timeout=30) as client:
+            # Split timeouts: connect=10s, read=90s (slow models need time), write=10s
+            _timeout = httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=5.0)
+            async with httpx.AsyncClient(timeout=_timeout) as client:
                 resp = await client.post(
                     base_url.rstrip("/") + "/chat/completions",
                     json={"model": user_cfg.get("model", "deepseek-chat"), "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
@@ -119,7 +129,9 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
         return None, 0
 
     try:
-        async with httpx.AsyncClient(timeout=30)(timeout=30) as client:
+        # Split timeouts: connect=10s, read=90s, write=10s
+        _timeout = httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=_timeout) as client:
             resp = await client.post(
                 f"{base_url}/chat/completions",
                 json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},

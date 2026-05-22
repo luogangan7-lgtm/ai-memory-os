@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const BASE_URL = "http://127.0.0.1:5173";
 
 export default defineConfig({
-  testDir: "./tests/visual",
+  testDir: ".",
   timeout: 30000,
   expect: { timeout: 10000 },
   fullyParallel: true,

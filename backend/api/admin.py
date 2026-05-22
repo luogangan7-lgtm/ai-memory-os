@@ -1160,9 +1160,10 @@ async def delete_memory_admin(memory_id: str):
         raise HTTPException(404, "Memory not found")
         
     team_id = memory["team_id"]
-    ok = await _pg_repo.delete(memory_id, team_id)
+    resolved_id = str(memory["id"])
+    ok = await _pg_repo.delete(resolved_id, team_id)
     if _qdrant_store and ok:
-        await _qdrant_store.delete(memory_id, team_id=team_id)
+        _qdrant_store.delete(resolved_id, team_id=team_id)
         
     return {"deleted": ok}
 
@@ -1250,7 +1251,7 @@ async def delete_document_admin(doc_id: str, admin: bool = Depends(require_admin
             await _pg_repo.delete(mem_id, team_id)
             if _qdrant_store:
                 try:
-                    await _qdrant_store.delete(mem_id, team_id=team_id)
+                    _qdrant_store.delete(mem_id, team_id=team_id)
                 except Exception as e:
                     logger.warning("[delete_document_admin] Qdrant delete failed for memory %s: %s", mem_id, e)
 
