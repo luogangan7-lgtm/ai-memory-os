@@ -44,7 +44,7 @@ async def _process_one(row):
     async with lock:
         try:
             if task_type == 'memory_pipeline':
-                print(f"[pipeline-DEBUG] processing qid={qid} team={team}", flush=True)
+                logger.debug(f"processing qid={qid} team={team}")
                 # Check if the user has an active LLM config
                 has_llm = False
                 from backend.api.user_providers import _user_llm_configs
@@ -89,7 +89,7 @@ async def _process_one(row):
                         logger.warning(f"[runner] Failed to load user provider config for {team}: {e}")
 
                 # Fallback: try any active config if team-specific lookup failed
-                print(f"[pipeline-DEBUG] has_llm={has_llm} team={team}", flush=True)
+                logger.debug(f"has_llm={has_llm} team={team}")
                 if not has_llm:
                     try:
                         rows = await _repo.pool.fetch(
@@ -116,7 +116,7 @@ async def _process_one(row):
                     except Exception as e:
                         logger.warning(f"[runner] Fallback LLM lookup failed for {team}: {e}")
 
-                print(f"[pipeline-DEBUG] has_llm={has_llm} team={team}", flush=True)
+                logger.debug(f"has_llm={has_llm} team={team}")
                 if not has_llm:
                     logger.info(f"User {team} has no active LLM config. Pausing pipeline task {qid} with 'waiting_key' status.")
                     await _repo.pool.execute(
@@ -218,7 +218,7 @@ async def process_queue():
 _background_task: asyncio.Task | None = None
 
 def start_worker():
-    print('[pipeline] start_worker() called', flush=True)
+    logger.info("Pipeline worker started")
     global _background_task
     if _background_task is None or _background_task.done():
         _background_task = asyncio.create_task(process_queue())

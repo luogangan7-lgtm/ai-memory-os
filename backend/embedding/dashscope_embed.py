@@ -1,3 +1,4 @@
+import os
 # AI Memory OS — Alibaba Cloud Embedding Service (text-embedding-v3)
 # Uses DashScope API
 
@@ -6,7 +7,7 @@ from __future__ import annotations
 import httpx
 
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
-API_KEY = "sk-placeholder-aliyun"
+API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 
 
 class EmbeddingService:

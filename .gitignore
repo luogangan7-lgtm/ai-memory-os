@@ -39,3 +39,4 @@ accounts.json
 server_start.log
 settings.json
 .server.pid
+config/.env
