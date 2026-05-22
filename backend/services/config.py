@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     smtp_host: str = "smtp.qq.com"
     smtp_port: int = 465
     smtp_user: str = "luolimoa@qq.com"
-    smtp_password: str = "eyprdnhhrhhxbdhe"
+    smtp_password: str = ""
     smtp_from: str = "Cortex <luolimoa@qq.com>"
     # Redis
     redis_host: str = "localhost"
