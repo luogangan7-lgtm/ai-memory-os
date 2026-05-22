@@ -39,6 +39,7 @@ export function UsersPage() {
     }
   }
 
+  async function handlePlan(username:string, plan:string){setBusy(p=>({...p,[username]:true}));try{await fetch("/admin/users/"+username+"/plan",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({plan})});load()}catch{}setBusy(p=>({...p,[username]:false}))}
   async function remove(uid: string, username: string) {
     if (username === 'admin') {
       toast('无法删除系统管理员账号 Cannot delete admin', 'err');
@@ -133,6 +134,9 @@ export function UsersPage() {
                     </td>
 
                     <td className="v6-font-mono" style={{ fontSize: 12 }}>{u.team_id}</td>
+                    <td style={{ fontSize: 12 }}>
+                      <span style={{padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:600,background:(u as any).plan==="pro"?"rgba(16,185,129,.15)":(u as any).plan==="exempt"?"rgba(59,130,246,.15)":"var(--v6-bg-sunken)",color:(u as any).plan==="pro"?"#10b981":(u as any).plan==="exempt"?"#3b82f6":"var(--v6-fg-muted)"}}>{(u as any).plan||"free"}</span>
+                    </td>
                     <td className="v6-font-mono" style={{ fontSize: 12 }}>{u.memory_count?.toLocaleString() ?? 0}</td>
                     <td className="v6-font-mono" style={{ fontSize: 12 }}>{u.token_usage?.toLocaleString() ?? 0}</td>
 

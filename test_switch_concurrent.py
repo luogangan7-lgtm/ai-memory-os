@@ -44,7 +44,7 @@ LLMS = {
     },
     "zhipu": {
         "provider": "zhipu", "model": "glm-4-flash",
-        "api_key": "21819ea248514673968c3230685fa5b0.P74Xs4XP68Fbu59y",
+        "api_key": "zhipu-placeholder-key",
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
     },
     "minimax": {
