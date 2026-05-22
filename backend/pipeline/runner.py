@@ -197,6 +197,12 @@ async def process_queue():
                 )
                 if res and res != "UPDATE 0":
                     logger.warning(f"Recovered zombie pipeline tasks: {res}")
+                # Auto-cleanup: delete dead-letter jobs older than 24 hours
+                dead_clean = await _repo.pool.execute(
+                    "DELETE FROM pipeline_queue WHERE status='dead' AND completed_at < NOW() - INTERVAL '24 hours'"
+                )
+                if dead_clean and dead_clean != "DELETE 0":
+                    logger.info(f"Auto-cleaned {dead_clean} dead-letter jobs")
 
             # Retry failed jobs (up to 3 total attempts)
             await _repo.pool.execute(
