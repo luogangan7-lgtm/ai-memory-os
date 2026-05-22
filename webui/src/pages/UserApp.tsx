@@ -1893,6 +1893,10 @@ function CanvasPanel() {
     let md = 'graph TD\n  A[No tasks yet] --> B[Will appear here]';
     if (canvases.length > 0 && activeAgent) {
       const c = canvases.find((x) => x.agent_id === activeAgent) || canvases[0];
+      let completedList = [];
+      let nextList = [];
+      try { completedList = JSON.parse(c?.completed_steps || "[]"); } catch { completedList = Array.isArray(c?.completed_steps) ? c.completed_steps : []; }
+      try { nextList = JSON.parse(c?.next_steps || "[]"); } catch { nextList = Array.isArray(c?.next_steps) ? c.next_steps : []; }
       if (c && c.canvas_mermaid) md = c.canvas_mermaid;
     }
     let isCancelled = false;
