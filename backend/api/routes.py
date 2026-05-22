@@ -1016,7 +1016,7 @@ def _estimate_cost(usage_by_model: list) -> dict:
     # Price lookup (CN: ¥/M tokens, INTL: $/M tokens)
     PRICES = {
         "deepseek": {"deepseek-v4-flash": (1.0, 4.0), "deepseek-v4-pro": (4.0, 12.0)},
-        "alibaba": {"qwen3.6-plus": (0.8, 2.0), "qwen3.6-flash": (0.2, 0.5), "qwen3.6-max-preview": (2.5, 8.0)},
+        "alibaba": {"qwen3.6-plus": (0.8, 2.0), "qwen3.6-flash": (0.2, 0.5), "qwen3.6-max-preview": (2.5, 8.0), "qwen-flash": (0, 0), "qwen-3.7-max": (2.5, 8.0)},
         "zhipu": {"glm-4.7": (0, 0), "glm-4-flash": (0, 0), "glm-5": (2.0, 8.0), "glm-5-turbo": (0.5, 2.0)},
         "openai": {"gpt-4o": (5.0, 15.0), "gpt-4o-mini": (0.15, 0.6), "o1": (15.0, 60.0), "o3-mini": (1.1, 4.4)},
         "anthropic": {"claude-haiku-4-5-20251001": (1.0, 5.0), "claude-sonnet-4-6": (3.0, 15.0), "claude-opus-4-7": (5.0, 25.0)},
@@ -1170,7 +1170,7 @@ async def get_user_usage_stats(team_id: str = Depends(get_current_team)):
         
     return {
         "total_tokens": total_tokens,
-        "cost_estimate": _estimate_cost(usage_by_model),
+        "cost_estimate": {"total_cny": 0.0, "breakdown": []},
         "month_tokens": month_tokens,
         "saved_tokens": saved_tokens,
         "saved_usd": saved_usd,

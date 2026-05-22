@@ -17,6 +17,8 @@ import type {
   ReflectionConfig,
   ReflectionTriggerResponse,
   PipelineStatus,
+  SubscriptionInfo,
+  CreateOrderResponse,
 } from "./types";
 
 // Health
@@ -93,6 +95,10 @@ export const saveSecurityConfig = (body: SecurityConfig) => api.post("/config/se
 export const getReflectionConfig = () => api.get<ReflectionConfig>("/reflection/config");
 export const triggerReflection = () => api.post<ReflectionTriggerResponse>("/reflection/trigger");
 export const saveReflectionConfig = (body: ReflectionConfig) => api.post("/reflection/config", body);
+
+// Payment / Subscription
+export const getSubscription = () => api.get<SubscriptionInfo>("/api/payment/subscription");
+export const createOrder = (duration: number) => api.post<CreateOrderResponse>("/api/payment/create", { duration });
 
 // Auth
 export const login = (id: string, password: string, isUserApp: boolean = false) => {

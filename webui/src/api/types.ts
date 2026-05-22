@@ -181,3 +181,23 @@ export interface PipelineStatus {
   configured: boolean;
   error?: string;
 }
+
+export interface SubscriptionInfo {
+  plan: string;
+  plan_expires_at: string | null;
+  mcp_call_count: number;
+  mcp_call_limit: number | null;
+  is_expired: boolean;
+  days_remaining: number | null;
+}
+
+export interface CreateOrderResponse {
+  out_trade_no: string;
+  wallet: string;
+  amount: number;
+  currency: string;
+  network: string;
+  contract: string;
+  memo: string;
+  expires_in: number;
+}

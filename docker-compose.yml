@@ -96,6 +96,8 @@ services:
       - MEMORY_OS_PROVIDERS=/app/config/memory-os/providers.json
       - MEMORY_OS_ROUTING=/app/config/memory-os/routing.json
       - MEMORY_OS_MINIO_ENDPOINT=minio:9000
+      - MEMORY_OS_USDT_MONTHLY=5
+      - ARBISCAN_API_KEY=${ARBISCAN_API_KEY:-}
       - MEMORY_OS_MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-admin}
       - MEMORY_OS_MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-password}
       - MEMORY_OS_REDIS_HOST=redis

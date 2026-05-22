@@ -1601,7 +1601,7 @@ function UsagePanel() {
                 <div className="v6-metric-tile">
                   <div className="v6-metric-tile__label">预估费用 Est. Cost</div>
                   <div className="v6-metric-tile__value">
-                    {usage.cost_estimate?.total_cny ? '¥' + usage.cost_estimate.total_cny.toFixed(3) : '—'}
+                    {(()=>{const p=usage.usage_by_model||[];let t=0;for(const m of p){const k=(m.prompt_tokens||0)+(m.completion_tokens||0);t+=m.model_name?.includes('free')||m.provider_name==='ollama'||m.provider_name==='groq'?0:k/1e6*(m.provider_name==='alibaba'?0.5:m.provider_name==='zhipu'?1.0:m.provider_name==='deepseek'?1.0:2.0)};return t>0.001?'¥'+t.toFixed(3):t>0?'<¥0.001':'—'})()}
                   </div>
                   <div className="v6-metric-tile__sub">直接结算给 provider</div>
                 </div>
