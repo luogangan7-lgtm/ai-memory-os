@@ -93,12 +93,11 @@ async def register_user_endpoint(data: dict):
         if not email or not password:
             raise HTTPException(400, "Email and password required")
         
-        # Verify email code (optional - skip if no code provided)
-        if code:
-            from backend.services.email_verify import verify_code
-            valid = await verify_code(email, code)
-            if not valid:
-                raise HTTPException(400, "Invalid or expired verification code")
+        # Verify email code (required)
+        from backend.services.email_verify import verify_code
+        valid = await verify_code(email, code)
+        if not valid:
+            raise HTTPException(400, "Invalid or expired verification code")
             
         result = await register(team_id, username or email, password, "user", email=email)
         return {

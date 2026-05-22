@@ -48,6 +48,32 @@ async def mcp_get_handler(request: Request, token: Optional[str] = None):
     
     logger.info(f"MCP Connection authorized for user: {info.get('username')} (ID: {connection_id})")
 
+    # Plan check for free users
+    try:
+        from backend.api.db_helper import get_db_conn
+        conn = await get_db_conn()
+        acct = await conn.fetchrow("SELECT plan, mcp_call_count FROM accounts WHERE team_id=$1", info.get("team_id","default"))
+        await conn.close()
+        if acct:
+            plan = acct.get("plan", "free") or "free"
+            if plan == "free":
+                count = acct.get("mcp_call_count", 0) or 0
+                if count >= 50:
+                    raise HTTPException(status_code=402, detail={
+                        "error": "mcp_limit_exceeded",
+                        "message": "免费体验额度（50次）已用完，请升级 Pro",
+                        "mcp_call_count": count,
+                        "upgrade_url": "/app/#/app"
+                    })
+                # Increment count
+                conn2 = await get_db_conn()
+                await conn2.execute("UPDATE accounts SET mcp_call_count = mcp_call_count + 1 WHERE team_id=$1", info.get("team_id","default"))
+                await conn2.close()
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Don't block MCP if plan check fails
+
     async def event_generator():
         try:
             # Step 1: Send endpoint handshake telling the client where to POST messages
@@ -184,12 +210,31 @@ async def mcp_post_handler(
                     {
                         "name": "memory_task_canvas_get",
                         "description": "Get task canvas Mermaid diagram.",
-                        "inputSchema": {"type": "object", "properties": {"task_id": {"type": "string", "default": "main"}}}
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "task_id": {"type": "string", "default": "main"},
+                                "agent_id": {"type": "string", "description": "Agent identifier"}
+                            },
+                            "required": ["agent_id"]
+                        }
                     },
                     {
                         "name": "memory_task_canvas_update",
                         "description": "Update task canvas Mermaid diagram with progress.",
-                        "inputSchema": {"type": "object", "properties": {"task_id": {"type": "string"}, "mermaid": {"type": "string"}}, "required": ["task_id", "mermaid"]}
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "task_id": {"type": "string"},
+                                "agent_id": {"type": "string", "description": "Agent identifier"},
+                                "mermaid": {"type": "string"},
+                                "title": {"type": "string", "description": "Task title"},
+                                "task_title": {"type": "string", "description": "Task title (alias for title)"},
+                                "completed": {"type": "array", "items": {"type": "string"}, "description": "List of completed steps"},
+                                "next": {"type": "array", "items": {"type": "string"}, "description": "List of next steps"}
+                            },
+                            "required": ["task_id", "agent_id", "mermaid"]
+                        }
                     },
                     {
                         "name": "memory_list",
@@ -287,7 +332,7 @@ async def mcp_post_handler(
                 from backend.api.db_helper import get_db_conn
                 try:
                     conn = await get_db_conn()
-                    row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", team_id)
+                    row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", info.get("team_id","default"))
                     if not row or not row["persona_md"]:
                         default_persona_md = "## 用户画像\n\n系统正在从您的交互记录和存储记忆中构建画像，请继续与 AI 对话以丰富个人档案。"
                         await conn.execute(
@@ -296,7 +341,7 @@ async def mcp_post_handler(
                                ON CONFLICT (team_id) DO NOTHING""",
                             team_id, default_persona_md
                         )
-                        row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", team_id)
+                        row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", info.get("team_id","default"))
                     await conn.close()
                     result_text = row["persona_md"] if row and row["persona_md"] else "用户画像尚未生成，请继续与 AI 对话以积累更多记忆。"
                 except:
@@ -325,6 +370,7 @@ async def mcp_post_handler(
                     if not task_id: task_id = "main"
                     comp_str = _json.dumps(arguments.get("completed", []), ensure_ascii=False)
                     next_str = _json.dumps(arguments.get("next", []), ensure_ascii=False)
+                    task_title = arguments.get("title") or arguments.get("task_title") or ""
                     await conn.execute(
                         """INSERT INTO task_canvas (team_id, task_id, agent_id, task_title, canvas_mermaid, completed_steps, next_steps)
                            VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)
@@ -334,7 +380,7 @@ async def mcp_post_handler(
                              completed_steps = EXCLUDED.completed_steps,
                              next_steps      = EXCLUDED.next_steps,
                              updated_at      = NOW()""",
-                        team_id, task_id, agent_id, arguments.get("task_title", ""), arguments.get("mermaid", ""), comp_str, next_str)
+                        team_id, task_id, agent_id, task_title, arguments.get("mermaid", ""), comp_str, next_str)
                     await conn.close()
                     result_text = "Canvas updated"
                 except Exception as e:
@@ -387,7 +433,7 @@ async def mcp_post_handler(
                 try:
                     from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
-                    row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
+                    row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", info.get("team_id","default"))
                     await conn.close()
                     cnt = int(row["cnt"]) if row and row["cnt"] is not None else 0
                     result_text = f"Memory system online. Total memories: {cnt}. Qdrant: connected. Neo4j: connected."

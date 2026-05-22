@@ -269,16 +269,30 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
     l1_total = l2_total = l3_total = 0
     try:
         conn2 = await get_db_conn()
-        row = await conn2.fetchrow(
-            "SELECT COALESCE(SUM(l1_calls),0) as l1, COALESCE(SUM(l2_calls),0) as l2, COALESCE(SUM(l3_calls),0) as l3 FROM pipeline_usage WHERE team_id=$1",
+        l1_row = await conn2.fetchrow(
+            "SELECT COUNT(*)::integer as cnt FROM memories WHERE team_id = $1 AND layer = 'L1'",
             team_id
         )
-        if row:
-            l1_total = int(row["l1"])
-            l2_total = int(row["l2"])
-            l3_total = int(row["l3"])
+        if l1_row:
+            l1_total = l1_row["cnt"]
+            
+        l2_row = await conn2.fetchrow(
+            "SELECT COUNT(*)::integer as cnt FROM memory_scenarios WHERE team_id = $1",
+            team_id
+        )
+        if l2_row:
+            l2_total = l2_row["cnt"]
+            
+        l3_row = await conn2.fetchrow(
+            "SELECT COALESCE(version, 0)::integer as ver FROM user_persona WHERE team_id = $1",
+            team_id
+        )
+        if l3_row:
+            l3_total = l3_row["ver"]
+            
         await conn2.close()
-    except: pass
+    except Exception as e:
+        logger.error(f"Failed to query pipeline database entity counts: {e}")
 
     return {
         "counts": counts,

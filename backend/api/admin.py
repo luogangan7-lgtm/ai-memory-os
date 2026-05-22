@@ -1271,3 +1271,22 @@ async def delete_document_admin(doc_id: str, admin: bool = Depends(require_admin
     return {"deleted": ok}
 
 
+
+
+@router.patch("/users/{username}/plan")
+async def update_user_plan(username: str, data: dict):
+    """Admin: update user plan (free/pro/exempt)"""
+    from backend.api.db_helper import get_db_conn
+    conn = await get_db_conn()
+    try:
+        plan = data.get("plan", "free")
+        expires = data.get("plan_expires_at")
+        reset = data.get("reset_mcp_count", False)
+        await conn.execute(
+            "UPDATE accounts SET plan=$1, plan_expires_at=$2 WHERE username=$3",
+            plan, expires, username)
+        if reset:
+            await conn.execute("UPDATE accounts SET mcp_call_count=0 WHERE username=$1", username)
+        return {"status": "ok", "username": username, "plan": plan}
+    finally:
+        await conn.close()
