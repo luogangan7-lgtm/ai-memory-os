@@ -49,6 +49,12 @@ ALIBABA_MODELS = {
         context_window=32000, description="全能模型",
         pricing_per_1m_tokens=0.5,
     ),
+    "qwen-flash": ModelInfo(
+        id="qwen-flash", display_name="Qwen Flash",
+        provider="alibaba", capabilities=[ModelCapability.CHAT],
+        context_window=128000, description="通义千问限流免费版",
+        pricing_per_1m_tokens=0.0,
+    ),
 }
 
 

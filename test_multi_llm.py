@@ -56,7 +56,7 @@ LLM_CONFIGS = [
     {
         "label": "MiniMax",
         "provider_name": "minimax",
-        "model_name": "abab6.5g-chat",
+        "model_name": "MiniMax-M2.5",
         "api_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",  # placeholder - see note
         "base_url": "https://api.minimax.chat/v1",
         "_real_key": "sk-placeholder-minimax",
@@ -86,10 +86,11 @@ def log(msg: str):
 async def register(client: httpx.AsyncClient, username: str) -> str | None:
     """注册用户，返回 api_key"""
     try:
-        r = await client.post(f"{BASE}/auth/register", json={
+        r = await client.post(f"{BASE}/admin/auth/register", json={
             "username": username,
-            "email": f"{username}@testcase.local",
-            "password": "Tt@12345678"
+            "password": "Tt@12345678",
+            "team_id": f"team_{username}",
+            "agent_id": f"agent_{username}"
         })
         if r.status_code == 200:
             return r.json().get("api_key")

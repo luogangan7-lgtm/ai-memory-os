@@ -6,6 +6,14 @@ from backend.providers.base import BaseProvider, ModelCapability, ModelInfo
 MOONSHOT_BASE = "https://api.moonshot.cn/v1"
 
 MOONSHOT_CATALOG = [
+    ModelInfo(id="kimi-latest", display_name="Kimi Latest",
+              provider="moonshot", capabilities=[ModelCapability.CHAT],
+              context_window=128000, description="自动指向最新版模型",
+              pricing_per_1m_tokens=1.2),
+    ModelInfo(id="kimi-k2.5", display_name="Kimi k2.5",
+              provider="moonshot", capabilities=[ModelCapability.CHAT],
+              context_window=256000, description="多模态、超长上下文、强推理能力",
+              pricing_per_1m_tokens=2.4),
     ModelInfo(id="moonshot-v1-8k", display_name="Kimi v1 (8K)",
               provider="moonshot", capabilities=[ModelCapability.CHAT],
               context_window=8192, description="轻量快速，适合短文本任务",

@@ -156,23 +156,31 @@ class ModelRegistry:
         """
         # Static model catalogs with pricing (price per 1M tokens in USD)
         CATALOGS = {
-            "deepseek":  [{"model": "deepseek-chat",      "cap": "llm",  "price": 0.27, "name": "DeepSeek V4 (Chat)"},
-                          {"model": "deepseek-reasoner",   "cap": "llm",  "price": 0.55, "name": "DeepSeek V4 Reasoner"}],
-            "moonshot":  [{"model": "moonshot-v1-8k",     "cap": "llm",  "price": 1.2,  "name": "Kimi v1 (8K)"},
+            "deepseek":  [{"model": "deepseek-v4-flash",   "cap": "llm",  "price": 0.14, "name": "DeepSeek V4 Flash"},
+                          {"model": "deepseek-chat",      "cap": "llm",  "price": 0.27, "name": "DeepSeek V3.2"},
+                          {"model": "deepseek-reasoner",   "cap": "llm",  "price": 0.55, "name": "DeepSeek R1"}],
+            "moonshot":  [{"model": "kimi-latest",        "cap": "llm",  "price": 1.2,  "name": "Kimi Latest"},
+                          {"model": "moonshot-v1-8k",     "cap": "llm",  "price": 1.2,  "name": "Kimi v1 (8K)"},
                           {"model": "moonshot-v1-32k",    "cap": "llm",  "price": 2.4,  "name": "Kimi v1 (32K)"},
                           {"model": "moonshot-v1-128k",   "cap": "llm",  "price": 8.0,  "name": "Kimi v1 (128K)"}],
-            "zhipu":     [{"model": "glm-4-flash",        "cap": "llm",  "price": 0.14, "name": "GLM-4 Flash"},
-                          {"model": "glm-4",              "cap": "llm",  "price": 14.0, "name": "GLM-4"}],
-            "openai":    [{"model": "gpt-4o-mini",        "cap": "llm",  "price": 0.15, "name": "GPT-4o Mini"},
+            "zhipu":     [{"model": "glm-4-flash",        "cap": "llm",  "price": 0.0,  "name": "GLM-4 Flash"},
+                          {"model": "glm-5",              "cap": "llm",  "price": 0.28, "name": "GLM-5"}],
+            "openai":    [{"model": "gpt-5.4-mini",       "cap": "llm",  "price": 0.10, "name": "GPT-5.4 Mini"},
+                          {"model": "gpt-4o-mini",        "cap": "llm",  "price": 0.15, "name": "GPT-4o Mini"},
                           {"model": "gpt-4o",             "cap": "llm",  "price": 2.50, "name": "GPT-4o"},
                           {"model": "text-embedding-3-small", "cap": "embedding", "price": 0.02, "name": "Text Embedding 3 Small"}],
-            "anthropic": [{"model": "claude-haiku-3-5",   "cap": "llm",  "price": 0.25, "name": "Claude Haiku 3.5"},
-                          {"model": "claude-sonnet-4-5",  "cap": "llm",  "price": 3.0,  "name": "Claude Sonnet 4.5"},
-                          {"model": "claude-opus-4-5",    "cap": "llm",  "price": 15.0, "name": "Claude Opus 4.5"}],
-            "alibaba":   [{"model": "qwen-turbo",         "cap": "llm",  "price": 0.3,  "name": "Qwen Turbo"},
-                          {"model": "qwen-plus",          "cap": "llm",  "price": 0.8,  "name": "Qwen Plus"},
-                          {"model": "text-embedding-v3",  "cap": "embedding", "price": 0.07, "name": "Text Embedding V3"},
-                          {"model": "gte-rerank",         "cap": "rerank",    "price": 0.07, "name": "GTE Rerank"}],
+            "anthropic": [{"model": "claude-haiku-4-5-20251001", "cap": "llm", "price": 1.0, "name": "Claude Haiku 4.5"},
+                          {"model": "claude-sonnet-4-6",  "cap": "llm",  "price": 3.0,  "name": "Claude Sonnet 4.6"},
+                          {"model": "claude-opus-4-7",    "cap": "llm",  "price": 15.0, "name": "Claude Opus 4.7"}],
+            "alibaba":   [{"model": "qwen-flash",         "cap": "llm",  "price": 0.0,  "name": "Qwen Flash"},
+                          {"model": "qwen3.6-flash",      "cap": "llm",  "price": 0.03, "name": "Qwen3.6 Flash"},
+                          {"model": "qwen3.6-plus",       "cap": "llm",  "price": 0.11, "name": "Qwen3.6 Plus"},
+                          {"model": "text-embedding-v3",  "cap": "embedding", "price": 0.01, "name": "Text Embedding V3"},
+                          {"model": "qwen3-rerank",        "cap": "rerank",    "price": 0.07, "name": "Qwen3 Rerank"}],
+            "siliconflow":[{"model": "BAAI/bge-m3",       "cap": "embedding", "price": 0.014, "name": "BGE-M3 (Silicon)"},
+                          {"model": "BAAI/bge-reranker-v2-m3", "cap": "rerank", "price": 0.028, "name": "BGE-Reranker-V2 (Silicon)"}],
+            "jina":      [{"model": "jina-embeddings-v3", "cap": "embedding", "price": 0.02, "name": "Jina Embeddings V3"},
+                          {"model": "jina-reranker-v2-base-multilingual", "cap": "rerank", "price": 0.02, "name": "Jina Reranker V2"}],
         }
 
         connected = {p for p, cfg in self.configs.items() if cfg.api_key}
@@ -253,10 +261,12 @@ class ModelRegistry:
         if cfg:
             if valid:
                 caps = ["llm"]
-                if provider_type in ["alibaba", "openai", "zhipu", "minimax", "doubao", "baidu", "hunyuan", "ollama", "omlx", "custom"]:
+                if provider_type in ["alibaba", "openai", "zhipu", "minimax", "doubao", "baidu", "hunyuan", "ollama", "omlx", "custom", "siliconflow", "jina"]:
                     caps.append("embedding")
-                if provider_type in ["alibaba", "custom"]:
+                if provider_type in ["alibaba", "custom", "baidu", "siliconflow", "jina"]:
                     caps.append("rerank")
+                if provider_type == "jina" and "llm" in caps:
+                    caps.remove("llm")
                 cfg.enabled_capabilities = caps
             else:
                 cfg.enabled_capabilities = []

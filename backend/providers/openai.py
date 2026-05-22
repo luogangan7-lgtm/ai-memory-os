@@ -34,6 +34,14 @@ class OpenAIProvider(BaseProvider):
 
     async def discover_models(self) -> list[ModelInfo]:
         return [
+            ModelInfo(id="gpt-5.5", display_name="GPT-5.5",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=256000, pricing_per_1m_tokens=5.0),
+            ModelInfo(id="gpt-5.5-pro", display_name="GPT-5.5 Pro",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=256000, pricing_per_1m_tokens=10.0),
+            ModelInfo(id="gpt-5.4", display_name="GPT-5.4",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=256000, pricing_per_1m_tokens=2.0),
+            ModelInfo(id="gpt-5.4-mini", display_name="GPT-5.4 Mini",
+                      provider="openai", capabilities=[ModelCapability.CHAT], context_window=128000, pricing_per_1m_tokens=0.10),
             ModelInfo(id="text-embedding-3-small", display_name="Text Embedding 3 Small",
                       provider="openai", capabilities=[ModelCapability.EMBED], embedding_dim=1536, pricing_per_1m_tokens=0.02),
             ModelInfo(id="text-embedding-3-large", display_name="Text Embedding 3 Large",

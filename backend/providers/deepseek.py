@@ -27,6 +27,24 @@ DEEPSEEK_CATALOG = [
         description="V4 满血推理模型，数学/代码/逻辑链推理全球顶级，适合复杂分析任务",
         pricing_per_1m_tokens=4.0,
     ),
+    ModelInfo(
+        id="deepseek-chat",
+        display_name="DeepSeek V3.2 (Chat)",
+        provider="deepseek",
+        capabilities=[ModelCapability.CHAT],
+        context_window=128000,
+        description="当前主力通用对话模型",
+        pricing_per_1m_tokens=1.99,
+    ),
+    ModelInfo(
+        id="deepseek-reasoner",
+        display_name="DeepSeek R1 (Reasoner)",
+        provider="deepseek",
+        capabilities=[ModelCapability.CHAT],
+        context_window=64000,
+        description="满血推理大模型",
+        pricing_per_1m_tokens=4.0,
+    ),
 ]
 
 

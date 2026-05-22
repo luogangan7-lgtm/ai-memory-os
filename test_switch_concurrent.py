@@ -48,7 +48,7 @@ LLMS = {
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
     },
     "minimax": {
-        "provider": "minimax", "model": "abab6.5g-chat",
+        "provider": "minimax", "model": "MiniMax-M2.5",
         "api_key": "sk-placeholder-minimax",
         "base_url": "https://api.minimax.chat/v1",
     },
@@ -56,8 +56,11 @@ LLMS = {
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 async def register(client, username):
-    r = await client.post(f"{BASE}/auth/register", json={
-        "username": username, "email": f"{username}@sw.test", "password": "Sw@12345678"
+    r = await client.post(f"{BASE}/admin/auth/register", json={
+        "username": username,
+        "password": "Sw@12345678",
+        "team_id": username,
+        "agent_id": f"agent_{username}"
     })
     return r.json().get("api_key", "")
 

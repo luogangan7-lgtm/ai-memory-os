@@ -12,18 +12,96 @@ COST_FILE = Path.home() / ".codex" / "memory-os" / "costs.json"
 PRICING = {
     # Alibaba DashScope (CNY ¥/1M tokens)
     "text-embedding-v3":     {"input": 0.70,  "output": 0,    "currency": "CNY"},
-    "gte-rerank":            {"input": 0.50,  "output": 0,    "currency": "CNY"},
+    "qwen3-rerank":          {"input": 0.50,  "output": 0,    "currency": "CNY"},
     "qwen-turbo":            {"input": 0.30,  "output": 1.20, "currency": "CNY"},
     "qwen-plus":             {"input": 0.80,  "output": 2.00, "currency": "CNY"},
+    "qwen3.6-plus":          {"input": 0.80,  "output": 0.80, "currency": "CNY"},
+    "qwen3.6-flash":         {"input": 0.20,  "output": 0.20, "currency": "CNY"},
+    "qwen3.6-max-preview":   {"input": 2.50,  "output": 2.50, "currency": "CNY"},
+    "qwen3.5-omni-plus":     {"input": 0.50,  "output": 0.50, "currency": "CNY"},
+    "qwen-flash":            {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    
     # Zhipu AI (CNY ¥/1M tokens)
-    "embedding-3":           {"input": 0.50,  "output": 0,    "currency": "CNY"},
-    "glm-4-flash":           {"input": 0.10,  "output": 0.10, "currency": "CNY"},
-    "glm-4":                 {"input": 100.0, "output": 100.0,"currency": "CNY"},
+    "embedding-3":           {"input": 0.10,  "output": 0,    "currency": "CNY"},
+    "glm-4-flash":           {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "glm-4-flash-250414":    {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "glm-4.7-flash":         {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "glm-4.7":               {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "glm-5":                 {"input": 2.00,  "output": 2.00, "currency": "CNY"},
+    "glm-5.1":               {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "glm-4-plus":            {"input": 2.00,  "output": 2.00, "currency": "CNY"},
+    "glm-4-air":             {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "glm-4-long":            {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "glm-5v-turbo":          {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "glm-5-turbo":           {"input": 0.50,  "output": 0.50, "currency": "CNY"},
+    "glm-4-rerank":          {"input": 0.50,  "output": 0,    "currency": "CNY"},
+    
     # OpenAI (USD $/1M tokens)
     "text-embedding-3-small":{"input": 0.02,  "output": 0,    "currency": "USD"},
     "text-embedding-3-large":{"input": 0.13,  "output": 0,    "currency": "USD"},
     "gpt-4o-mini":           {"input": 0.15,  "output": 0.60, "currency": "USD"},
     "gpt-4o":                {"input": 2.50,  "output": 10.0, "currency": "USD"},
+    "gpt-5.5":               {"input": 5.00,  "output": 15.0, "currency": "USD"},
+    "gpt-5.5-pro":           {"input": 10.0,  "output": 30.0, "currency": "USD"},
+    "gpt-5.4":               {"input": 2.00,  "output": 6.00, "currency": "USD"},
+    "gpt-5.4-mini":          {"input": 0.10,  "output": 0.40, "currency": "USD"},
+    "o1":                    {"input": 15.0,  "output": 15.0, "currency": "USD"},
+    "o3-mini":               {"input": 1.10,  "output": 1.10, "currency": "USD"},
+
+    # DeepSeek (CNY ¥/1M tokens)
+    "deepseek-v4-flash":     {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "deepseek-v4-pro":       {"input": 4.00,  "output": 4.00, "currency": "CNY"},
+    "deepseek-chat":         {"input": 1.99,  "output": 1.99, "currency": "CNY"},
+    "deepseek-reasoner":     {"input": 4.00,  "output": 4.00, "currency": "CNY"},
+
+    # Moonshot (CNY ¥/1M tokens)
+    "kimi-latest":           {"input": 1.20,  "output": 1.20, "currency": "CNY"},
+    "kimi-k2.5":             {"input": 2.40,  "output": 2.40, "currency": "CNY"},
+    "moonshot-v1-8k":        {"input": 1.20,  "output": 1.20, "currency": "CNY"},
+    "moonshot-v1-32k":       {"input": 2.40,  "output": 2.40, "currency": "CNY"},
+    "moonshot-v1-128k":      {"input": 8.00,  "output": 8.00, "currency": "CNY"},
+
+    # MiniMax (CNY ¥/1M tokens)
+    "MiniMax-M2.7":          {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "MiniMax-M2.5":          {"input": 0.50,  "output": 0.50, "currency": "CNY"},
+    "MiniMax-M2.7-highspeed":{"input": 0.10,  "output": 0.10, "currency": "CNY"},
+    "MiniMax-M2":            {"input": 0.80,  "output": 0.80, "currency": "CNY"},
+
+    # Doubao (CNY ¥/1M tokens)
+    "doubao-seed-2-0-pro-260215": {"input": 0.80, "output": 0.80, "currency": "CNY"},
+    "doubao-seed-2-0-lite-260215": {"input": 0.30, "output": 0.30, "currency": "CNY"},
+    "doubao-1-5-pro-32k":    {"input": 0.80,  "output": 0.80, "currency": "CNY"},
+    "doubao-1-5-lite-32k":   {"input": 0.30,  "output": 0.30, "currency": "CNY"},
+    "doubao-embedding":      {"input": 0.10,  "output": 0,    "currency": "CNY"},
+
+    # Baidu Ernie (CNY ¥/1M tokens)
+    "ernie-4.5-8k":          {"input": 1.60,  "output": 1.60, "currency": "CNY"},
+    "ernie-4.5-turbo-8k":    {"input": 0.80,  "output": 0.80, "currency": "CNY"},
+    "ernie-lite-8k":         {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "bce-embedding-v1":      {"input": 0.50,  "output": 0,    "currency": "CNY"},
+    "bce-reranker-base_v1":  {"input": 0.50,  "output": 0,    "currency": "CNY"},
+
+    # Tencent Hunyuan (CNY ¥/1M tokens)
+    "hunyuan-2.0-thinking":  {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "hunyuan-2.0-instruct":  {"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "hunyuan-turbos-latest": {"input": 0.80,  "output": 0.80, "currency": "CNY"},
+    "hunyuan-turbos":        {"input": 0.80,  "output": 0.80, "currency": "CNY"},
+    "hunyuan-lite":          {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "hunyuan-embedding":     {"input": 0.70,  "output": 0,    "currency": "CNY"},
+
+    # SiliconFlow (CNY ¥/1M tokens)
+    "BAAI/bge-m3":           {"input": 0.10,  "output": 0,    "currency": "CNY"},
+    "BAAI/bge-large-zh-v1.5":{"input": 0.10,  "output": 0,    "currency": "CNY"},
+    "BAAI/bge-reranker-v2-m3":{"input": 0.20, "output": 0,    "currency": "CNY"},
+    "deepseek-ai/DeepSeek-V3":{"input": 1.00,  "output": 1.00, "currency": "CNY"},
+    "Qwen/Qwen2.5-7B-Instruct":{"input": 0.00, "output": 0.00, "currency": "CNY"},
+    "THUDM/glm-4-9b-chat":   {"input": 0.00,  "output": 0.00, "currency": "CNY"},
+    "internlm/internlm2_5-7b-chat":{"input": 0.00, "output": 0.00, "currency": "CNY"},
+    "meta-llama/Meta-Llama-3.1-8B-Instruct":{"input": 0.00, "output": 0.00, "currency": "CNY"},
+
+    # Jina AI (USD $/1M tokens)
+    "jina-embeddings-v3":    {"input": 0.02,  "output": 0,    "currency": "USD"},
+    "jina-reranker-v2-base-multilingual": {"input": 0.02, "output": 0, "currency": "USD"},
 }
 
 
