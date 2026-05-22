@@ -207,4 +207,11 @@ export const getAdminDocuments = (params: {
 export const deleteAdminDocument = (docId: string) =>
   api.delete<{ deleted: boolean }>(`/documents/${docId}`);
 
+export const updateUserPlan = (username: string, plan: string, resetMcpCount: boolean = false) =>
+  api.patch<{ status: string; username: string; plan: string }>(`/users/${username}/plan`, {
+    plan,
+    reset_mcp_count: resetMcpCount
+  });
+
+
 

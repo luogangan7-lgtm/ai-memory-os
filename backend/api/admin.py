@@ -314,7 +314,10 @@ async def list_all_users(q: str = None, limit: int = 50):
             "active": u["status"] == "active",  # Map active status to boolean
             "status": u["status"],
             "memory_count": knowledge_map.get(u["team_id"], 0),
-            "token_usage": token_map.get(u["team_id"], 0)
+            "token_usage": token_map.get(u["team_id"], 0),
+            "plan": u.get("plan", "free"),
+            "plan_expires_at": u.get("plan_expires_at", ""),
+            "mcp_call_count": u.get("mcp_call_count", 0)
         })
     
     return {"users": formatted_users[:limit]}
@@ -1277,11 +1280,29 @@ async def delete_document_admin(doc_id: str, admin: bool = Depends(require_admin
 async def update_user_plan(username: str, data: dict):
     """Admin: update user plan (free/pro/exempt)"""
     from backend.api.db_helper import get_db_conn
+    from datetime import datetime
     conn = await get_db_conn()
     try:
         plan = data.get("plan", "free")
         expires = data.get("plan_expires_at")
         reset = data.get("reset_mcp_count", False)
+
+        # Normalize and parse timestamp
+        if not expires or expires == "":
+            expires = None
+        elif isinstance(expires, str):
+            val = expires.strip()
+            if val.endswith('Z'):
+                val = val[:-1] + '+00:00'
+            try:
+                expires = datetime.fromisoformat(val)
+            except ValueError:
+                try:
+                    from dateutil import parser
+                    expires = parser.parse(val)
+                except Exception:
+                    raise HTTPException(status_code=400, detail=f"Invalid timestamp format for plan_expires_at: {expires}")
+
         await conn.execute(
             "UPDATE accounts SET plan=$1, plan_expires_at=$2 WHERE username=$3",
             plan, expires, username)
@@ -1290,3 +1311,4 @@ async def update_user_plan(username: str, data: dict):
         return {"status": "ok", "username": username, "plan": plan}
     finally:
         await conn.close()
+

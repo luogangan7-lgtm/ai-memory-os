@@ -332,7 +332,7 @@ async def mcp_post_handler(
                 from backend.api.db_helper import get_db_conn
                 try:
                     conn = await get_db_conn()
-                    row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", info.get("team_id","default"))
+                    row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", team_id)
                     if not row or not row["persona_md"]:
                         default_persona_md = "## 用户画像\n\n系统正在从您的交互记录和存储记忆中构建画像，请继续与 AI 对话以丰富个人档案。"
                         await conn.execute(
@@ -341,7 +341,7 @@ async def mcp_post_handler(
                                ON CONFLICT (team_id) DO NOTHING""",
                             team_id, default_persona_md
                         )
-                        row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", info.get("team_id","default"))
+                        row = await conn.fetchrow("SELECT persona_md FROM user_persona WHERE team_id=$1", team_id)
                     await conn.close()
                     result_text = row["persona_md"] if row and row["persona_md"] else "用户画像尚未生成，请继续与 AI 对话以积累更多记忆。"
                 except:
@@ -433,7 +433,7 @@ async def mcp_post_handler(
                 try:
                     from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
-                    row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", info.get("team_id","default"))
+                    row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM memories WHERE team_id=$1", team_id)
                     await conn.close()
                     cnt = int(row["cnt"]) if row and row["cnt"] is not None else 0
                     result_text = f"Memory system online. Total memories: {cnt}. Qdrant: connected. Neo4j: connected."

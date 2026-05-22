@@ -109,7 +109,7 @@ async def payment_notify(request: Request):
         duration = row["duration_months"] or 1
         # Mark order paid
         await conn.execute(
-            "UPDATE orders SET status='paid', paid_at=NOW(), pay_raw=$1 WHERE out_trade_no=$2",
+            "UPDATE orders SET status='paid', paid_at=NOW(), payjs_raw=$1 WHERE out_trade_no=$2",
             json.dumps(data), out_trade_no)
         # Upgrade user
         from datetime import datetime, timedelta, timezone

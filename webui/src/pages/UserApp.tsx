@@ -1066,7 +1066,15 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
   const [agent, setAgent] = useState<'cursor' | 'claude' | 'openclaw' | 'cline' | 'continue' | 'roo' | 'codex'>('cursor');
   const [copiedKey, setCopiedKey] = useState<string>('');
   const [sub, setSub] = useState<any>(null);
-  useEffect(()=>{fetch("/api/payment/subscription").then(r=>r.json()).then(setSub).catch(()=>{})},[]);
+  useEffect(() => {
+    const tok = localStorage.getItem('mos_token') || localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+    fetch("/api/payment/subscription", {
+      headers: { Authorization: 'Bearer ' + tok }
+    })
+      .then(r => r.json())
+      .then(setSub)
+      .catch(() => {});
+  }, []);
   const copy = async (key: string, text: string) => {
     // navigator.clipboard requires a secure context — fails silently on plain
     // http://192.168.x.x deployments. Fall back to the legacy textarea trick.

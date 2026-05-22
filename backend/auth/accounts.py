@@ -88,7 +88,10 @@ async def list_users() -> list[dict]:
             "role": u["role"],
             "created": u["created_at"].isoformat() if hasattr(u["created_at"], "isoformat") else (u["created_at"] or ""),
             "api_key_prefix": u["api_key"][:12] + "...",
-            "status": "revoked" if u["revoked"] else ("suspended" if u["suspended"] else "active")
+            "status": "revoked" if u["revoked"] else ("suspended" if u["suspended"] else "active"),
+            "plan": u.get("plan") or "free",
+            "plan_expires_at": u["plan_expires_at"].isoformat() if hasattr(u.get("plan_expires_at"), "isoformat") else (u.get("plan_expires_at") or ""),
+            "mcp_call_count": u.get("mcp_call_count") or 0
         })
     return result
 

@@ -3,6 +3,25 @@
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings
+import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+
+# Map docker-compose style environments to MEMORY_OS_ equivalents for host run
+if "MINIO_ROOT_PASSWORD" in os.environ:
+    os.environ.setdefault("MEMORY_OS_MINIO_SECRET_KEY", os.environ["MINIO_ROOT_PASSWORD"])
+if "MINIO_ROOT_USER" in os.environ:
+    os.environ.setdefault("MEMORY_OS_MINIO_ACCESS_KEY", os.environ["MINIO_ROOT_USER"])
+if "POSTGRES_USER" in os.environ:
+    os.environ.setdefault("MEMORY_OS_PG_USER", os.environ["POSTGRES_USER"])
+if "POSTGRES_PASSWORD" in os.environ:
+    os.environ.setdefault("MEMORY_OS_PG_PASSWORD", os.environ["POSTGRES_PASSWORD"])
+if "POSTGRES_DB" in os.environ:
+    os.environ.setdefault("MEMORY_OS_PG_DB", os.environ["POSTGRES_DB"])
+if "NEO4J_PASSWORD" in os.environ:
+    os.environ.setdefault("MEMORY_OS_NEO4J_PASSWORD", os.environ["NEO4J_PASSWORD"])
 
 
 class Settings(BaseSettings):
@@ -61,7 +80,7 @@ class Settings(BaseSettings):
     smtp_password: str = "eyprdnhhrhhxbdhe"
     smtp_from: str = "Cortex <luolimoa@qq.com>"
     # Redis
-    redis_host: str = "redis"
+    redis_host: str = "localhost"
     redis_port: int = 6379
 
     model_config = {"env_prefix": "MEMORY_OS_"}

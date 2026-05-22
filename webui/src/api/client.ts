@@ -80,4 +80,13 @@ export const api = {
     });
     return handleResponse<T>(res);
   },
+
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return handleResponse<T>(res);
+  },
 };

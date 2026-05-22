@@ -81,6 +81,7 @@ services:
       - ALLOW_REMOTE_ADMIN=true
       - CODEX_HOME=/app/test_config
       - MEMORY_OS_MINIO_ENDPOINT=minio:9000
+      - MEMORY_OS_REDIS_HOST=redis
     volumes:
       - test_backend_config:/app/test_config
       - ./webui-dist:/app/webui-dist:ro

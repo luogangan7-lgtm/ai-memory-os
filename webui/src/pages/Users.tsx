@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { getUsers, toggleUserStatus, deleteUser } from '../api/endpoints';
+import { getUsers, toggleUserStatus, deleteUser, updateUserPlan } from '../api/endpoints';
 import { useToast } from '../contexts/ToastContext';
 
 type User = {
@@ -12,6 +12,9 @@ type User = {
   role?: string;
   created?: string;
   api_key_prefix?: string;
+  plan?: string;
+  plan_expires_at?: string;
+  mcp_call_count?: number;
 };
 
 export function UsersPage() {
@@ -39,7 +42,31 @@ export function UsersPage() {
     }
   }
 
-  async function handlePlan(username:string, plan:string){setBusy(p=>({...p,[username]:true}));try{await fetch("/admin/users/"+username+"/plan",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({plan})});load()}catch{}setBusy(p=>({...p,[username]:false}))}
+  async function handlePlan(username: string, plan: string) {
+    setBusy(p => ({ ...p, [username]: true }));
+    try {
+      await updateUserPlan(username, plan);
+      toast('套餐已更新 Plan updated');
+      load();
+    } catch {
+      toast('更新失败 Update failed', 'err');
+    } finally {
+      setBusy(p => ({ ...p, [username]: false }));
+    }
+  }
+
+  async function handleResetMcp(username: string, currentPlan: string) {
+    setBusy(p => ({ ...p, [username]: true }));
+    try {
+      await updateUserPlan(username, currentPlan, true);
+      toast('已重置 MCP 调用次数 MCP call count reset');
+      load();
+    } catch {
+      toast('重置失败 Reset failed', 'err');
+    } finally {
+      setBusy(p => ({ ...p, [username]: false }));
+    }
+  }
   async function remove(uid: string, username: string) {
     if (username === 'admin') {
       toast('无法删除系统管理员账号 Cannot delete admin', 'err');
@@ -91,8 +118,10 @@ export function UsersPage() {
             <tr>
               <th>用户名 Username</th>
               <th>租户 Tenant</th>
+              <th>套餐 Plan</th>
               <th>记忆数 Memories</th>
               <th>Token 用量</th>
+              <th>MCP 调用 MCP Calls</th>
               <th>状态 Status</th>
               <th>操作 Actions</th>
             </tr>
@@ -100,14 +129,14 @@ export function UsersPage() {
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--v6-fg-muted)' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--v6-fg-muted)' }}>
                   暂无数据 · No data yet
                 </td>
               </tr>
             ) : (
               users.map((u) => {
                 const active = isActive(u);
-                const isBusy = !!busy[u.user_id];
+                const isBusy = !!busy[u.user_id] || !!busy[u.username];
                 return (
                   <tr key={u.user_id}>
                     {/* Username + avatar */}
@@ -135,10 +164,35 @@ export function UsersPage() {
 
                     <td className="v6-font-mono" style={{ fontSize: 12 }}>{u.team_id}</td>
                     <td style={{ fontSize: 12 }}>
-                      <span style={{padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:600,background:(u as any).plan==="pro"?"rgba(16,185,129,.15)":(u as any).plan==="exempt"?"rgba(59,130,246,.15)":"var(--v6-bg-sunken)",color:(u as any).plan==="pro"?"#10b981":(u as any).plan==="exempt"?"#3b82f6":"var(--v6-fg-muted)"}}>{(u as any).plan||"free"}</span>
+                      <span style={{padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:600,background:u.plan==="pro"?"rgba(16,185,129,.15)":u.plan==="exempt"?"rgba(59,130,246,.15)":"var(--v6-bg-sunken)",color:u.plan==="pro"?"#10b981":u.plan==="exempt"?"#3b82f6":"var(--v6-fg-muted)"}}>{u.plan||"free"}</span>
                     </td>
                     <td className="v6-font-mono" style={{ fontSize: 12 }}>{u.memory_count?.toLocaleString() ?? 0}</td>
                     <td className="v6-font-mono" style={{ fontSize: 12 }}>{u.token_usage?.toLocaleString() ?? 0}</td>
+                    <td className="v6-font-mono" style={{ fontSize: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>
+                          {u.mcp_call_count ?? 0}
+                          {u.plan === 'exempt' || u.plan === 'pro' ? ' / ∞' : ' / 50'}
+                        </span>
+                        {((u.mcp_call_count ?? 0) > 0) && (
+                          <button
+                            className="v6-btn v6-btn--ghost v6-btn--xs"
+                            style={{
+                              padding: '1px 5px',
+                              fontSize: 10,
+                              lineHeight: 1.2,
+                              height: 'auto',
+                              borderColor: 'var(--v6-border)',
+                              color: 'var(--v6-fg-muted)'
+                            }}
+                            disabled={isBusy}
+                            onClick={() => handleResetMcp(u.username, u.plan || 'free')}
+                          >
+                            重置 Reset
+                          </button>
+                        )}
+                      </div>
+                    </td>
 
                     {/* Status — breathing dot */}
                     <td>
@@ -155,7 +209,7 @@ export function UsersPage() {
 
                     {/* Actions */}
                     <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <button
                           className={`v6-btn v6-btn--xs ${active ? 'v6-btn--danger' : 'v6-btn--primary'}`}
                           disabled={isBusy || u.username === 'admin'}
@@ -164,14 +218,46 @@ export function UsersPage() {
                           {isBusy ? '…' : active ? '暂停 Suspend' : '激活 Activate'}
                         </button>
                         {u.username !== 'admin' && (
-                          <button
-                            className="v6-btn v6-btn--ghost v6-btn--xs"
-                            style={{ color: 'var(--v6-danger)', borderColor: 'rgba(255,77,109,0.4)' }}
-                            disabled={isBusy}
-                            onClick={() => remove(u.user_id, u.username)}
-                          >
-                            {isBusy ? '…' : '删除 Delete'}
-                          </button>
+                          <>
+                            {u.plan !== 'exempt' && (
+                              <button
+                                className="v6-btn v6-btn--xs"
+                                style={{ borderColor: 'rgba(59,130,246,0.5)', color: '#3b82f6' }}
+                                disabled={isBusy}
+                                onClick={() => handlePlan(u.username, 'exempt')}
+                              >
+                                白名单 Exempt
+                              </button>
+                            )}
+                            {u.plan !== 'pro' && (
+                              <button
+                                className="v6-btn v6-btn--xs"
+                                style={{ borderColor: 'rgba(16,185,129,0.5)', color: '#10b981' }}
+                                disabled={isBusy}
+                                onClick={() => handlePlan(u.username, 'pro')}
+                              >
+                                专业版 Pro
+                              </button>
+                            )}
+                            {u.plan !== 'free' && (
+                              <button
+                                className="v6-btn v6-btn--xs"
+                                style={{ borderColor: 'rgba(156,163,175,0.5)', color: 'var(--v6-fg-muted)' }}
+                                disabled={isBusy}
+                                onClick={() => handlePlan(u.username, 'free')}
+                              >
+                                免费 Free
+                              </button>
+                            )}
+                            <button
+                              className="v6-btn v6-btn--ghost v6-btn--xs"
+                              style={{ color: 'var(--v6-danger)', borderColor: 'rgba(255,77,109,0.4)' }}
+                              disabled={isBusy}
+                              onClick={() => remove(u.user_id, u.username)}
+                            >
+                              {isBusy ? '…' : '删除 Delete'}
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

@@ -772,14 +772,19 @@ async def search_memory(
                 return out
         return []
 
-    # Phase 1: Team knowledge search
+    # Phase 1: Team knowledge search (overfetch to ensure we have enough results after filtering)
     results = await retrieval.search(
         query=req.query, embedding_fn=registry.embed_single,
         team_id=team_id, workspace_id=req.workspace_id,
-        top_k=req.top_k, use_rerank=req.use_rerank,
+        top_k=req.top_k * 3,
+        use_rerank=req.use_rerank,
         rerank_fn=registry.rerank if req.use_rerank and registry else None,
         use_graph=req.use_graph, min_confidence=req.min_confidence,
     ) or []
+
+    # Filter: remove other agents personal memories from team results BEFORE fusing/slicing
+    if agent_id and agent_id != "default":
+        results = [r for r in results if not r["payload"].get("agent_id") or r["payload"].get("agent_id") in ("", "default") or r["payload"].get("agent_id") == agent_id]
 
     # Phase 2: Personal memory search (if agent_id is set)
     if agent_id and agent_id != "default":
@@ -800,12 +805,11 @@ async def search_memory(
             else:
                 fused.append(results[ki]); ki += 1
         results = fused
+    else:
+        results = results[:req.top_k]
     
     # Enrich with PostgreSQL metadata if available
     memory_ids = [r["payload"].get("memory_id", r["id"]) for r in results]
-    # Filter: remove other agents personal memories from team results
-    if agent_id and agent_id != "default":
-        results = [r for r in results if not r["payload"].get("agent_id") or r["payload"].get("agent_id") in ("", "default") or r["payload"].get("agent_id") == agent_id]
     # Fetch PG metadata (always)
     pg_rows: dict = {}
     if pg_repo and memory_ids:

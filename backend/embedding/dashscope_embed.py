@@ -1,13 +1,23 @@
-import os
-# AI Memory OS — Alibaba Cloud Embedding Service (text-embedding-v3)
-# Uses DashScope API
-
+"""Alibaba Cloud Embedding Service — reads API key from admin-configured providers."""
 from __future__ import annotations
-
-import httpx
+import os, httpx
 
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
-API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
+
+def _get_api_key() -> str:
+    """Get DashScope API key from admin-configured provider, fallback to env."""
+    # 1. Try database (admin-configured providers)
+    try:
+        from backend.manager.registry import ModelRegistry
+        reg = ModelRegistry.get_instance()
+        if reg and hasattr(reg, 'configs'):
+            cfg = reg.configs.get('alibaba', {})
+            if hasattr(cfg, 'api_key') and cfg.api_key:
+                return cfg.api_key
+    except Exception:
+        pass
+    # 2. Fallback to env
+    return os.getenv("DASHSCOPE_API_KEY", "")
 
 
 class EmbeddingService:
@@ -21,8 +31,9 @@ class EmbeddingService:
         pass
 
     def encode(self, texts: list[str]) -> list[list[float]]:
+        api_key = _get_api_key()
         headers = {
-            "Authorization": f"Bearer {API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
         resp = httpx.post(
