@@ -1388,7 +1388,7 @@ function MyLLMPanel() {
             key={x.id}
             className="v6-provider-card"
             aria-current={p === x.id ? 'page' : undefined}
-            onClick={() => { setP(x.id); setK(''); }}
+            onClick={() => { setP(p === x.id ? '' : x.id); setK(''); }}
             type="button"
           >
             <div className="v6-provider-card__name">
@@ -1424,7 +1424,7 @@ function MyLLMPanel() {
             key={x.id}
             className="v6-provider-card"
             aria-current={p === x.id ? 'page' : undefined}
-            onClick={() => { setP(x.id); setK(''); }}
+            onClick={() => { setP(p === x.id ? '' : x.id); setK(''); }}
             type="button"
           >
             <div className="v6-provider-card__name">
@@ -1453,7 +1453,7 @@ function MyLLMPanel() {
       {prov && chatModels.length > 0 && (
         <>
           <div className="v6-section-label">
-            <span>{prov.nameZh} · models</span>
+            <span>{prov.nameZh} · models</span><button onClick={() => setP('')} style={{marginLeft:8,background:"none",border:"1px solid var(--v6-border)",borderRadius:4,color:"var(--v6-fg-muted)",cursor:"pointer",fontSize:11,padding:"1px 6px"}}>×</button>
             <span className="v6-section-label__count">
               {chatModels.filter((mm) => mm.free).length} free · {chatModels.length} total
             </span>
