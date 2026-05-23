@@ -6,10 +6,13 @@ DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
 
 def _get_api_key() -> str:
     """Get DashScope API key from admin-configured provider, fallback to env."""
-    # 1. Try database (admin-configured providers)
+    # 1. Reload registry from file (handles admin key changes without restart)
     try:
         from backend.manager.registry import ModelRegistry
         reg = ModelRegistry.get_instance()
+        # Force reload configs from disk to pick up admin changes
+        if hasattr(reg, '_load_configs'):
+            reg._load_configs()
         if reg and hasattr(reg, 'configs'):
             cfg = reg.configs.get('alibaba', {})
             if hasattr(cfg, 'api_key') and cfg.api_key:
