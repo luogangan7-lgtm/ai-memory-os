@@ -34,6 +34,9 @@ services:
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 64m
     volumes:
       - neo4j_data:/data
     healthcheck:
@@ -89,6 +92,8 @@ services:
       - MEMORY_OS_NEO4J_USER=neo4j
       - MEMORY_OS_NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
       - MEMORY_OS_USE_STANDALONE=false
+      MEMORY_OS_PG_POOL_MIN: 2
+      MEMORY_OS_PG_POOL_MAX: 5
       - ALLOW_REMOTE_ADMIN=true
       - CODEX_HOME=/app/config
       - MEMORY_OS_ACCOUNTS=/app/config/memory-os/accounts.json
