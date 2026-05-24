@@ -1065,7 +1065,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
         Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
   );
   const getServerUrl = () =>
-    window.location.hostname + (window.location.port ? ':' + window.location.port : ':8003');
+    window.location.origin;
   const [agent, setAgent] = useState<'cursor' | 'claude' | 'openclaw' | 'cline' | 'continue' | 'roo' | 'codex'>('cursor');
   const [copiedKey, setCopiedKey] = useState<string>('');
   const copy = async (key: string, text: string) => {
@@ -1102,13 +1102,13 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
   };
 
   const configs: Record<string, string> = {
-    cursor: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()], env: {} } } }, null, 2),
-    claude: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp'], env: { MOS_TOKEN: token, MOS_SERVER: 'http://' + getServerUrl() } } } }, null, 2),
-    openclaw: 'SSE endpoint: http://' + getServerUrl() + '/mcp?token=' + token,
-    cline: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()], disabled: false, autoApprove: ['memory_search', 'memory_list', 'memory_status'] } }, null, 2),
-    continue: JSON.stringify({ experimental: { modelContextProtocolServers: [{ transport: { type: 'stdio', command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()] } }] } }, null, 2),
-    roo: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=http://' + getServerUrl()], alwaysAllow: ['memory_search', 'memory_store'] } }, null, 2),
-    codex: '# ~/.codex/config.toml\n[[mcp_servers]]\nname = "ai-memory-os"\ncommand = "npx"\nargs = ["-y", "ai-memory-os-mcp", "--token=' + token + '", "--server=http://' + getServerUrl() + '"]',
+    cursor: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], env: {} } } }, null, 2),
+    claude: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp'], env: { MOS_TOKEN: token, MOS_SERVER: getServerUrl() } } } }, null, 2),
+    openclaw: 'SSE endpoint: ' + getServerUrl() + '/mcp?token=' + token,
+    cline: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], disabled: false, autoApprove: ['memory_search', 'memory_list', 'memory_status'] } }, null, 2),
+    continue: JSON.stringify({ experimental: { modelContextProtocolServers: [{ transport: { type: 'stdio', command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()] } }] } }, null, 2),
+    roo: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], alwaysAllow: ['memory_search', 'memory_store'] } }, null, 2),
+    codex: '# ~/.codex/config.toml\n[[mcp_servers]]\nname = "ai-memory-os"\ncommand = "npx"\nargs = ["-y", "ai-memory-os-mcp", "--token=' + token + '", "--server=' + getServerUrl() + '"]',
   };
 
   const FILE_PATHS: Record<string, string> = {
