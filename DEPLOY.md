@@ -239,3 +239,63 @@ The data volumes are unaffected. Only the code reverts.
 | Mermaid diagrams blank in UI | webui-dist asset hash mismatch — `git pull && docker compose up -d --build` |
 | MCP tools return "Canvas unavailable" | task_canvas schema drift — confirm with `docker exec ai-memory-os-postgres-1 psql -U memoryos -d memory_os -c "\d task_canvas"`; expect JSONB columns |
 | Provider API key disappears after restart | `MEMORY_OS_MASTER_KEY` was set to a different value than what encrypted the row originally; reset via UI |
+
+---
+
+## 8. System Upgrade (Zero Data Loss)
+
+### Principle
+
+**Code and data are separate.** Code lives in `~/cortex/`, data lives in Docker named volumes (`pg_data`, `qdrant_data`, `neo4j_data`, `minio_data`, `backend_config`). Upgrades replace code and rebuilt containers — volumes are **never** touched.
+
+### Pre-upgrade Checklist
+
+- [ ] Database backed up: `docker exec cortex-postgres-1 pg_dump -U memoryos -d memory_os > /tmp/backup_$(date +%Y%m%d_%H%M).sql`
+- [ ] `docker compose ps` — all 6 containers healthy
+- [ ] `docker compose config` — no YAML errors
+
+### Standard Upgrade
+
+```bash
+cd ~/cortex
+git pull
+docker compose --env-file .env up -d --build
+curl -s http://localhost:8003/health   # must return {"status":"ok"}
+```
+
+### When schema changes are needed
+
+```sql
+-- Run BEFORE rebuilding the backend
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS new_field text;
+```
+
+Never run destructive SQL (`DROP`, `TRUNCATE`, `DELETE`) during upgrade.
+
+### Rollback
+
+```bash
+git checkout <previous-commit>
+docker compose --env-file .env up -d --build
+# If data was modified, restore from backup:
+docker exec -i cortex-postgres-1 psql -U memoryos -d memory_os < /tmp/backup.sql
+```
+
+### Forbidden Operations
+
+| ❌ Never | Why |
+|----------|-----|
+| `docker compose down -v` | Destroys all volumes — irreversible data loss |
+| `DROP TABLE / DATABASE` | Data gone |
+| Manually edit user passwords, tokens, api_keys | Breaks user access; migration should be 1:1 |
+| Run upgrade without backup | If anything goes wrong, no recovery |
+
+### User Data Migration (Cross-Server)
+
+When moving to a new server, migrate data as a 1:1 copy:
+1. `pg_dump` from old server
+2. Filter for target users only
+3. `psql` import on new server
+4. Verify `count(*)` matches and key users' `password_hash` unchanged
+
+**Never modify user credentials during migration.**
