@@ -387,7 +387,7 @@ export function LoginOverlay() {
         alert("注册成功！请使用邮箱登录。");
         setMode("signin");
       } else {
-        const id = isUserApp ? email : "admin";
+        const id = email;
         if (!id || !password) {
           setLocalError("请输入完整凭据");
           setLoading(false);

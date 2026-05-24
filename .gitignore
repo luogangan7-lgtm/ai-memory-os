@@ -40,3 +40,9 @@ server_start.log
 settings.json
 .server.pid
 config/.env
+
+# Deployment
+*.pem
+gcp_test_key*
+cloudflared/
+deploy/

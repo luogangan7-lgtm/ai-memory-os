@@ -33,7 +33,7 @@ export function LoginOverlay() {
         setLocalError(null);
         alert("注册成功！请使用邮箱登录。验证码已发送至控制台。");
       } else {
-        const id = isUserApp ? email : "admin";
+        const id = isUserApp ? email : username;
         if (!id || !password) {
           setLocalError("请输入完整凭据");
           setLoading(false);
@@ -93,6 +93,23 @@ export function LoginOverlay() {
                   placeholder="mail@memory-os.com"
                   className="form-input"
                   autoComplete="email"
+                />
+              </div>
+            </div>
+          )}
+
+          {!isUserApp && (
+            <div className="form-group">
+              <label>Admin Identity (管理员账号)</label>
+              <div className="input-wrapper">
+                <span className="input-icon">👤</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin"
+                  className="form-input"
+                  autoComplete="off"
                 />
               </div>
             </div>
