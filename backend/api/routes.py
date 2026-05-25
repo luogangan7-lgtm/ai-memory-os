@@ -173,7 +173,7 @@ async def promote_to_knowledge(
     # Clear agent_id to make it team knowledge (visible to all)
     async with pg_repo.pool.acquire() as conn:
         await conn.execute(
-            "UPDATE memories SET team_id = 'public', agent_id = '', lifecycle_stage = 'longterm', "
+            "UPDATE memories SET team_id = 'public', agent_id = '', source_type = 'knowledge', lifecycle_stage = 'longterm', "
             "importance = GREATEST(importance, 0.8), updated_at = $2 WHERE id = $1",
             mid, datetime.now(timezone.utc)
         )
