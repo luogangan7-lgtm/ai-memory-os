@@ -660,8 +660,7 @@ function MemoryPanel() {
   const fetchPublic = useCallback(async()=>{
     setLoading(true);
     try{
-      const d = await api.get<any[]>("/memory/recent?limit=100");
-      const pub = d.filter((x:any)=>x.team_id==="public").map((x:any)=>({
+      const d = await api.get<any[]>("/memory/public");
         id:x.id, title:x.title||"无标题", content:x.content||"",
         category:x.category||"未分类", subcategory:x.subcategory||"", topic:x.topic||"",
         source_type:x.source_type||"knowledge", created_at:x.created_at||"",
@@ -684,7 +683,7 @@ function MemoryPanel() {
     try{
       if (query.trim() === '') {
         // Query recent memories
-        let url = '/memory/recent?limit=100';
+        let url = '/memory/public';
         if (activeCategory === '文档知识') {
           url += '&source_type=document';
         } else if (activeCategory === '整合知识') {

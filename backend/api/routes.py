@@ -244,6 +244,14 @@ async def list_recent_memories(
     rows = await pg_repo.list_recent(team_id, limit, filter, category, source_type)
     return rows
 
+@router.get("/memory/public")
+async def list_public_knowledge(limit: int = 100):
+    """Return public knowledge pool."""
+    if not pg_repo: raise HTTPException(503)
+    rows = await pg_repo.list_recent("public", limit, "all", None, "knowledge")
+    return rows
+
+
 
 
 @router.patch("/memory/{memory_id}")
