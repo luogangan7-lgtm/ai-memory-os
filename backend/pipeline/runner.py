@@ -15,6 +15,7 @@ def init(repo: MemoryRepo):
     import backend.pipeline.l1_extractor as l1; l1.init(repo)
     import backend.pipeline.l2_synthesizer as l2; l2.init(repo)
     import backend.pipeline.l3_persona as l3; l3.init(repo)
+    # l4 loaded on demand
 
 async def enqueue(team_id: str, session_id: str, messages: list[dict]) -> int | None:
     if _repo is None: return None
@@ -152,6 +153,10 @@ async def _process_one(row):
                                 await _repo.increment_pipeline_usage(team, 'L3', l3_tokens)
                                 
                         await asyncio.gather(run_l2(), run_l3(), return_exceptions=True)
+                        _l4_counter[team] = _l4_counter.get(team, 0) + 1
+                        if _l4_counter.get(team, 0) >= 3:
+                            _l4_counter[team] = 0
+                            asyncio.create_task(_do_l4(team))
             elif task_type == 'embedding_rebuild':
                 # Rebuild embeddings for memory ids
                 import json
@@ -189,6 +194,15 @@ async def _process_one(row):
 
 import time
 _last_zombie_check = 0
+
+
+_l4_counter = {}
+async def _do_l4(team_id):
+    try:
+        from backend.pipeline.l4_skills import crystallize_skills
+        await crystallize_skills(_repo, team_id)
+    except Exception as e:
+        print(f"[L4] Error: {e}")
 
 async def process_queue():
     """Background worker: parallel processing of pending tasks."""

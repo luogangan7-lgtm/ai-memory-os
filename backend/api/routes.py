@@ -1253,3 +1253,41 @@ async def get_user_audit_logs(
         await conn.close()
 
 
+
+# ── V7.0 L4 Skills API ────────────────────────────────────
+
+@router.get("/api/skills")
+async def list_skills(team_id: str = Depends(get_current_team), limit: int = 50):
+    """Get user's L4 crystallized skills."""
+    if not pg_repo: raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, skill_name, skill_content, trigger_pattern, usage_count, effectiveness, created_at FROM memory_skills WHERE team_id=$1 ORDER BY usage_count DESC LIMIT $2",
+            team_id, limit)
+    return {"skills": [dict(r) for r in rows]}
+
+@router.post("/api/skills/crystallize")
+async def trigger_crystallize(team_id: str = Depends(get_current_team)):
+    """Manually trigger L4 skill crystallization."""
+    from backend.pipeline.l4_skills import crystallize_skills
+    import asyncio
+    asyncio.create_task(crystallize_skills(pg_repo, team_id))
+    return {"message": "Crystallization started"}
+
+# ── V7.0 L4 Skills API ────────────────────────────────────
+
+@router.get("/api/skills")
+async def list_skills(team_id: str = Depends(get_current_team), limit: int = 50):
+    if not pg_repo: raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, skill_name, skill_content, trigger_pattern, usage_count, effectiveness, created_at FROM memory_skills WHERE team_id=$1 ORDER BY usage_count DESC LIMIT $2",
+            team_id, limit)
+    return {"skills": [dict(r) for r in rows]}
+
+@router.post("/api/skills/crystallize")
+async def trigger_crystallize(team_id: str = Depends(get_current_team)):
+    from backend.pipeline.l4_skills import crystallize_skills
+    import asyncio
+    asyncio.create_task(crystallize_skills(pg_repo, team_id))
+    return {"message": "Crystallization started"}
