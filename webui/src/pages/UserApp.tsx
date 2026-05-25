@@ -644,16 +644,39 @@ const SOURCE_LABELS: Record<string, string> = {
 function MemoryPanel() {
   const [memories, setMemories] = useState<UserMemory[]>([]);
   const [documents, setDocuments] = useState<UserDocument[]>([]);
-  const [subTab, setSubTab] = useState<'memories' | 'documents'>('memories');
+  const [subTab, setSubTab] = useState<'memories' | 'documents' | 'public'>('memories');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
+  const [publicCount, setPublicCount] = useState(0);
+
   const [activeCategory, setActiveCategory] = useState('全部');
   const [drawer, setDrawer] = useState<any>(null);  // null | { id, title, content, chunk_count, category, source_type, created_at }
   const [drawerChunks, setDrawerChunks] = useState<any[]>([]);
 
   const categories = ['全部', '文档知识', '整合知识', '工程技术', '个人记忆', '自然科学', '社会科学', '其他'];
+
+  const fetchPublic = useCallback(async()=>{
+    setLoading(true);
+    try{
+      const d = await api.get<any[]>("/memory/recent?limit=100");
+      const pub = d.filter((x:any)=>x.team_id==="public").map((x:any)=>({
+        id:x.id, title:x.title||"无标题", content:x.content||"",
+        category:x.category||"未分类", subcategory:x.subcategory||"", topic:x.topic||"",
+        source_type:x.source_type||"knowledge", created_at:x.created_at||"",
+      }));
+      setMemories(pub);
+      setPublicCount(pub.length);
+      setDocuments([]);
+    }catch(e){
+      console.error(e);
+      setMemories([]);
+      setPublicCount(0);
+    }finally{
+      setLoading(false);
+    }
+  },[loading]);
 
   const fetchMemories = useCallback(async()=>{
     if(loading)return;
@@ -726,9 +749,9 @@ function MemoryPanel() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{
-    fetchMemories();
-    fetchDocuments();
-  },[fetchMemories, fetchDocuments]);
+    if (subTab === 'public') fetchPublic();
+    else { fetchMemories(); fetchDocuments(); }
+  },[fetchMemories, fetchDocuments, fetchPublic, subTab]);
 
   // Esc to close drawer
   useEffect(() => {
@@ -840,7 +863,7 @@ function MemoryPanel() {
     <div className="v6-card">
       <div className="v6-card__head">
         <div className="v6-card__title">
-          {subTab === 'memories' ? '知识库 Memories' : '文档库 Files'}
+          {subTab === 'public' ? '公共知识 Public' : subTab === 'memories' ? '知识库 Memories' : '文档库 Files'}
           <span className="v6-card__title-hint">
             {subTab === 'memories' ? `${filteredMemories.length} 条` : `${documents.length} 份`}
           </span>
@@ -859,6 +882,13 @@ function MemoryPanel() {
             onClick={() => setSubTab('documents')}
           >
             Files
+          </button>
+          <button
+            className="v6-subtab"
+            aria-current={subTab === 'public' ? 'page' : undefined}
+            onClick={() => setSubTab('public')}
+          >
+            Public · {publicCount}
           </button>
         </div>
       </div>
