@@ -66,7 +66,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                 
                 for old_id, _, _ in items:
                     await conn.execute(
-                        "UPDATE memories SET importance = importance * 0.3, metadata = metadata || jsonb_build_object('merged_into', $1) WHERE id = $2",
+                        "UPDATE memories SET importance = importance * 0.3, metadata = metadata || jsonb_build_object('merged_into', $1::text) WHERE id = $2",
                         mid, old_id)
                 
                 merged += 1
