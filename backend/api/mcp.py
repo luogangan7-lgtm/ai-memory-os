@@ -143,7 +143,7 @@ async def mcp_post_handler(
                 "tools": [
                     {
                         "name": "memory_search",
-                        "description": "Perform dynamic, hybrid dense-sparse vector and graph searches for relevant long-term memories and knowledge.",
+                        "description": "Semantic search across all memory layers. Supports time range (since/until), layer filter (L1-L4), and source type filter.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -162,6 +162,11 @@ async def mcp_post_handler(
                                     "default": 3
                                 }
                             },
+                            "limit": {"type": "integer", "description": "Max results", "default": 5},
+                                "since": {"type": "string", "description": "Start date ISO format, e.g. 2026-03-01"},
+                                "until": {"type": "string", "description": "End date ISO format, e.g. 2026-04-30"},
+                                "layer": {"type": "string", "enum": ["L1","L2","L3","L4"], "description": "Memory layer filter"},
+                                "source_type": {"type": "string", "description": "Source filter: human/agent/document"},
                             "required": ["query"]
                         }
                     },

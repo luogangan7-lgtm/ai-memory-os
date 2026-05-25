@@ -26,6 +26,12 @@ async def _get_redis():
         return None
 
 
+@router.get("")
+@router.get("/")
+async def persona_root(current_team: str = Depends(get_current_team)):
+    """Redirect to default persona."""
+    return await get_persona_default(current_team)
+
 @router.get("/default")
 async def get_persona_default(current_team: str = Depends(get_current_team)):
     cache_key = f"persona:{current_team}"

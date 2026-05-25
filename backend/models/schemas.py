@@ -107,6 +107,10 @@ class MemorySearchRequest(BaseModel):
     memory_type: Optional[str] = None
     top_k: int = Field(default=10, ge=1, le=100)
     use_rerank: bool = True
+    source_type: Optional[str] = None
+    layer: Optional[str] = None
+    since: Optional[str] = None
+    until: Optional[str] = None
     use_graph: bool = False
     min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 

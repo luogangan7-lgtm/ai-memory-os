@@ -622,7 +622,7 @@ async def store_memory(
             pass
 
     # Set pending_pipeline flag if human/chat memory and no LLM config
-    if (req.source_type == "human" or req.memory_type == "chat") and not has_llm:
+    if (req.source_type in ("human", "document") or req.memory_type in ("chat", "document")) and not has_llm:
         if req.metadata is None:
             req.metadata = {}
         req.metadata["pending_pipeline"] = True
@@ -701,7 +701,7 @@ async def store_memory(
     if pg_repo: await pg_repo.audit(memory_id, final_agent_id, "store", {"title": req.title}, team_id=team_id)
 
     # Trigger L1-L3 memory extraction pipeline for raw user chats
-    if (req.source_type == "human" or req.memory_type == "chat") and has_llm:
+    if (req.source_type in ("human", "document") or req.memory_type in ("chat", "document")) and has_llm:
         try:
             from backend.pipeline.runner import enqueue as enqueue_pipeline
             import asyncio
@@ -811,7 +811,29 @@ async def search_memory(
             else:
                 fused.append(results[ki]); ki += 1
         results = fused
-    else:
+    # V7: 时间范围过滤
+    if req.since or req.until:
+        from datetime import datetime, timezone as tz
+        def parse_dt(s): return datetime.fromisoformat(s).replace(tzinfo=tz.utc) if s else None
+        since_dt = parse_dt(req.since) if req.since else None
+        until_dt = parse_dt(req.until) if req.until else None
+        filtered = []
+        for r in results:
+            created = r.get("payload",{}).get("created_at") or r.get("memory",{}).get("created_at")
+            if isinstance(created, str):
+                try: created = datetime.fromisoformat(created.replace("Z","+00:00"))
+                except: filtered.append(r); continue
+            if since_dt and created and created < since_dt: continue
+            if until_dt and created and created > until_dt: continue
+            filtered.append(r)
+        results = filtered
+    # V7: Layer 过滤
+    if req.layer:
+        results = [r for r in results if (r.get("payload",{}).get("layer") or r.get("memory",{}).get("lifecycle_stage")) == req.layer]
+    # V7: Source 过滤
+    if req.source_type:
+        results = [r for r in results if (r.get("payload",{}).get("source_type") or r.get("memory",{}).get("source_type")) == req.source_type]
+
         results = results[:req.top_k]
     
     # Enrich with PostgreSQL metadata if available
