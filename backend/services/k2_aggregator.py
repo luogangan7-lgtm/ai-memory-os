@@ -1,7 +1,7 @@
 """K2 Knowledge Aggregator — merges related public knowledge via LLM semantic grouping."""
 from __future__ import annotations
 from backend.memory.pg_repo import MemoryRepo
-from backend.pipeline.llm_client import call_llm
+from backend.manager.registry import ModelRegistry
 import json, re
 
 async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
@@ -21,7 +21,8 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
             title_list = "\n".join(titles)
             group_prompt = 'Group these titles by topic similarity. Return ONLY JSON: {"groups": [[0,3], [1,2,5], ...]}. Only groups of 2+. Skip unrelated.\n\n' + title_list
             
-            result, _ = await call_llm(group_prompt, "public", "classifier")
+            registry = ModelRegistry.get_instance()
+            result = await registry.chat_for_engine("classifier", [{"role": "user", "content": group_prompt}])
             if not result:
                 return 0
             
@@ -47,7 +48,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                 pieces = "\n---\n".join(f"## {t}\n{c[:500]}" for _, t, c in items)
                 merge_prompt = "Merge these related knowledge entries into ONE article. Keep all facts, remove duplicates:\n\n" + pieces
                 
-                merged_text, _ = await call_llm(merge_prompt, "public", "reflection")
+                merged_text = await registry.chat_for_engine("reflection", [{"role": "user", "content": merge_prompt}])
                 if not merged_text:
                     continue
                 
