@@ -35,7 +35,7 @@ async def rate_limit_middleware(request, call_next):
     is_write = request.method in ("POST", "PUT", "DELETE", "PATCH")
     limit = limit_write if is_write else limit_read
     
-    host = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    host = request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
     key = f"{host}:{'write' if is_write else 'read'}"
     
     try:
