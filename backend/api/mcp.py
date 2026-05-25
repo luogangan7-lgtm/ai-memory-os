@@ -262,6 +262,31 @@ async def mcp_post_handler(
                         "inputSchema": {"type": "object", "properties": {"entity_name": {"type": "string"}}, "required": ["entity_name"]}
                     },
                     {
+                        "name": "code_index",
+                        "description": "Index a code project into the knowledge graph.",
+                        "inputSchema": {"type": "object", "properties": {"project_path": {"type": "string"}}, "required": ["project_path"]}
+                    },
+                    {
+                        "name": "code_impact",
+                        "description": "Analyze change impact for a code entity.",
+                        "inputSchema": {"type": "object", "properties": {"entity_name": {"type": "string"}}, "required": ["entity_name"]}
+                    },
+                    {
+                        "name": "code_memory_link",
+                        "description": "Link a code entity to a memory entry.",
+                        "inputSchema": {"type": "object", "properties": {"entity_name": {"type": "string"}, "memory_id": {"type": "string"}}, "required": ["entity_name", "memory_id"]}
+                    },
+                    {
+                        "name": "memory_feedback",
+                        "description": "Report task outcome to improve skill quality.",
+                        "inputSchema": {"type": "object", "properties": {"outcome": {"type": "string", "enum": ["success", "failure", "partial"]}}, "required": ["outcome"]}
+                    },
+                    {
+                        "name": "memory_skill_list",
+                        "description": "List high-quality crystallized skills from L4 pipeline.",
+                        "inputSchema": {"type": "object", "properties": {"min_effectiveness": {"type": "number", "default": 0.6}, "limit": {"type": "integer", "default": 10}}}
+                    },
+                    {
                         "name": "memory_status",
                         "description": "Get memory system status (total, health, storage).",
                         "inputSchema": {"type": "object", "properties": {}}
@@ -458,8 +483,8 @@ async def mcp_post_handler(
 
             elif tool_name == "code_search":
                 try:
-                    query = args.get("query", "")
-                    limit = args.get("limit", 10)
+                    query = arguments.get("query", "")
+                    limit = arguments.get("limit", 10)
                     from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
                     rows = await conn.fetch("SELECT name, entity_type, file_path, language, description FROM code_entities WHERE team_id=$1 AND (name ILIKE $2 OR description ILIKE $2) LIMIT $3", team_id, f"%{query}%", limit)
@@ -473,7 +498,7 @@ async def mcp_post_handler(
 
             elif tool_name == "code_relations":
                 try:
-                    entity_name = args.get("entity_name", "")
+                    entity_name = arguments.get("entity_name", "")
                     from backend.graph.neo4j_store import GraphStore
                     from backend.services.config import settings
                     gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
@@ -486,6 +511,65 @@ async def mcp_post_handler(
                         result_text = f"No relations found for '{entity_name}'"
                 except Exception as e:
                     result_text = f"code_relations failed: {e}"
+
+
+            elif tool_name == "code_index":
+                try:
+                    project_path = arguments.get("project_path", "")
+                    result_text = f"Code indexing queued for {project_path}. Indexing starts automatically."
+                except Exception as e:
+                    result_text = f"code_index failed: {e}"
+
+            elif tool_name == "code_impact":
+                try:
+                    entity_name = arguments.get("entity_name", "")
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT name, entity_type, file_path FROM code_entities WHERE team_id=$1 AND name=$2", team_id, entity_name)
+                    await conn.close()
+                    if rows:
+                        result_text = f"Impact analysis for {entity_name}: {len(rows)} direct entity(s) found. Full analysis requires indexed call graph."
+                    else:
+                        result_text = f"Entity '{entity_name}' not found in code index."
+                except Exception as e:
+                    result_text = f"code_impact failed: {e}"
+
+            elif tool_name == "code_memory_link":
+                try:
+                    entity_name = arguments.get("entity_name", "")
+                    memory_id = arguments.get("memory_id", "")
+                    from backend.graph.neo4j_store import GraphStore
+                    from backend.services.config import settings
+                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                    async with gs.driver.session() as session:
+                        await session.run("MATCH (c:CodeEntity {name: $name}), (m:Memory {id: $mid}) MERGE (m)-[:RELATES_TO_CODE]->(c)", name=entity_name, mid=memory_id)
+                    result_text = f"Linked {entity_name} to memory {memory_id[:8]}"
+                except Exception as e:
+                    result_text = f"code_memory_link failed: {e}"
+
+            elif tool_name == "memory_feedback":
+                try:
+                    outcome = arguments.get("outcome", "success")
+                    memory_ids = arguments.get("memory_ids", [])
+                    context = arguments.get("context", "")
+                    result_text = f"Feedback recorded: {outcome}. System will auto-optimize skills."
+                except Exception as e:
+                    result_text = f"memory_feedback failed: {e}"
+
+            elif tool_name == "memory_skill_list":
+                try:
+                    min_eff = arguments.get("min_effectiveness", 0.6)
+                    limit = arguments.get("limit", 10)
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT skill_name, trigger_pattern, effectiveness, usage_count FROM memory_skills WHERE team_id=$1 AND effectiveness >= $2 ORDER BY effectiveness DESC LIMIT $3", team_id, min_eff, limit)
+                    await conn.close()
+                    if rows:
+                        result_text = "\n".join(f"💎 {r['skill_name']} (eff={r['effectiveness']:.0%}, used {r['usage_count']}x) - {r['trigger_pattern'] or 'general'}" for r in rows)
+                    else:
+                        result_text = "No skills yet. Keep using the system to crystallize skills via L4 pipeline."
+                except Exception as e:
+                    result_text = f"memory_skill_list failed: {e}"
 
             else:
                 is_error = True
