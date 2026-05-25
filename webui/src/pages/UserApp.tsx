@@ -679,7 +679,6 @@ function MemoryPanel() {
   },[loading]);
 
   const fetchMemories = useCallback(async()=>{
-    if(loading)return;
     setLoading(true);
     try{
       if (query.trim() === '') {
