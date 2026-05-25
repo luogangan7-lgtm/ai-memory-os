@@ -839,7 +839,13 @@ async def configure_providers(data: dict):
     engine_data = reg.load_llm_engine_config()
     for c in configs:
         if c["purpose"] in ["classifier", "reflection"]:
-            engine_data[c["purpose"]] = {"provider": c["provider"], "model": c["model"]}
+            prov_cfg = reg.configs.get(c["provider"])
+            engine_data[c["purpose"]] = {
+                "provider": c["provider"],
+                "model": c["model"],
+                "api_key": prov_cfg.api_key if prov_cfg and prov_cfg.api_key else "",
+                "base_url": prov_cfg.api_base if prov_cfg and prov_cfg.api_base else ""
+            }
             
     reg.save_llm_engine_config(engine_data)
     
