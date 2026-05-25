@@ -47,6 +47,9 @@ class InternalizationService:
         try:
             for r in rows:
                 mid, content, importance = r["id"], r["content"], r["importance"]
+                if importance is None: importance = 0.5
+                content = content or ""
+
                 
                 # 2. Quality & Redundancy Check
                 min_len = int(settings.internalize_min_content_length)
