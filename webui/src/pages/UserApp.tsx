@@ -683,7 +683,7 @@ function MemoryPanel() {
     try{
       if (query.trim() === '') {
         // Query recent memories
-        let url = '/memory/public';
+        let url = '/memory/recent?limit=100';
         if (activeCategory === '文档知识') {
           url += '&source_type=document';
         } else if (activeCategory === '整合知识') {
