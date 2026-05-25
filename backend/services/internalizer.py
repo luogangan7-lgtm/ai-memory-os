@@ -117,10 +117,13 @@ class InternalizationService:
                             UPDATE memories 
                             SET source_type = 'knowledge',
                                 team_id = 'public',
-                                importance = $2,
+                                category = $3,
+                                subcategory = $4,
+                                topic = $5,
+                                importance = $6,
                                 metadata = metadata || '{"internalized": true, "internalized_at": "now"}'
                             WHERE id = $1
-                        """, mid, new_importance)
+                        """, mid, new_importance, category, subcategory or "", topic or "")
 
                     promoted_count += 1
                 else:
