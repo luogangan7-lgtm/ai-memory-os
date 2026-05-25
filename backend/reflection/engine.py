@@ -100,7 +100,7 @@ class ReflectionEngine:
         if not self.graph: return 0
         async with self.pg.pool.acquire() as conn:
             # Simple logic: if has > 0 relations in graph, importance += 0.1
-            rows = await conn.fetch("SELECT id FROM memories WHERE team_id=$1 AND importance < 0.9", team_id)
+            rows = await conn.fetch("SELECT id FROM memories WHERE team_id=$1 AND COALESCE(importance, 0.5) < 0.9", team_id)
             for r in rows:
                 # This is a placeholder for a more complex graph query
                 await conn.execute("UPDATE memories SET importance=importance+0.05 WHERE id=$1", r["id"])
@@ -114,7 +114,7 @@ class ReflectionEngine:
             # Promote high importance + high access to 'knowledge' source_type
             res = await conn.execute(
                 "UPDATE memories SET source_type='knowledge', updated_at=$1 "
-                "WHERE team_id=$2 AND importance > 0.8 AND access_count > 5 AND (source_type IS NULL OR source_type != 'knowledge')",
+                "WHERE team_id=$2 AND COALESCE(importance, 0.5) > 0.7 AND access_count > 5 AND (source_type IS NULL OR source_type != 'knowledge')",
                 datetime.now(timezone.utc), team_id
             )
             if "UPDATE" in res: n = int(res.split(" ")[1])
