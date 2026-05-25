@@ -865,7 +865,7 @@ function MemoryPanel() {
         <div className="v6-card__title">
           {subTab === 'public' ? '公共知识 Public' : subTab === 'memories' ? '知识库 Memories' : '文档库 Files'}
           <span className="v6-card__title-hint">
-            {subTab === 'memories' ? `${filteredMemories.length} 条` : `${documents.length} 份`}
+            {subTab === 'public' ? `${memories.length} 条` : subTab === 'memories' ? `${filteredMemories.length} 条` : `${documents.length} 份`}
           </span>
         </div>
         <div className="v6-subtabs" role="tablist">
