@@ -29,7 +29,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                     pieces.append(f"## {t}\n{c[:500]}")
                 prompt = "Merge the following related knowledge entries into ONE comprehensive article. Keep all key facts, remove redundancy, organize logically:\n\n" + "\n---\n".join(pieces)
                 
-                result, tokens = await call_llm(prompt, "public", "reflection", max_tokens=2000)
+                result, tokens = await call_llm(prompt, "public", "reflection")
                 if not result:
                     continue
                 
