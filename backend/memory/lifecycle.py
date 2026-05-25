@@ -19,28 +19,28 @@ class LifecycleStage(StrEnum):
 TRANSITION_RULES = {
     LifecycleStage.RECENT: {
         LifecycleStage.WORKING: lambda m: (
-            m.get("access_count", 0) >= 3
-            or m.get("importance", 0) >= 0.6
+            (m.get("access_count") or 0) >= 3
+            or (m.get("importance") or 0) >= 0.6
         ),
     },
     LifecycleStage.WORKING: {
         LifecycleStage.LONGTERM: lambda m: (
-            m.get("access_count", 0) >= 10
-            or m.get("importance", 0) >= 0.8
+            (m.get("access_count") or 0) >= 10
+            or (m.get("importance") or 0) >= 0.8
         ),
         LifecycleStage.RECENT: lambda m: (
             m.get("freshness", 1.0) < 0.2
-            and m.get("importance", 0) < 0.5
+            and (m.get("importance") or 0) < 0.5
         ),
     },
     LifecycleStage.LONGTERM: {
         LifecycleStage.CORE: lambda m: (
-            m.get("confidence", 0) >= 0.9
-            and m.get("importance", 0) >= 0.9
+            m.get("confidence") or 0 >= 0.9
+            and (m.get("importance") or 0) >= 0.9
         ),
         LifecycleStage.WORKING: lambda m: (
             m.get("freshness", 1.0) < 0.1
-            and m.get("access_count", 0) < 5
+            and (m.get("access_count") or 0) < 5
         ),
     },
 }
