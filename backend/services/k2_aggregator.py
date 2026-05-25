@@ -59,7 +59,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                 merged_title = merged_text.split("\n")[0][:100]
                 await conn.execute("""
                     INSERT INTO memories (id, team_id, title, content, source_type, lifecycle_stage, topic, importance, category)
-                    VALUES ($1, 'public', $2, $3, 'knowledge', 'longterm', 'merged', 0.9, 'knowledge')
+                    VALUES ($1::uuid, 'public', $2, $3, 'knowledge', 'longterm', 'merged', 0.9, 'knowledge')
                 """, mid, merged_title[:100], merged_text[:5000])
                 
                 for old_id, _, _ in items:
