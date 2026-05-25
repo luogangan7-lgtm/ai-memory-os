@@ -28,7 +28,7 @@ class InternalizationService:
             cursor = await db_conn.execute("""
                 SELECT id, title, content, category, importance, metadata 
                 FROM memories 
-                WHERE source_type = 'agent' 
+                WHERE source_type IN ('agent', 'human', 'document') 
                 AND (json_extract(metadata, '$.internalized') IS NOT TRUE)
                 LIMIT 50
             """)
@@ -38,7 +38,7 @@ class InternalizationService:
             rows = await pool_conn.fetch("""
                 SELECT id, title, content, category, importance, metadata 
                 FROM memories 
-                WHERE source_type = 'agent' 
+                WHERE source_type IN ('agent', 'human', 'document') 
                 AND (metadata->>'internalized')::boolean IS NOT TRUE
                 LIMIT 50
             """)
@@ -56,7 +56,7 @@ class InternalizationService:
                 if not self.retrieval or not self.registry:
                     # If pipelines are missing (e.g. during simple reflection), skip deeper checks
                     is_redundant = False
-                    is_valuable = importance > 0.7
+                    is_valuable = importance > 0.7 and len(content) > 200
                 else:
                     # Search existing public knowledge
                     results = await self.retrieval.search(
@@ -67,7 +67,7 @@ class InternalizationService:
                         top_k=3
                     )
                     is_redundant = any(res["score"] > settings.internalize_similarity_threshold for res in results)
-                    is_valuable = importance > 0.5 or len(content) > 300
+                    is_valuable = importance > 0.7 and len(content) > 200
                 
                 if not is_redundant and is_valuable:
                     # 4. Promote to Knowledge with a small importance boost

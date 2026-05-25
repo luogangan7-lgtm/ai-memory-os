@@ -1,3 +1,5 @@
+import logging
+
 import asyncio, httpx, os
 from datetime import datetime, timezone
 from typing import Any
@@ -11,6 +13,8 @@ class ReflectionEngine:
         self.retrieval = retrieval
 
     async def reflect_all(self, team_id="default"):
+        import logging
+        logging.getLogger("reflection").info("Cycle start: %s", team_id)
         rpt = {"stage_transitions":0,"freshness_updated":0,"duplicates_found":0,"summaries":0,"relations_found":0}
         rpt["stage_transitions"] = await self._auto_transition(team_id)
         rpt["freshness_updated"] = await self._decay_freshness(team_id)
@@ -25,8 +29,12 @@ class ReflectionEngine:
         rpt["crossref_boosted"] = await self._verify_crossref(team_id)
         rpt["auto_promoted"] = await self._auto_promote(team_id)
         rpt["relations_found"] = await self._discover_relations(team_id)
+        # K2: aggregate public knowledge
+        from backend.services.k2_aggregator import aggregate_public_knowledge
+        rpt["knowledge_merged"] = await aggregate_public_knowledge(self.pg)
         rpt["duplicates_found"] = await self._dedup(team_id)
         return rpt
+        logging.getLogger("reflection").info("Cycle done: %s", str(rpt))
 
     async def _auto_transition(self, team_id):
         n=0
@@ -114,6 +122,7 @@ class ReflectionEngine:
 
 
     async def _discover_relations(self, team_id):
+        logging.getLogger("reflection").info("Relations discovery start: %s", team_id)
         n=0
         async with self.pg.pool.acquire() as conn:
             # DB-level join: find pairs with same topic
@@ -125,9 +134,13 @@ class ReflectionEngine:
             for r in rows:
                 if self.graph:
                     try:
+                        # Ensure nodes exist before creating relation
+                        await self.graph.create_memory_node(r["id_a"], "","","")
+                        await self.graph.create_memory_node(r["id_b"], "","","")
                         await self.graph.create_relation(r["id_a"], r["id_b"], "same_topic", 0.7)
                         n += 1
                     except: pass
+                    import traceback; logging.getLogger("reflection").warning("Relation failed: %s", traceback.format_exc())
         return n
 
     async def _dedup(self, team_id):
