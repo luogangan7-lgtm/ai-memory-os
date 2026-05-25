@@ -11,11 +11,12 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
         async with repo.pool.acquire() as conn:
             # Find topics with 2+ public knowledge entries
             rows = await conn.fetch("""
-                SELECT topic, array_agg(id) as ids, array_agg(content) as contents,
+                SELECT COALESCE(topic, category) as topic, array_agg(id) as ids, 
+                       array_agg(content) as contents,
                        array_agg(title) as titles, count(*) as cnt
                 FROM memories 
-                WHERE team_id = 'public' AND topic IS NOT NULL
-                GROUP BY topic HAVING count(*) >= 2
+                WHERE team_id = 'public'
+                GROUP BY COALESCE(topic, category) HAVING count(*) >= 2
                 ORDER BY cnt DESC LIMIT 20
             """)
             
