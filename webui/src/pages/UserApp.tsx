@@ -660,7 +660,8 @@ function MemoryPanel() {
   const fetchPublic = useCallback(async()=>{
     setLoading(true);
     try{
-      const d = await api.get<any[]>("/memory/public");
+      const d = await api.get<any[]>("/memory/recent?limit=100&team_id=public&source_type=knowledge");
+      const pub = d.map((x:any)=>({
         id:x.id, title:x.title||"无标题", content:x.content||"",
         category:x.category||"未分类", subcategory:x.subcategory||"", topic:x.topic||"",
         source_type:x.source_type||"knowledge", created_at:x.created_at||"",
