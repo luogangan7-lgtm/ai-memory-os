@@ -133,6 +133,35 @@ class InternalizationService:
                             WHERE id = $1
                         """, mid, new_importance, category, subcategory or "", topic or "")
 
+                    # Re-index vector into public Qdrant collection
+                    if self.retrieval and hasattr(self.retrieval, 'qdrant'):
+                        try:
+                            # Copy vector from source to public collection
+                            from backend.memory.qdrant_store import QdrantStore
+                            qs = self.retrieval.qdrant
+                            source_col = f"memory_team_{team_id}"
+                            # Get existing points from user collection
+                            points = qs.client.scroll(
+                                collection_name=source_col,
+                                scroll_filter={"must": [{"key": "memory_id", "match": {"value": mid}}]},
+                                limit=1
+                            )[0]
+                            if points:
+                                # Re-ingest into public collection
+                                payload = points[0].payload
+                                vector = points[0].vector
+                                qs._ensure_collection("memory_team_public")
+                                qs.client.upsert(
+                                    collection_name="memory_team_public",
+                                    points=[{
+                                        "id": mid,
+                                        "vector": vector,
+                                        "payload": payload
+                                    }]
+                                )
+                        except Exception as e:
+                            logging.warning(f"Failed to re-index public vector for {mid}: {e}")
+
                     promoted_count += 1
                 else:
                     # Mark as evaluated but not promoted
