@@ -2,6 +2,28 @@
 # Automatically evaluates if personal memories should be promoted to Common Knowledge.
 
 from __future__ import annotations
+import re
+_SECRET_PATTERNS = [
+    r"sk-[a-zA-Z0-9]{20,}",
+    r"bearer [a-zA-Z0-9_\-\.]{20,}",
+    r"[a-f0-9]{32}",
+    r"api[ _]?key[:\s]*[a-zA-Z0-9_\-]{10,}",
+    r"api[ _]?token[:\s]*[a-zA-Z0-9_\-]{10,}",
+    r"password[:\s]*\S{6,}",
+    r"secret[:\s]*\S{6,}",
+    r"token[:\s]*[a-zA-Z0-9_\-\.]{20,}",
+    r"cfat_[a-zA-Z0-9_\-]{20,}",
+    r"mos_[a-f0-9]{16,}",
+]
+
+def _contains_secrets(text):
+    if not text: return False
+    for pattern in _SECRET_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
+
+
 import logging
 import json
 from datetime import datetime, timezone
@@ -47,6 +69,9 @@ class InternalizationService:
         try:
             for r in rows:
                 mid, content, importance = r["id"], r["content"], r["importance"]
+                content = content or ""
+                if importance is None: importance = 0.5
+                if _contains_secrets(content) or _contains_secrets(r.get("title", "")): continue
                 if importance is None: importance = 0.5
                 content = content or ""
 
@@ -59,7 +84,7 @@ class InternalizationService:
                 if not self.retrieval or not self.registry:
                     # If pipelines are missing (e.g. during simple reflection), skip deeper checks
                     is_redundant = False
-                    is_valuable = importance > 0.7 and len(content) > 200
+                    is_valuable = importance > 0.7 and len(content) > 200 and len(content) > 200
                 else:
                     # Search existing public knowledge
                     results = await self.retrieval.search(
@@ -70,7 +95,7 @@ class InternalizationService:
                         top_k=3
                     )
                     is_redundant = any(res["score"] > settings.internalize_similarity_threshold for res in results)
-                    is_valuable = importance > 0.7 and len(content) > 200
+                    is_valuable = importance > 0.7 and len(content) > 200 and len(content) > 200
                 
                 if not is_redundant and is_valuable:
                     # 4. Promote to Knowledge with a small importance boost
