@@ -92,7 +92,7 @@ class InternalizationService:
                 if not self.retrieval or not self.registry:
                     # If pipelines are missing (e.g. during simple reflection), skip deeper checks
                     is_redundant = False
-                    is_valuable = importance > 0.7 and len(content) > 200 and len(content) > 200
+                    is_valuable = importance > 0.5 and len(content) > 100
                 else:
                     # Search existing public knowledge
                     results = await self.retrieval.search(
@@ -103,7 +103,7 @@ class InternalizationService:
                         top_k=3
                     )
                     is_redundant = any(res["score"] > settings.internalize_similarity_threshold for res in results)
-                    is_valuable = importance > 0.7 and len(content) > 200 and len(content) > 200
+                    is_valuable = importance > 0.5 and len(content) > 100
                 
                 if not is_redundant and is_valuable:
                     # 4. Promote to Knowledge with a small importance boost
