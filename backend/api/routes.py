@@ -796,7 +796,7 @@ async def search_memory(
     if agent_id and agent_id != "default":
         personal = await retrieval.search(
             query=req.query, embedding_fn=registry.embed_single,
-            team_id=team_id, workspace_id=agent_id,
+            team_id=team_id, workspace_id="default",
             top_k=min(req.top_k, 5), use_rerank=req.use_rerank,
             rerank_fn=registry.rerank if req.use_rerank and registry else None,
             min_confidence=req.min_confidence,
