@@ -16,6 +16,11 @@ _SECRET_PATTERNS = [
     r"mos_[a-f0-9]{16,}",
     r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
     r"@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+    r"1[3-9]\\d{9}",                      # Chinese mobile
+    r"\\d{15,18}",                        # ID card
+    r"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",  # IP
+    r"地址|电话|手机|姓名",                 # personal info markers
+    r"微信|QQ|wechat",                     # social contact
 
 ]
 
