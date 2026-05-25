@@ -238,10 +238,12 @@ async def list_recent_memories(
     filter: str = "all",
     category: str = None,
     source_type: str = None,
+    filter_team_id: str = None,
 ):
-    """List recent memories with optional filtering."""
+    """List recent memories with optional team override."""
     if not pg_repo: raise HTTPException(503)
-    rows = await pg_repo.list_recent(team_id, limit, filter, category, source_type)
+    effective_team = filter_team_id or team_id
+    rows = await pg_repo.list_recent(effective_team, limit, filter, category, source_type)
     return rows
 
 
