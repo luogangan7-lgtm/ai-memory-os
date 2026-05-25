@@ -11,7 +11,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
             all_rows = await conn.fetch("""
                 SELECT id, title, content FROM memories 
                 WHERE team_id = 'public' AND topic != 'merged'
-                ORDER BY created_at DESC LIMIT 50
+                ORDER BY created_at DESC LIMIT 20
             """)
             if len(all_rows) < 2:
                 return 0
@@ -22,7 +22,9 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
             group_prompt = 'Group these titles by topic similarity. Return ONLY JSON: {"groups": [[0,3], [1,2,5], ...]}. Only groups of 2+. Skip unrelated.\n\n' + title_list
             
             registry = ModelRegistry.get_instance()
+            print(f"[K2] Phase 1: sending {len(all_rows)} titles to classifier...")
             result = await registry.chat_for_engine("classifier", [{"role": "user", "content": group_prompt}])
+            print(f"[K2] Phase 1 result: {repr(result)[:200]}")
             if not result:
                 return 0
             
@@ -48,6 +50,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                 pieces = "\n---\n".join(f"## {t}\n{c[:500]}" for _, t, c in items)
                 merge_prompt = "Merge these related knowledge entries into ONE article. Keep all facts, remove duplicates:\n\n" + pieces
                 
+                print(f"[K2] Phase 2: merging {len(items)} entries...")
                 merged_text = await registry.chat_for_engine("reflection", [{"role": "user", "content": merge_prompt}])
                 if not merged_text:
                     continue
@@ -69,5 +72,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
         
         return merged
     except Exception as e:
+        import traceback
         print(f"[K2] Failed: {e}")
+        traceback.print_exc()
         return 0

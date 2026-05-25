@@ -63,7 +63,7 @@ class ZhipuProvider(BaseProvider):
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         model = self.config.enabled_models.get("embedding", "embedding-3")
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
                 "https://open.bigmodel.cn/api/paas/v4/embeddings",
                 json={"model": model, "input": texts},
@@ -79,7 +79,7 @@ class ZhipuProvider(BaseProvider):
 
     async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> Any:
         model = self.config.enabled_models.get("llm", "glm-4-flash")
-        client = httpx.AsyncClient(timeout=60)
+        client = httpx.AsyncClient(timeout=180)
         try:
             payload = {"model": model, "messages": messages, "stream": stream, **kwargs}
             if stream:
