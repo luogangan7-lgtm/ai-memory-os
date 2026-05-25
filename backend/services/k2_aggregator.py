@@ -51,9 +51,9 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                     """, mid, old_id)
                 
                 merged += 1
-                logging.getLogger("k2").info(f"Merged {r['cnt']} entries into {mid}: {merged_title[:50]}")
+                print(f"Merged {r['cnt']} entries into {mid}: {merged_title[:50]}")
         
         return merged
     except Exception as e:
-        logging.getLogger("k2").warning(f"K2 aggregation failed: {e}")
+        print(f"K2 aggregation failed: {e}")
         return 0
