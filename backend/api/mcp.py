@@ -455,6 +455,38 @@ async def mcp_post_handler(
                 except Exception as e:
                     result_text = f"memory_status failed: {e}"
 
+
+            elif tool_name == "code_search":
+                try:
+                    query = args.get("query", "")
+                    limit = args.get("limit", 10)
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT name, entity_type, file_path, language, description FROM code_entities WHERE team_id=$1 AND (name ILIKE $2 OR description ILIKE $2) LIMIT $3", team_id, f"%{query}%", limit)
+                    await conn.close()
+                    if rows:
+                        result_text = "\n".join(f"[{r['entity_type']}] {r['name']} ({r['language'] or '?'}) @ {r['file_path'] or '?'}" for r in rows)
+                    else:
+                        result_text = f"No code entities found. Index a project first."
+                except Exception as e:
+                    result_text = f"code_search failed: {e}"
+
+            elif tool_name == "code_relations":
+                try:
+                    entity_name = args.get("entity_name", "")
+                    from backend.graph.neo4j_store import GraphStore
+                    from backend.services.config import settings
+                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                    async with gs.driver.session() as session:
+                        r = await session.run("MATCH (a:CodeEntity {name: $name})-[rel]->(b:CodeEntity) RETURN a.name as src, type(rel) as rel, b.name as dst", name=entity_name)
+                        data = await r.data()
+                    if data:
+                        result_text = "\n".join(f"{d['src']} --[{d['rel']}]--> {d['dst']}" for d in data)
+                    else:
+                        result_text = f"No relations found for '{entity_name}'"
+                except Exception as e:
+                    result_text = f"code_relations failed: {e}"
+
             else:
                 is_error = True
                 result_text = f"Tool '{tool_name}' not found."
