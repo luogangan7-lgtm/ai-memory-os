@@ -299,3 +299,16 @@ When moving to a new server, migrate data as a 1:1 copy:
 4. Verify `count(*)` matches and key users' `password_hash` unchanged
 
 **Never modify user credentials during migration.**
+
+### API Key Encryption Warning
+
+Provider API keys are stored AES-256-GCM encrypted using `MEMORY_OS_MASTER_KEY`. Each server generates a unique master key. When migrating databases between servers, encrypted keys become unreadable.
+
+**Before cross-server migration:**
+```bash
+# Copy source server's MASTER_KEY
+grep MEMORY_OS_MASTER_KEY .env
+# Paste into target server's .env BEFORE starting containers
+```
+
+If migration has already happened without syncing keys, users must re-enter their API keys through the UI.
