@@ -14,6 +14,9 @@ _SECRET_PATTERNS = [
     r"token[:\s]*[a-zA-Z0-9_\-\.]{20,}",
     r"cfat_[a-zA-Z0-9_\-]{20,}",
     r"mos_[a-f0-9]{16,}",
+    r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+    r"@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+
 ]
 
 def _contains_secrets(text):
