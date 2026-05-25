@@ -1,5 +1,7 @@
 """K2 Knowledge Aggregator — merges related public knowledge via LLM semantic grouping."""
 from __future__ import annotations
+import uuid
+
 from backend.memory.pg_repo import MemoryRepo
 from backend.manager.registry import ModelRegistry
 import json, re
