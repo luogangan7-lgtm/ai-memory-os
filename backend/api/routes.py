@@ -1291,3 +1291,14 @@ async def trigger_crystallize(team_id: str = Depends(get_current_team)):
     import asyncio
     asyncio.create_task(crystallize_skills(pg_repo, team_id))
     return {"message": "Crystallization started"}
+
+# ── V7.0 Code Entities API ──────────────────────────────────
+
+@router.get("/api/code-entities")
+async def list_code_entities(team_id: str = Depends(get_current_team), limit: int = 20):
+    if not pg_repo: raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT entity_type, name, file_path, language, indexed_at FROM code_entities WHERE team_id=$1 ORDER BY indexed_at DESC LIMIT $2",
+            team_id, limit)
+    return {"entities": [dict(r) for r in rows]}

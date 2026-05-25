@@ -252,6 +252,16 @@ async def mcp_post_handler(
                         "inputSchema": {"type": "object", "properties": {"memory_id": {"type": "string"}}, "required": ["memory_id"]}
                     },
                     {
+                        "name": "code_search",
+                        "description": "Search indexed code entities by function/class name.",
+                        "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 10}}, "required": ["query"]}
+                    },
+                    {
+                        "name": "code_relations",
+                        "description": "Query code entity relationships (calls/inherits).",
+                        "inputSchema": {"type": "object", "properties": {"entity_name": {"type": "string"}}, "required": ["entity_name"]}
+                    },
+                    {
                         "name": "memory_status",
                         "description": "Get memory system status (total, health, storage).",
                         "inputSchema": {"type": "object", "properties": {}}
