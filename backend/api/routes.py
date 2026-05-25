@@ -173,7 +173,7 @@ async def promote_to_knowledge(
     # Clear agent_id to make it team knowledge (visible to all)
     async with pg_repo.pool.acquire() as conn:
         await conn.execute(
-            "UPDATE memories SET agent_id = '', lifecycle_stage = 'longterm', "
+            "UPDATE memories SET team_id = 'public', agent_id = '', lifecycle_stage = 'longterm', "
             "importance = GREATEST(importance, 0.8), updated_at = $2 WHERE id = $1",
             mid, datetime.now(timezone.utc)
         )
@@ -442,7 +442,7 @@ async def get_memory_detail(
     if not pg_repo: raise HTTPException(503, "Database not ready")
     memory = await pg_repo.get(memory_id)
     if not memory: raise HTTPException(404, "Memory not found")
-    if memory["team_id"] != ctx["team_id"]:
+    if memory["team_id"] != ctx["team_id"] and memory["team_id"] != "public":
         raise HTTPException(403, "Access denied")
     # Count chunks
     chunk_count = 0
@@ -462,7 +462,7 @@ async def get_memory_chunks(
     if not pg_repo: raise HTTPException(503, "Database not ready")
     memory = await pg_repo.get(memory_id)
     if not memory: raise HTTPException(404, "Memory not found")
-    if memory["team_id"] != ctx["team_id"]:
+    if memory["team_id"] != ctx["team_id"] and memory["team_id"] != "public":
         raise HTTPException(403, "Access denied")
     async with pg_repo.pool.acquire() as conn:
         rows = await conn.fetch(
@@ -483,7 +483,10 @@ async def delete_memory(
     if not memory: raise HTTPException(404, "Memory not found")
     
     # 2. Check Permissions
-    if memory["team_id"] != ctx["team_id"]:
+    if memory["team_id"] == "public" and ctx.get("role") != "admin":
+        raise HTTPException(403, "Public knowledge cannot be deleted by non-admin users")
+
+    if memory["team_id"] != ctx["team_id"] and memory["team_id"] != "public":
         raise HTTPException(403, "Access denied")
         
     # 3. Perform deletion

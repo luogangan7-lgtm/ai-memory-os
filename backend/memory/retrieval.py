@@ -41,6 +41,20 @@ class RetrievalPipeline:
             source_type=source_type_filter,
         )
 
+        # Also search public knowledge pool (cross-team shared)
+        try:
+            public_results = self.qdrant.hybrid_search(
+                query_vector=query_vector,
+                query_text=query,
+                team_id="public",
+                workspace_id=workspace_id,
+                top_k=top_k,
+                source_type="knowledge",
+            )
+            results = list(results) + list(public_results)
+        except Exception:
+            pass  # public collection may not exist yet
+
 
         # Deduplicate by memory_id
         seen: dict[str, dict[str, Any]] = {}

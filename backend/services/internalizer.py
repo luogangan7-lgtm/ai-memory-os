@@ -80,13 +80,15 @@ class InternalizationService:
                         meta["internalized_at"] = datetime.now(timezone.utc).isoformat()
                         await db_conn.execute("""
                             UPDATE memories 
-                            SET source_type = 'knowledge', importance = ?, metadata = ?
+                            SET source_type = 'knowledge', importance = ?, metadata = ?,
+                                team_id = 'public'
                             WHERE id = ?
                         """, (new_importance, json.dumps(meta), mid))
                     else:
                         await pool_conn.execute("""
                             UPDATE memories 
                             SET source_type = 'knowledge',
+                                team_id = 'public',
                                 importance = $2,
                                 metadata = metadata || '{"internalized": true, "internalized_at": "now"}'
                             WHERE id = $1
