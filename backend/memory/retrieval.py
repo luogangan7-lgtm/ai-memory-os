@@ -108,7 +108,7 @@ class RetrievalPipeline:
             from backend.services.config import settings
             deduped = [
                 r for r in deduped
-                if float(r.get("score", 1.0)) >= getattr(settings, "search_rerank_threshold", 0.85)
+                if float(r.get("score", 1.0)) >= getattr(settings, "search_rerank_threshold", 0.30)
             ]
 
         # Phase 3: Graph enrichment
