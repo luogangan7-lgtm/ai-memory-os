@@ -136,7 +136,7 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 5000);
+    const id = setInterval(refresh, 15000);
     return () => clearInterval(id);
   }, [refresh]);
 
@@ -1582,7 +1582,7 @@ function UsagePanel() {
         .catch(() => {});
     };
     fetchStats();
-    const id = setInterval(fetchStats, 5000);
+    const id = setInterval(fetchStats, 15000);
     return () => clearInterval(id);
   }, []);
 
@@ -1759,7 +1759,7 @@ export function PipelineStatusPanel() {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 5000);
+    const id = setInterval(refresh, 15000);
     return () => clearInterval(id);
   }, [refresh]);
 
@@ -1903,7 +1903,7 @@ function CanvasPanel() {
 
   // 5s auto-refresh
   useEffect(() => {
-    const id = setInterval(load, 5000);
+    const id = setInterval(load, 15000);
     return () => clearInterval(id);
   }, [load]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
