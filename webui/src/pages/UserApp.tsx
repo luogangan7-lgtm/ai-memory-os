@@ -894,7 +894,7 @@ function MemoryPanel() {
       </div>
 
       <div className="v6-toolbar">
-        {subTab === 'memories' && (
+        {subTab !== 'documents' && (
           <>
             <input
               className="v6-input-global"
@@ -931,7 +931,7 @@ function MemoryPanel() {
         </div>
       )}
 
-      {subTab === 'memories' ? (
+      {subTab !== 'documents' ? (
         <>
           <div className="v6-chips">
             {categories.map((c) => (
@@ -946,7 +946,7 @@ function MemoryPanel() {
             ))}
           </div>
           {filteredMemories.length === 0 && !loading ? (
-            <div className="v6-empty">No memories in this category yet.</div>
+            <div className="v6-empty">{subTab === 'public' ? '暂无公共知识' : 'No memories in this category yet.'}</div>
           ) : (
             <div className="v6-list" style={{ maxHeight: 500, overflow: 'auto' }}>
               {filteredMemories.map((m, i) => (
