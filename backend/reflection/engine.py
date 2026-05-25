@@ -105,6 +105,7 @@ class ReflectionEngine:
                 # This is a placeholder for a more complex graph query
                 await conn.execute("UPDATE memories SET importance=importance+0.05 WHERE id=$1", r["id"])
                 n += 1
+                n += 1
         return n
 
     async def _auto_promote(self, team_id):
@@ -137,7 +138,7 @@ class ReflectionEngine:
                         # Ensure nodes exist before creating relation
                         await self.graph.create_memory_node(r["id_a"], "","","")
                         await self.graph.create_memory_node(r["id_b"], "","","")
-                        await self.graph.create_relation(r["id_a"], r["id_b"], "same_topic", 0.7)
+                        await self.graph.create_semantic_relation(r["id_a"], r["id_b"], "SUPPORTS", team_id, 0.7)
                         n += 1
                     except: pass
                     import traceback; logging.getLogger("reflection").warning("Relation failed: %s", traceback.format_exc())

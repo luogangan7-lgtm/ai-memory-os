@@ -8,6 +8,13 @@ from typing import Any, Optional
 from neo4j import AsyncGraphDatabase
 
 
+
+SEMANTIC_RELATIONS = {
+    "CAUSED_BY", "CONTRADICTS", "SUPPORTS", "PRECEDES",
+    "GENERALIZES", "SPECIALIZES", "DERIVED_FROM", "REQUIRES",
+    "SUPERSEDES", "HAS_SKILL"
+}
+
 class GraphStore:
     """Knowledge graph wrapper for memory relations."""
 
@@ -47,6 +54,19 @@ class GraphStore:
                 id=memory_id, title=title,
                 category=category, memory_type=memory_type,
             )
+
+
+    async def create_semantic_relation(self, source_id: str, target_id: str, relation_type: str, team_id: str = "default", confidence: float = 1.0):
+        """Create a typed semantic relation (CAUSED_BY, SUPPORTS, etc). Falls back to RELATES if unknown type."""
+        if relation_type not in SEMANTIC_RELATIONS:
+            relation_type = "RELATES"
+        async with self.driver.session() as session:
+            await session.run(f"""
+                MATCH (a:Memory {{id: $source_id}})
+                MATCH (b:Memory {{id: $target_id}})
+                MERGE (a)-[r:{relation_type}]->(b)
+                SET r.confidence = $confidence, r.created_at = datetime()
+            """, source_id=source_id, target_id=target_id, confidence=confidence)
 
     async def create_relation(
         self, source_id: str, target_id: str,
