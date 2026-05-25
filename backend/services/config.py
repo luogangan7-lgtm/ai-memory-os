@@ -118,7 +118,7 @@ def load_system_config() -> dict:
             pass
     return {
         "rag": { "top_k": 5, "min_similarity": 0.60, "max_context_tokens": 2000, "history_count": 10 },
-        "security": { "rate_write": 60, "rate_read": 120, "max_mem_len": 10000, "jwt_expire": 43200 },
+        "security": { "rate_write": 300, "rate_read": 600, "max_mem_len": 10000, "jwt_expire": 43200 },
         "reflection": { "decay_rate": 0.05, "quality_threshold": 0.80, "interval_hours": 24 }
     }
 
