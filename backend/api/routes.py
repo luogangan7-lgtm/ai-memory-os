@@ -976,28 +976,7 @@ async def search_memory(
             else:
                 fused.append(results[ki]); ki += 1
         results = fused
-    # V7: 时间范围过滤
-    if req.since or req.until:
-        from datetime import datetime, timezone as tz
-        def parse_dt(s): return datetime.fromisoformat(s).replace(tzinfo=tz.utc) if s else None
-        since_dt = parse_dt(req.since) if req.since else None
-        until_dt = parse_dt(req.until) if req.until else None
-        filtered = []
-        for r in results:
-            created = r.get("payload",{}).get("created_at") or r.get("memory",{}).get("created_at")
-            if isinstance(created, str):
-                try: created = datetime.fromisoformat(created.replace("Z","+00:00"))
-                except: filtered.append(r); continue
-            if since_dt and created and created < since_dt: continue
-            if until_dt and created and created > until_dt: continue
-            filtered.append(r)
-        results = filtered
-    # V7: Layer 过滤
-    if req.layer:
-        results = [r for r in results if (r.get("payload",{}).get("layer") or r.get("memory",{}).get("lifecycle_stage")) == req.layer]
-    # V7: Source 过滤
-    if req.source_type:
-        results = [r for r in results if (r.get("payload",{}).get("source_type") or r.get("memory",{}).get("source_type")) == req.source_type]
+    # V7 filters: applied during PG enrichment below
 
     results = results[:req.top_k]
 
@@ -1014,6 +993,21 @@ async def search_memory(
     for r in results:
         mid = r["payload"].get("memory_id", r["id"])
         pg = pg_rows.get(str(mid), {})
+        # V7 filters
+        skip = False
+        if req.since or req.until:
+            from datetime import datetime, timezone as tz
+            def pd(s): return datetime.fromisoformat(s).replace(tzinfo=tz.utc) if s else None
+            sd, ud = pd(req.since) if req.since else None, pd(req.until) if req.until else None
+            cs = str(pg.get("created_at") or "")
+            try:
+                cd = datetime.fromisoformat(cs.replace("Z","+00:00"))
+                if sd and cd < sd: skip = True
+                if ud and cd > ud: skip = True
+            except: pass
+        if req.layer and (pg.get("layer") or pg.get("lifecycle_stage") or "") != req.layer: skip = True
+        if req.source_type and (pg.get("source_type") or "") != req.source_type: skip = True
+        if skip: continue
         final_results.append(MemorySearchResult(
             memory=MemoryResponse(
                 id=str(mid),
