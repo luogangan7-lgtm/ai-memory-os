@@ -187,6 +187,8 @@ async def remember(
     agent_id: str = Depends(get_agent_id),
 ):
     """Auto-store: agents call this after conversations. Quick store with auto-summary."""
+    import hashlib
+    dedup_hash = hashlib.md5(req.content.encode()).hexdigest() if req.content else ""
     memory_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{team_id}:{agent_id}:{req.content[:100]}"))
 
     # Check if similar memory exists
@@ -586,10 +588,49 @@ async def store_memory(
     dedup_hash = hashlib.md5(req.content.encode()).hexdigest() if req.content else ""
     if pg_repo and dedup_hash:
         async with pg_repo.pool.acquire() as conn:
-            dup = await conn.fetchrow("SELECT id FROM memories WHERE team_id=$1 AND dedup_hash=$2 LIMIT 1", team_id, dedup_hash)
+            dup = await conn.fetchrow(
+                "SELECT id, team_id, workspace_id, agent_id, category, subcategory, topic, memory_type, "
+                "title, content, summary, embedding_model, importance, confidence, source_type, source_uri, "
+                "tags, created_at, updated_at, lifecycle_stage "
+                "FROM memories WHERE team_id=$1 AND dedup_hash=$2 LIMIT 1",
+                team_id, dedup_hash
+            )
             if dup:
                 existing = dict(dup)
-            return {"status": "deduplicated", "id": str(dup["id"]), "title": existing.get("title","") or "dedup", "content": existing.get("content","") or "", "importance": float(existing.get("importance",0.5)), "confidence": float(existing.get("confidence",0.5)), "source_type": existing.get("source_type","human") or "human", "created_at": str(existing.get("created_at","")), "updated_at": str(existing.get("updated_at",""))}
+                created_str = existing.get("created_at")
+                if isinstance(created_str, datetime):
+                    created_str = created_str.isoformat()
+                else:
+                    created_str = str(created_str or "")
+                
+                updated_str = existing.get("updated_at")
+                if isinstance(updated_str, datetime):
+                    updated_str = updated_str.isoformat()
+                else:
+                    updated_str = str(updated_str or "")
+
+                return {
+                    "id": str(existing["id"]),
+                    "team_id": existing.get("team_id") or "default",
+                    "workspace_id": existing.get("workspace_id") or "default",
+                    "agent_id": existing.get("agent_id") or "",
+                    "category": existing.get("category") or "general",
+                    "subcategory": existing.get("subcategory"),
+                    "topic": existing.get("topic"),
+                    "memory_type": existing.get("memory_type") or "general",
+                    "title": existing.get("title") or "Untitled",
+                    "content": existing.get("content") or "",
+                    "summary": existing.get("summary"),
+                    "embedding_model": existing.get("embedding_model") or "text-embedding-v3",
+                    "importance": float(existing.get("importance", 0.5)),
+                    "confidence": float(existing.get("confidence", 0.5)),
+                    "source_type": existing.get("source_type") or "human",
+                    "source_uri": existing.get("source_uri"),
+                    "lifecycle_stage": existing.get("lifecycle_stage") or "recent",
+                    "tags": existing.get("tags") or [],
+                    "created_at": created_str,
+                    "updated_at": updated_str
+                }
 
     # Enforce max memory length from security config
     from backend.services.config import load_system_config
