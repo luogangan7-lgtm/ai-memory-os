@@ -215,7 +215,7 @@ class MemoryRepo:
     async def update(self, mid: str, team_id: str, **kw):
         """Update an existing memory."""
         fields = []
-        values = []
+        values: list[Any] = []
         i = 1
         for k, v in kw.items():
             fields.append(f"{k} = ${i}")
@@ -267,12 +267,15 @@ class MemoryRepo:
     @retry(max_retries=2, delay=0.3)
     async def insert(self, **kw):
         now = datetime.now(timezone.utc)
-        fields = ["id","team_id","workspace_id","agent_id","category","subcategory","topic","memory_type","title","content","summary","embedding_model","importance","confidence","source_type","source_uri","tags","metadata","created_at","updated_at","dedup_hash","layer"]
+        fields = ["id","team_id","workspace_id","agent_id","category","subcategory","topic","memory_type","title","content","summary","embedding_model","importance","confidence","source_type","source_uri","tags","metadata","created_at","updated_at","dedup_hash","layer","agent_source"]
         vals = {**kw, "created_at": now, "updated_at": now, "tags": kw.get("tags",[]), "metadata": json.dumps(kw.get("metadata",{}))}
+        if "agent_source" not in vals:
+            vals["agent_source"] = "unknown"
         q = "INSERT INTO memories (" + ",".join(fields) + ") VALUES (" + ",".join("$"+str(i+1) for i in range(len(fields))) + ")"
         async with self.pool.acquire() as conn:
             await conn.execute(q, *(vals.get(f) for f in fields))
         return kw["id"]
+
 
     async def get(self, mid):
         import uuid
@@ -346,7 +349,7 @@ class MemoryRepo:
             params.append(limit)
             limit_param = f"${len(params)}"
             
-            q = f"SELECT * FROM memories {where_clause} ORDER BY created_at DESC LIMIT {limit_param}"
+            q = "SELECT * FROM memories " + where_clause + " ORDER BY created_at DESC LIMIT " + limit_param
             rows = await conn.fetch(q, *params)
 
         return [dict(r) for r in rows]
@@ -524,7 +527,7 @@ class MemoryRepo:
 
     async def update_account_status(self, username: str, revoked: bool = None, suspended: bool = None, api_key: str = None):
         fields = []
-        vals = []
+        vals: list[Any] = []
         i = 1
         if revoked is not None:
             fields.append(f"revoked = ${i}")

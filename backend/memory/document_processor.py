@@ -15,7 +15,7 @@ async def extract_text(file_path: str) -> str:
 def semantic_chunks(text: str, chunk_size: int = 600, overlap: int = 80) -> list[dict]:
     paragraphs = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()]
     chunks = []
-    current_chunk = []
+    current_chunk: list[str] = []
     current_len = 0
     chunk_index = 0
     for para in paragraphs:

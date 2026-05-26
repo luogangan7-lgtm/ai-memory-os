@@ -33,7 +33,7 @@ def _make_compat_provider(name: str, base_url: str, catalog: list[ModelInfo]):
         async def discover_models(self) -> list[ModelInfo]:
             return self._catalog
 
-        async def chat(self, messages: list[dict], **kwargs) -> str:
+        async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> str:
             base = self.config.api_base or self._base_url
             model = self.config.enabled_models.get("llm", self._catalog[0].id if self._catalog else "")
             async with httpx.AsyncClient(timeout=60) as client:

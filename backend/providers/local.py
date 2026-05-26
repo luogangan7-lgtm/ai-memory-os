@@ -33,7 +33,7 @@ class PurePythonBM25(BM25Backend):
         self.num_features = num_features
 
     def encode(self, texts: list[str]) -> list[dict[str, Any]]:
-        results = []
+        results: list[dict[str, Any]] = []
         for text in texts:
             tokens = tokenize(text)
             if not tokens:
@@ -41,7 +41,7 @@ class PurePythonBM25(BM25Backend):
                 continue
             
             # Count term frequencies
-            counts = {}
+            counts: dict[int, int] = {}
             for t in tokens:
                 # Deterministic hashing using sha256 to ensure perfect consistency
                 h = hashlib.sha256(t.encode("utf-8")).hexdigest()

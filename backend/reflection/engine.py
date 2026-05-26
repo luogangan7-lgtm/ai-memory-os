@@ -15,7 +15,7 @@ class ReflectionEngine:
     async def reflect_all(self, team_id="default"):
         import logging
         logging.getLogger("reflection").info("Cycle start: %s", team_id)
-        rpt = {"stage_transitions":0,"freshness_updated":0,"duplicates_found":0,"summaries":0,"relations_found":0}
+        rpt = {"stage_transitions":0,"freshness_updated":0,"duplicates_found":0,"summaries":0,"relations_found":0,"contradictions_found":0}
         rpt["stage_transitions"] = await self._auto_transition(team_id)
         rpt["freshness_updated"] = await self._decay_freshness(team_id)
         rpt["summaries"] = await self._summarize(team_id)
@@ -29,12 +29,14 @@ class ReflectionEngine:
         rpt["crossref_boosted"] = await self._verify_crossref(team_id)
         rpt["auto_promoted"] = await self._auto_promote(team_id)
         rpt["relations_found"] = await self._discover_relations(team_id)
+        rpt["contradictions_found"] = await self._detect_contradictions(team_id)
         # K2: aggregate public knowledge
         from backend.services.k2_aggregator import aggregate_public_knowledge
         rpt["knowledge_merged"] = await aggregate_public_knowledge(self.pg)
         rpt["duplicates_found"] = await self._dedup(team_id)
-        return rpt
         logging.getLogger("reflection").info("Cycle done: %s", str(rpt))
+        return rpt
+
 
     async def _auto_transition(self, team_id):
         n=0
@@ -174,3 +176,90 @@ class ReflectionEngine:
                         "reason": "Low memory density" if r["count"] < 3 else "Low average confidence"
                     })
             return gaps
+
+    async def _detect_contradictions(self, team_id: str) -> int:
+        """Query LLM to detect contradictions among recent L1 memories and link them via CONTRADICTS in Neo4j."""
+        if not self.graph:
+            return 0
+        
+        provider = await self.pg.get_active_user_provider_config(team_id)
+        if not provider:
+            return 0
+            
+        async with self.pg.pool.acquire() as conn:
+            # Fetch recent 30 L1 memories
+            rows = await conn.fetch("""
+                SELECT id, title, content
+                FROM memories
+                WHERE team_id = $1 AND layer = 'L1'
+                ORDER BY created_at DESC
+                LIMIT 30
+            """, team_id)
+            
+            if len(rows) < 2:
+                return 0
+                
+            m_list = [{"id": str(r["id"]), "title": r["title"], "content": r["content"][:200]} for r in rows]
+            
+            prompt = """You are a Memory Contradiction Detector. Analyze the following list of user memories and identify if any pairs directly contradict or conflict with each other (e.g. they describe conflicting rules, opposite status, or mutually exclusive facts).
+
+Memories list:
+""" + json.dumps(m_list, indent=2, ensure_ascii=False) + """
+
+Output ONLY a JSON response in the following schema:
+{
+  "contradictions": [
+    {
+      "id_a": "uuid-1",
+      "id_b": "uuid-2",
+      "reason": "Clear explanation of contradiction"
+    }
+  ]
+}
+If no contradictions are found, output {"contradictions": []}.
+Do not include any conversational text, wrappers or markdown code blocks."""
+
+            import json
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(
+                        f"{provider['api_base_url'].rstrip('/')}/chat/completions",
+                        headers={"Authorization": f"Bearer {provider['api_key']}"},
+                        json={
+                            "model": provider["model_name"],
+                            "messages": [
+                                {"role": "system", "content": "You are a precise JSON generator."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            "max_tokens": 500,
+                            "temperature": 0.1
+                        }
+                    )
+                if resp.status_code != 200:
+                    return 0
+                    
+                content = resp.json()["choices"][0]["message"]["content"].strip()
+                if content.startswith("```"):
+                    content = content.lstrip("```json").lstrip("```").rstrip("```").strip()
+                
+                data = json.loads(content)
+                contradictions = data.get("contradictions", [])
+                
+                n = 0
+                for c in contradictions:
+                    id_a = c.get("id_a")
+                    id_b = c.get("id_b")
+                    if id_a and id_b:
+                        # Ensure they exist in our list
+                        exists_a = any(m["id"] == id_a for m in m_list)
+                        exists_b = any(m["id"] == id_b for m in m_list)
+                        if exists_a and exists_b:
+                            await self.graph.create_memory_node(id_a, "", "", "")
+                            await self.graph.create_memory_node(id_b, "", "", "")
+                            await self.graph.create_semantic_relation(id_a, id_b, "CONTRADICTS", team_id, 1.0)
+                            n += 1
+                return n
+            except Exception as e:
+                print(f"DEBUG: _detect_contradictions failed: {e}")
+                return 0
+

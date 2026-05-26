@@ -1,0 +1,11 @@
+{
+  "name": "AI Memory OS",
+  "short_name": "MemoryOS",
+  "start_url": "/app/",
+  "display": "standalone",
+  "background_color": "#04080f",
+  "theme_color": "#00d4ff",
+  "icons": [
+    {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"}
+  ]
+}

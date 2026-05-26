@@ -59,7 +59,7 @@ class MoonshotProvider(BaseProvider):
     async def discover_models(self) -> list[ModelInfo]:
         return MOONSHOT_CATALOG
 
-    async def chat(self, messages: list[dict], **kwargs) -> str:
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> str:
         model = self.config.enabled_models.get("llm", "moonshot-v1-8k")
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(

@@ -4,6 +4,7 @@
 from __future__ import annotations
 import json, time
 from pathlib import Path
+from typing import Any
 
 COST_FILE = Path.home() / ".codex" / "memory-os" / "costs.json"
 
@@ -116,7 +117,7 @@ class CostTracker:
     def record(model: str, input_tokens: int, output_tokens: int = 0, provider: str = "") -> None:
         """Record token usage and compute cost for a model call."""
         COST_FILE.parent.mkdir(parents=True, exist_ok=True)
-        data = json.loads(COST_FILE.read_text()) if COST_FILE.exists() else {
+        data: dict[str, Any] = json.loads(COST_FILE.read_text()) if COST_FILE.exists() else {
             "total_cost_cny": 0.0,
             "total_cost_usd": 0.0,
             "total_tokens": 0,
@@ -124,8 +125,8 @@ class CostTracker:
             "history": []
         }
 
-        p = PRICING.get(model, {"input": 0, "output": 0, "currency": "USD"})
-        cost = (input_tokens * p["input"] + output_tokens * p.get("output", 0)) / 1_000_000
+        p: dict[str, Any] = PRICING.get(model, {"input": 0.0, "output": 0.0, "currency": "USD"})
+        cost = (input_tokens * float(p["input"]) + output_tokens * float(p.get("output", 0.0))) / 1_000_000
         currency = p.get("currency", "USD")
 
         # Update totals
@@ -136,7 +137,7 @@ class CostTracker:
         data["total_tokens"] = data.get("total_tokens", 0) + input_tokens + output_tokens
 
         # Update per-model breakdown
-        m = data["by_model"].setdefault(model, {
+        m: dict[str, Any] = data["by_model"].setdefault(model, {
             "input_tokens": 0, "output_tokens": 0,
             "total_cost": 0.0, "calls": 0, "currency": currency
         })
@@ -161,7 +162,7 @@ class CostTracker:
 
     @staticmethod
     def summary() -> dict:
-        base = {
+        base: dict[str, Any] = {
             "total_cost_cny": 0.0,
             "total_cost_usd": 0.0,
             "total_tokens": 0,
@@ -170,8 +171,8 @@ class CostTracker:
             "daily_trends": {}
         }
         if COST_FILE.exists():
-            data = json.loads(COST_FILE.read_text())
-            base.update(data)
+            data_loaded: dict[str, Any] = json.loads(COST_FILE.read_text())
+            base.update(data_loaded)
         
         # Compute daily trends from history (last 14 days)
         trends = {}

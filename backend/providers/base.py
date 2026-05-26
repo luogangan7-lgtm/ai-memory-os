@@ -56,7 +56,7 @@ class BaseProvider(ABC):
         self.config = config
 
     @abstractmethod
-    async def validate(self) -> bool:
+    async def validate(self) -> dict | bool:
         """Test connection and API key validity."""
         ...
 

@@ -2,6 +2,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from backend.auth.middleware import get_current_team
 from backend.utils.crypto import encrypt, decrypt
+import structlog
+
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/user/llm", tags=["user_llm"])
 _user_llm_configs: dict[str, dict] = {}

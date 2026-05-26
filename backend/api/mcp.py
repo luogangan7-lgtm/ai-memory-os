@@ -36,7 +36,8 @@ async def mcp_get_handler(request: Request, token: Optional[str] = None):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     connection_id = str(uuid.uuid4())
-    queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue()
+
     
     # Store authenticated context
     connections[connection_id] = {
@@ -94,6 +95,77 @@ async def mcp_get_handler(request: Request, token: Optional[str] = None):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+async def index_project_bg(project_path: str, team_id: str):
+    import os
+    import uuid
+    from backend.memory.code_parser import parse_file
+    from backend.api.routes import pg_repo, graph_store
+    if not pg_repo:
+        return
+    try:
+        abs_path = os.path.abspath(project_path)
+        if not os.path.exists(abs_path):
+            logger.warning(f"Project path does not exist: {abs_path}")
+            return
+            
+        file_count = 0
+        entity_count = 0
+        
+        # Walk directory
+        for root, dirs, files in os.walk(abs_path):
+            # Ignore common ignore-folders
+            if any(ignored in root for ignored in (".venv", "node_modules", ".git", "__pycache__", "build", "dist")):
+                continue
+            for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if ext in (".py", ".js", ".ts", ".tsx"):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                            content = f.read()
+                        entities = parse_file(file_path, content)
+                        
+                        async with pg_repo.pool.acquire() as conn:
+                            for ent in entities:
+                                entity_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{team_id}:{file_path}:{ent['qualified_name']}"))
+                                lang = "python" if ext == ".py" else ("typescript" if "ts" in ext else "javascript")
+                                
+                                # Insert or update in Postgres
+                                await conn.execute("""
+                                    INSERT INTO code_entities (id, team_id, project_path, entity_type, name, qualified_name, file_path, language, description, signature, start_line, end_line, indexed_at)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+                                    ON CONFLICT (id) DO UPDATE
+                                    SET team_id = EXCLUDED.team_id,
+                                        project_path = EXCLUDED.project_path,
+                                        entity_type = EXCLUDED.entity_type,
+                                        name = EXCLUDED.name,
+                                        qualified_name = EXCLUDED.qualified_name,
+                                        file_path = EXCLUDED.file_path,
+                                        language = EXCLUDED.language,
+                                        description = EXCLUDED.description,
+                                        signature = EXCLUDED.signature,
+                                        start_line = EXCLUDED.start_line,
+                                        end_line = EXCLUDED.end_line,
+                                        indexed_at = NOW()
+                                """, entity_id, team_id, abs_path, ent["entity_type"], ent["name"], ent["qualified_name"], file_path, lang, ent["description"], ent["signature"], ent["start_line"], ent["end_line"])
+                                
+                                # Ingest in Neo4j
+                                if graph_store:
+                                    await graph_store.ingest_code_entity(entity_id, ent["name"], ent["entity_type"], file_path, team_id)
+                                
+                                entity_count += 1
+                        file_count += 1
+                        if file_count >= 100:  # limit to 100 files for safety
+                            break
+                    except Exception as fe:
+                        logger.warning(f"Failed to parse file {file_path}: {fe}")
+            if file_count >= 100:
+                break
+        logger.info(f"Background indexing completed for {project_path}: {file_count} files, {entity_count} entities.")
+    except Exception as e:
+        logger.error(f"Background indexing error: {e}")
+
+
 @router.post("")
 async def mcp_post_handler(
     request: Request,
@@ -103,17 +175,18 @@ async def mcp_post_handler(
     if not connection_id or connection_id not in connections:
         raise HTTPException(status_code=400, detail="Invalid or missing connection_id")
 
-    conn = connections[connection_id]
-    queue = conn["queue"]
-    team_id = conn["team_id"]
-    agent_id = conn["agent_id"]
+    conn_info = connections[connection_id]
+    queue = conn_info["queue"]
+    team_id = conn_info["team_id"]
+    agent_id = conn_info["agent_id"]
 
     payload = await request.json()
     req_id = payload.get("id")
     method = payload.get("method")
     params = payload.get("params", {})
 
-    logger.info(f"Received MCP Request - ID: {req_id}, Method: {method}, User: {conn['username']}")
+    logger.info(f"Received MCP Request - ID: {req_id}, Method: {method}, User: {conn_info['username']}")
+
 
     # Handle standard MCP lifecycle requests
     if method == "initialize":
@@ -160,15 +233,33 @@ async def mcp_post_handler(
                                     "type": "integer",
                                     "description": "Max number of memory chunks to retrieve.",
                                     "default": 3
+                                },
+                                "limit": {
+                                    "type": "integer",
+                                    "description": "Max results",
+                                    "default": 5
+                                },
+                                "since": {
+                                    "type": "string",
+                                    "description": "Start date ISO format, e.g. 2026-03-01"
+                                },
+                                "until": {
+                                    "type": "string",
+                                    "description": "End date ISO format, e.g. 2026-04-30"
+                                },
+                                "layer": {
+                                    "type": "string",
+                                    "enum": ["L1", "L2", "L3", "L4"],
+                                    "description": "Memory layer filter"
+                                },
+                                "source_type": {
+                                    "type": "string",
+                                    "description": "Source filter: human/agent/document"
                                 }
                             },
-                            "limit": {"type": "integer", "description": "Max results", "default": 5},
-                                "since": {"type": "string", "description": "Start date ISO format, e.g. 2026-03-01"},
-                                "until": {"type": "string", "description": "End date ISO format, e.g. 2026-04-30"},
-                                "layer": {"type": "string", "enum": ["L1","L2","L3","L4"], "description": "Memory layer filter"},
-                                "source_type": {"type": "string", "description": "Source filter: human/agent/document"},
                             "required": ["query"]
                         }
+
                     },
                     {
                         "name": "memory_store",
@@ -279,8 +370,18 @@ async def mcp_post_handler(
                     {
                         "name": "memory_feedback",
                         "description": "Report task outcome to improve skill quality.",
-                        "inputSchema": {"type": "object", "properties": {"outcome": {"type": "string", "enum": ["success", "failure", "partial"]}}, "required": ["outcome"]}
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "skill_id": {"type": "string", "description": "UUID of the memory skill to update"},
+                                "outcome": {"type": "string", "enum": ["success", "failure", "partial"], "description": "Task execution result"},
+                                "memory_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional list of memories read/written"},
+                                "context": {"type": "string", "description": "Optional text explanation or error traceback"}
+                            },
+                            "required": ["skill_id", "outcome"]
+                        }
                     },
+
                     {
                         "name": "doc_search", "description": "Search uploaded documents.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 5}}, "required": ["query"]}},
                     {"name": "memory_skill_list",
@@ -517,21 +618,31 @@ async def mcp_post_handler(
             elif tool_name == "code_index":
                 try:
                     project_path = arguments.get("project_path", "")
-                    result_text = f"Code indexing queued for {project_path}. Indexing starts automatically."
+                    asyncio.create_task(index_project_bg(project_path, team_id))
+                    result_text = f"Code indexing queued for {project_path}. Parsing starts asynchronously."
                 except Exception as e:
                     result_text = f"code_index failed: {e}"
 
             elif tool_name == "code_impact":
                 try:
                     entity_name = arguments.get("entity_name", "")
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT name, entity_type, file_path FROM code_entities WHERE team_id=$1 AND name=$2", team_id, entity_name)
-                    await conn.close()
-                    if rows:
-                        result_text = f"Impact analysis for {entity_name}: {len(rows)} direct entity(s) found. Full analysis requires indexed call graph."
+                    from backend.graph.neo4j_store import GraphStore
+                    from backend.services.config import settings
+                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                    async with gs.driver.session() as session:
+                        r = await session.run("""
+                            MATCH (dep)-[rel]->(tar:Code {name: $name})
+                            RETURN dep.name as name, dep.entity_type as type, type(rel) as rel_type
+                            LIMIT 20
+                        """, name=entity_name)
+                        data = await r.data()
+                    await gs.close()
+                    if data:
+                        result_text = f"Impact analysis for '{entity_name}' (dependent elements):\n" + "\n".join(
+                            f"- [{d['type'] or 'Code'}] {d['name']} --[{d['rel_type']}]--> {entity_name}" for d in data
+                        )
                     else:
-                        result_text = f"Entity '{entity_name}' not found in code index."
+                        result_text = f"No direct dependencies found for '{entity_name}' in the Neo4j graph."
                 except Exception as e:
                     result_text = f"code_impact failed: {e}"
 
@@ -539,31 +650,46 @@ async def mcp_post_handler(
                 try:
                     entity_name = arguments.get("entity_name", "")
                     memory_id = arguments.get("memory_id", "")
+                    from backend.api.db_helper import get_db_conn
                     from backend.graph.neo4j_store import GraphStore
                     from backend.services.config import settings
-                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
-                    async with gs.driver.session() as session:
-                        await session.run("MATCH (c:CodeEntity {name: $name}), (m:Memory {id: $mid}) MERGE (m)-[:RELATES_TO_CODE]->(c)", name=entity_name, mid=memory_id)
-                    result_text = f"Linked {entity_name} to memory {memory_id[:8]}"
+                    conn = await get_db_conn()
+                    row = await conn.fetchrow("SELECT id FROM code_entities WHERE team_id=$1 AND name=$2 LIMIT 1", team_id, entity_name)
+                    await conn.close()
+                    if row:
+                        ent_id = str(row["id"])
+                        gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                        await gs.create_memory_node(memory_id, "", "", "")
+                        await gs.create_code_relation(memory_id, ent_id, "RELATES_TO_CODE")
+                        await gs.close()
+                        result_text = f"Linked memory {memory_id[:8]} to code entity {entity_name} ({ent_id[:8]})"
+                    else:
+                        result_text = f"Code entity '{entity_name}' not found in database. Please index the project first."
                 except Exception as e:
                     result_text = f"code_memory_link failed: {e}"
 
             elif tool_name == "memory_feedback":
                 try:
                     outcome = arguments.get("outcome", "success")
+                    skill_id = arguments.get("skill_id")
                     memory_ids = arguments.get("memory_ids", [])
                     context = arguments.get("context", "")
-                    # Update skill effectiveness
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    if outcome == "success":
-                        await conn.execute("UPDATE memory_skills SET effectiveness = LEAST(1.0, COALESCE(effectiveness,1.0) + 0.05), usage_count = COALESCE(usage_count,0) + 1, last_used_at = NOW() WHERE team_id = $1", team_id)
-                    elif outcome == "failure":
-                        await conn.execute("UPDATE memory_skills SET effectiveness = GREATEST(0.1, COALESCE(effectiveness,1.0) - 0.1), usage_count = COALESCE(usage_count,0) + 1, fail_count = COALESCE(fail_count,0) + 1, last_used_at = NOW() WHERE team_id = $1", team_id)
+                    
+                    from backend.pipeline.skill_evolver import update_skill_effectiveness
+                    from backend.api.routes import pg_repo
+                    if pg_repo and skill_id:
+                        res = await update_skill_effectiveness(
+                            pg_repo.pool,
+                            skill_id=skill_id,
+                            outcome=outcome,
+                            agent_id=agent_id,
+                            team_id=team_id,
+                            memory_ids=memory_ids,
+                            context=context
+                        )
+                        result_text = f"Feedback recorded: {outcome}. Updated effectiveness: {res['effectiveness']:.2%}"
                     else:
-                        await conn.execute("UPDATE memory_skills SET usage_count = COALESCE(usage_count,0) + 1, last_used_at = NOW() WHERE team_id = $1", team_id)
-                    await conn.close()
-                    result_text = f"Feedback recorded: {outcome}. Skills auto-optimized."
+                        result_text = f"Failed to record feedback. Verify that pg_repo is initialized and skill_id '{skill_id}' is provided."
                 except Exception as e:
                     result_text = f"memory_feedback failed: {e}"
 
@@ -572,9 +698,8 @@ async def mcp_post_handler(
                     query = arguments.get("query", "")
                     limit = int(arguments.get("limit", 5))
                     if not query:
-                        result_text = "请提供搜索关键词。"
+                        result_text = "Please provide a query."
                     elif retrieval and registry:
-                        # Fix: 改用向量语义检索 + source_type 过滤，替代原来的 SQL LIKE 搜索
                         use_rerank = hasattr(registry, "reranker") and registry.reranker is not None
                         raw_results = await retrieval.search(
                             query=query,
@@ -584,31 +709,27 @@ async def mcp_post_handler(
                             top_k=limit,
                             use_rerank=use_rerank,
                             rerank_fn=registry.rerank if use_rerank else None,
-                            source_type_filter="document",  # 只搜文档
+                            source_type_filter="document",
                         )
                         if raw_results:
                             from backend.services.context_compiler import ContextCompiler
                             result_text = ContextCompiler.compile_context(raw_results, query)
                         else:
-                            # Fallback: SQL 全文搜索兜底（兼容未重建向量的老文档）
                             from backend.api.db_helper import get_db_conn
                             conn = await get_db_conn()
                             rows = await conn.fetch(
-                                "SELECT title, content FROM memories "
-                                "WHERE team_id=$1 AND source_type='document' AND content ILIKE $2 LIMIT $3",
+                                "SELECT title, content FROM memories WHERE team_id=$1 AND source_type='document' AND content ILIKE $2 LIMIT $3",
                                 team_id, "%" + query + "%", limit
                             )
                             await conn.close()
                             if rows:
-                                result_text = "\n\n---\n\n".join(
-                                    f"📄 {r['title']}\n{r['content'][:500]}" for r in rows
-                                )
+                                result_text = "\n\n---\n\n".join(f"📄 {r['title']}\n{r['content'][:500]}" for r in rows)
                             else:
-                                result_text = "未找到相关文档内容。请确认文档已上传并处理完成。"
+                                result_text = "No document content found matching query."
                     else:
-                        result_text = "检索引擎未初始化。"
+                        result_text = "Retrieval engine not initialized."
                 except Exception as e:
-                    result_text = "doc_search failed: " + str(e)
+                    result_text = f"doc_search failed: {e}"
 
             elif tool_name == "memory_skill_list":
                 try:
@@ -616,83 +737,23 @@ async def mcp_post_handler(
                     limit = arguments.get("limit", 10)
                     from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT skill_name, trigger_pattern, effectiveness, usage_count FROM memory_skills WHERE team_id=$1 AND effectiveness >= $2 ORDER BY effectiveness DESC LIMIT $3", team_id, min_eff, limit)
+                    rows = await conn.fetch("""
+                        SELECT id, skill_name, trigger_pattern, effectiveness, usage_count, evolved_count, source_agents, verified_by
+                        FROM memory_skills
+                        WHERE team_id=$1 AND effectiveness >= $2
+                        ORDER BY effectiveness DESC
+                        LIMIT $3
+                    """, team_id, min_eff, limit)
                     await conn.close()
                     if rows:
-                        result_text = "\n".join(f"💎 {r['skill_name']} (eff={r['effectiveness']:.0%}, used {r['usage_count']}x) - {r['trigger_pattern'] or 'general'}" for r in rows)
+                        result_text = "\n".join(
+                            f"💎 {r['skill_name']} [ID: {r['id']}] (eff={r['effectiveness']:.0%}, used {r['usage_count']}x, evolved {r['evolved_count']}x)\n"
+                            f"  Trigger: {r['trigger_pattern'] or 'general'}\n"
+                            f"  Agents: {', '.join(r['source_agents']) if r['source_agents'] else 'none'}"
+                            for r in rows
+                        )
                     else:
-                        result_text = "No skills yet. Keep using the system to crystallize skills via L4 pipeline."
-                except Exception as e:
-                    result_text = f"memory_skill_list failed: {e}"
-
-
-            elif tool_name == "code_index":
-                try:
-                    project_path = args.get("project_path", "")
-                    result_text = f"Code indexing queued for {project_path}. Indexing starts automatically."
-                except Exception as e:
-                    result_text = f"code_index failed: {e}"
-
-            elif tool_name == "code_impact":
-                try:
-                    entity_name = args.get("entity_name", "")
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT name, entity_type, file_path FROM code_entities WHERE team_id=$1 AND name=$2", team_id, entity_name)
-                    await conn.close()
-                    if rows:
-                        result_text = f"Impact analysis for {entity_name}: {len(rows)} direct entity(s) found. Full analysis requires indexed call graph."
-                    else:
-                        result_text = f"Entity '{entity_name}' not found in code index."
-                except Exception as e:
-                    result_text = f"code_impact failed: {e}"
-
-            elif tool_name == "code_memory_link":
-                try:
-                    entity_name = args.get("entity_name", "")
-                    memory_id = args.get("memory_id", "")
-                    from backend.graph.neo4j_store import GraphStore
-                    from backend.services.config import settings
-                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
-                    async with gs.driver.session() as session:
-                        await session.run("MATCH (c:CodeEntity {name: $name}), (m:Memory {id: $mid}) MERGE (m)-[:RELATES_TO_CODE]->(c)", name=entity_name, mid=memory_id)
-                    result_text = f"Linked {entity_name} to memory {memory_id[:8]}"
-                except Exception as e:
-                    result_text = f"code_memory_link failed: {e}"
-
-            elif tool_name == "memory_feedback":
-                try:
-                    outcome = args.get("outcome", "success")
-                    memory_ids = args.get("memory_ids", [])
-                    context = args.get("context", "")
-                    result_text = f"Feedback recorded: {outcome}. System will auto-optimize skills."
-                except Exception as e:
-                    result_text = f"memory_feedback failed: {e}"
-
-            elif tool_name == "doc_search":
-                try:
-                    query = arguments.get("query", "")
-                    limit = int(arguments.get("limit", 5))
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT title, content FROM memories WHERE team_id=$1 AND layer='DOC' AND content ILIKE $2 LIMIT $3", team_id, "%" + query + "%", limit)
-                    await conn.close()
-                    if rows: result_text = chr(10).join(r["title"] + ": " + r["content"][:500] for r in rows)
-                    else: result_text = "No document content found."
-                except Exception as e: result_text = "doc_search failed: " + str(e)
-
-            elif tool_name == "memory_skill_list":
-                try:
-                    min_eff = args.get("min_effectiveness", 0.6)
-                    limit = args.get("limit", 10)
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT skill_name, trigger_pattern, effectiveness, usage_count FROM memory_skills WHERE team_id=$1 AND effectiveness >= $2 ORDER BY effectiveness DESC LIMIT $3", team_id, min_eff, limit)
-                    await conn.close()
-                    if rows:
-                        result_text = "\n".join(f"💎 {r['skill_name']} (eff={r['effectiveness']:.0%}, used {r['usage_count']}x) - {r['trigger_pattern'] or 'general'}" for r in rows)
-                    else:
-                        result_text = "No skills yet. Keep using the system to crystallize skills via L4 pipeline."
+                        result_text = "No crystallized skills found matching requirements."
                 except Exception as e:
                     result_text = f"memory_skill_list failed: {e}"
 

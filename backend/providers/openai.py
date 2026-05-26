@@ -73,7 +73,7 @@ class OpenAIProvider(BaseProvider):
             CostTracker.record(model, tokens, provider="openai")
             return [i["embedding"] for i in data["data"]]
 
-    async def chat(self, messages: list[dict], **kwargs) -> str:
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> str:
         base = self.config.api_base or "https://api.openai.com/v1"
         model = self.config.enabled_models.get("llm", "gpt-4o-mini")
         async with httpx.AsyncClient(timeout=60) as client:

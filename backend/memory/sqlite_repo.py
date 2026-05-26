@@ -349,7 +349,7 @@ class SQLiteMemoryRepo:
 
     async def update_account_status(self, username: str, revoked: bool = None, suspended: bool = None, api_key: str = None):
         fields = []
-        vals = []
+        vals: list[Any] = []
         if revoked is not None:
             fields.append("revoked = ?")
             vals.append(1 if revoked else 0)
@@ -479,6 +479,7 @@ class SQLiteMemoryRepo:
     async def get_items(self, category: str, subcategory: str = None, limit: int = 50):
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
+            params: tuple[Any, ...]
             if subcategory and subcategory != "其他":
                 q = "SELECT id, title, content, created_at FROM memories WHERE category=? AND subcategory=? ORDER BY created_at DESC LIMIT ?"
                 params = (category, subcategory, limit)

@@ -6,8 +6,10 @@ import { api } from '../api/client';
 import { getUserPipelineStatus, getUserDocuments, deleteUserDocument, UserDocument } from '../api/endpoints';
 import type { PipelineStatus, PipelineJob } from '../api/types';
 import { CortexMark } from '../components/CortexMark';
+import { SkillLibrary } from '../components/SkillLibrary';
+import { KnowledgeMap } from '../components/KnowledgeMap';
 
-type DashTab = "overview" | "memory" | "connect" | "myllm" | "canvas" | "persona" | "plan";
+type DashTab = "overview" | "memory" | "connect" | "myllm" | "canvas" | "persona" | "plan" | "skills" | "map";
 const DASH_TABS: { id: DashTab; label: string }[] = [
   { id: "overview", label: "概览 Overview" },
   { id: "memory",   label: "知识库 Library" },
@@ -16,6 +18,8 @@ const DASH_TABS: { id: DashTab; label: string }[] = [
   { id: "canvas",   label: "画布 Canvas" },
   { id: "plan",     label: "订阅 Plan" },
   { id: "persona",  label: "画像 Persona" },
+  { id: "skills",   label: "💎 技能 Skills" },
+  { id: "map",      label: "🗺️ 知识地图 Map" },
 ];
 
 function Dashboard() {
@@ -103,6 +107,8 @@ function Dashboard() {
           {tab === "canvas" && <CanvasPanel />}
           {tab === "persona" && <PersonaPanel />}
           {tab === "plan" && <PlanPanel />}
+          {tab === "skills" && <SkillLibrary />}
+          {tab === "map" && <KnowledgeMap />}
         </main>
       </div>
     </div>

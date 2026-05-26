@@ -28,3 +28,5 @@ aiosqlite>=0.20.0
 structlog
 prometheus-fastapi-instrumentator
 alembic>=1.13.0
+tree-sitter>=0.23.0
+tree-sitter-language-pack>=0.3.0

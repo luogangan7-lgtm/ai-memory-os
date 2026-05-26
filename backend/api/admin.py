@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json, time, subprocess, os, logging
+from typing import Any
 from pathlib import Path
 from uuid import uuid4
 
@@ -250,7 +251,7 @@ async def get_provider_catalog(ptype: str):
 
 # Memory cache for connectivity results to avoid 429 Rate Limits
 # Format: {provider_name: {"valid": bool, "error": str, "expiry": timestamp}}
-_VALIDATION_CACHE = {}
+_VALIDATION_CACHE: dict[str, dict[str, Any]] = {}
 VALIDATION_TTL = 60 # seconds
 
 _pg_repo = None
@@ -893,7 +894,9 @@ async def test_provider_connection(data: dict):
         if not p_class: return {"ok": False, "error": f"Unknown provider: {provider_id}"}
         p_inst = p_class(cfg)
         val = await p_inst.validate()
-        return {"ok": val.get("valid", False), "error": val.get("error", "")}
+        if isinstance(val, dict):
+            return {"ok": val.get("valid", False), "error": val.get("error", "")}
+        return {"ok": bool(val), "error": ""}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -1077,7 +1080,7 @@ async def trigger_embedding_rebuild(
     conn = await get_db_conn()
     try:
         query = "SELECT id FROM memories WHERE embedding_version IS NULL OR embedding_version < $1"
-        params = [target_version]
+        params: list[Any] = [target_version]
         if team_id:
             query += " AND team_id = $2"
             params.append(team_id)
@@ -1110,7 +1113,7 @@ async def list_all_memories(
         
     async with _pg_repo.pool.acquire() as conn:
         query_parts = ["WHERE 1=1"]
-        params = []
+        params: list[Any] = []
         
         if team_id:
             params.append(team_id)
@@ -1128,7 +1131,7 @@ async def list_all_memories(
         where_clause = " ".join(query_parts)
         
         # Get count
-        count_q = f"SELECT COUNT(*) FROM memories {where_clause}"
+        count_q = "SELECT COUNT(*) FROM memories " + where_clause
         total = await conn.fetchval(count_q, *params)
         
         # Get list
@@ -1137,7 +1140,7 @@ async def list_all_memories(
         params.append(offset)
         offset_param = f"${len(params)}"
         
-        list_q = f"SELECT * FROM memories {where_clause} ORDER BY created_at DESC LIMIT {limit_param} OFFSET {offset_param}"
+        list_q = "SELECT * FROM memories " + where_clause + " ORDER BY created_at DESC LIMIT " + limit_param + " OFFSET " + offset_param
         rows = await conn.fetch(list_q, *params)
         
     memories = []
@@ -1191,7 +1194,7 @@ async def list_all_documents(
         
     async with _pg_repo.pool.acquire() as conn:
         query_parts = ["WHERE 1=1"]
-        params = []
+        params: list[Any] = []
         
         if team_id:
             params.append(team_id)
@@ -1203,7 +1206,7 @@ async def list_all_documents(
         where_clause = " ".join(query_parts)
         
         # Get count
-        count_q = f"SELECT COUNT(*) FROM documents {where_clause}"
+        count_q = "SELECT COUNT(*) FROM documents " + where_clause
         total = await conn.fetchval(count_q, *params)
         
         # Get list
@@ -1212,7 +1215,7 @@ async def list_all_documents(
         params.append(offset)
         offset_param = f"${len(params)}"
         
-        list_q = f"SELECT * FROM documents {where_clause} ORDER BY created_at DESC LIMIT {limit_param} OFFSET {offset_param}"
+        list_q = "SELECT * FROM documents " + where_clause + " ORDER BY created_at DESC LIMIT " + limit_param + " OFFSET " + offset_param
         rows = await conn.fetch(list_q, *params)
         
     documents = []

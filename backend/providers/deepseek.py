@@ -79,7 +79,7 @@ class DeepSeekProvider(BaseProvider):
     async def discover_models(self) -> list[ModelInfo]:
         return DEEPSEEK_CATALOG
 
-    async def chat(self, messages: list[dict], **kwargs) -> str:
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> str:
         base = self.config.api_base or DEEPSEEK_BASE
         model = self.config.enabled_models.get("llm", "deepseek-chat")
         async with httpx.AsyncClient(timeout=60) as client:

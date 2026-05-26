@@ -1,6 +1,7 @@
 """Alibaba Cloud Embedding Service — reads API key from admin-configured providers."""
 from __future__ import annotations
 import os, httpx
+from typing import Any
 
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
 
@@ -14,7 +15,7 @@ def _get_api_key() -> str:
         if hasattr(reg, '_load_configs'):
             reg._load_configs()
         if reg and hasattr(reg, 'configs'):
-            cfg = reg.configs.get('alibaba', {})
+            cfg: Any = reg.configs.get('alibaba', {})
             if hasattr(cfg, 'api_key') and cfg.api_key:
                 return cfg.api_key
     except Exception:

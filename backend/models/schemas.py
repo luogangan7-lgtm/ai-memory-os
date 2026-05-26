@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic import field_validator
 
 # Standard metadata fields that must be present
-REQUIRED_METADATA_KEYS = []
+REQUIRED_METADATA_KEYS: list[str] = []
 
 def validate_memory_tags(tags: list[str]) -> list[str]:
     """Normalize tags: lowercase, no spaces."""
@@ -43,6 +43,8 @@ class MemoryStoreRequest(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     lifecycle_stage: str = "recent"
     source_type: str = "human"
+    agent_source: Optional[str] = "unknown"
+
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -102,7 +104,7 @@ class MemorySearchRequest(BaseModel):
     team_id: str = "default"
     agent_id: str = ""
     workspace_id: str = "default"
-    agent_id: str = ""
+
     category: Optional[str] = None
     memory_type: Optional[str] = None
     top_k: int = Field(default=10, ge=1, le=100)

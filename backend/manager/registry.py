@@ -95,6 +95,7 @@ PROVIDER_CLASSES: dict[str, type[BaseProvider]] = {
 class ModelRegistry:
     """Singleton registry for all model providers."""
     _instance: Optional[ModelRegistry] = None
+    qs: Any = None
 
     @classmethod
     def get_instance(cls) -> ModelRegistry:
@@ -186,7 +187,7 @@ class ModelRegistry:
         connected = {p for p, cfg in self.configs.items() if cfg.api_key}
 
         def cheapest(cap: str) -> dict | None:
-            candidates = []
+            candidates: list[dict[str, Any]] = []
             for ptype, models in CATALOGS.items():
                 if ptype not in connected:
                     continue
@@ -195,7 +196,7 @@ class ModelRegistry:
                         candidates.append({"provider": ptype, **m})
             if not candidates:
                 return None
-            return sorted(candidates, key=lambda x: x["price"])[0]
+            return sorted(candidates, key=lambda x: float(x["price"]))[0]
 
         llm = cheapest("llm")
         emb = cheapest("embedding")
@@ -260,13 +261,13 @@ class ModelRegistry:
         cfg = self.configs.get(provider_type)
         if cfg:
             if valid:
-                caps = ["llm"]
+                caps = [ProviderType.LLM]
                 if provider_type in ["alibaba", "openai", "zhipu", "minimax", "doubao", "baidu", "hunyuan", "ollama", "omlx", "custom", "siliconflow", "jina"]:
-                    caps.append("embedding")
+                    caps.append(ProviderType.EMBEDDING)
                 if provider_type in ["alibaba", "custom", "baidu", "siliconflow", "jina"]:
-                    caps.append("rerank")
-                if provider_type == "jina" and "llm" in caps:
-                    caps.remove("llm")
+                    caps.append(ProviderType.RERANK)
+                if provider_type == "jina" and ProviderType.LLM in caps:
+                    caps.remove(ProviderType.LLM)
                 cfg.enabled_capabilities = caps
             else:
                 cfg.enabled_capabilities = []
@@ -423,7 +424,7 @@ class ModelRegistry:
 
     @staticmethod
     def detect_environment() -> dict[str, Any]:
-        info = {
+        info: dict[str, Any] = {
             "system": platform.system(),
             "python_version": platform.python_version(),
             "cpu_cores": os.cpu_count(),
@@ -448,7 +449,7 @@ class ModelRegistry:
                 for i in range(torch.cuda.device_count()):
                     info["gpus"].append({
                         "name": torch.cuda.get_device_name(i),
-                        "memory_gb": round(torch.cuda.get_device_properties(i).total_mem / 1e9, 1),
+                        "memory_gb": round(torch.cuda.get_device_properties(i).total_memory / 1e9, 1),
                     })
         except ImportError:
             info["torch_available"] = False
@@ -551,7 +552,7 @@ class ModelRegistry:
             api_key=api_key,
             api_base=base_url or "",
             enabled_models={engine_name: model_name},
-            enabled_capabilities=["llm"]
+            enabled_capabilities=[ProviderType.LLM]
         )
         cls = PROVIDER_CLASSES.get(provider_name)
         if not cls:

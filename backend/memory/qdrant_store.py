@@ -84,7 +84,7 @@ class QdrantStore:
         collection_name = f"memory_team_{team_id}"
         self._ensure_collection(collection_name)
 
-        must = []
+        must: list[Any] = []
         # Fix: "default" 是全局空间，无需过滤；只在明确指定非默认 workspace 时才过滤
         if workspace_id and workspace_id != "default":
             must.append(models.FieldCondition(

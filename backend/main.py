@@ -1,4 +1,5 @@
 import os
+from typing import Any
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI):
         from backend.memory.sqlite_repo import SQLiteMemoryRepo
         from backend.memory.lancedb_store import LanceDBStore
         print("🚀 Starting in STANDALONE mode (Embedded SQLite + LanceDB)")
-        qs = LanceDBStore() # Replaces Qdrant
+        qs: Any = LanceDBStore() # Replaces Qdrant
         pg = await SQLiteMemoryRepo.create() # Replaces PostgreSQL
     else:
         qs = QdrantStore(host=settings.qdrant_host, port=settings.qdrant_port)

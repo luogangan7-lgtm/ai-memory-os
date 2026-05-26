@@ -52,7 +52,7 @@ class AnthropicProvider(BaseProvider):
     async def discover_models(self) -> list[ModelInfo]:
         return ANTHROPIC_CATALOG
 
-    async def chat(self, messages: list[dict], **kwargs) -> str:
+    async def chat(self, messages: list[dict], stream: bool = False, **kwargs) -> str:
         model = self.config.enabled_models.get("llm", "claude-sonnet-4-5")
         max_tokens = kwargs.pop("max_tokens", 4096)
         async with httpx.AsyncClient(timeout=60) as client:

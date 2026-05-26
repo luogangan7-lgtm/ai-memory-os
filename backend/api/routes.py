@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import os
 import uuid
 import logging
@@ -201,10 +202,13 @@ async def remember(
 
     # Auto-classify if category is generic
     auto_cat, auto_sub, auto_topic = req.category, req.subcategory, req.topic
-    if (not auto_cat or auto_cat == "general") and (req.content or req.title):
-        from backend.services.classifier import classify_memory
-        clf = await classify_memory(req.content or "", req.title or "", registry)
-        auto_cat, auto_sub, auto_topic = clf["category"], clf["subcategory"], clf["topic"]
+    if (not auto_cat or auto_cat in ("general", "其他")) and (req.content or req.title):
+        from backend.pipeline.skill_evolver import auto_classify
+        auto_cat = auto_classify(req.title or "", req.content or "")
+        if auto_cat == "其他":
+            from backend.services.classifier import classify_memory
+            clf = await classify_memory(req.content or "", req.title or "", registry)
+            auto_cat, auto_sub, auto_topic = clf["category"], clf["subcategory"], clf["topic"]
 
     # Store new memory
     if pg_repo:
@@ -217,8 +221,9 @@ async def remember(
             source_type=req.source_type or "agent", source_uri=req.source_uri,
             tags=req.tags, metadata=req.metadata,
             dedup_hash=dedup_hash,
-
+            agent_source=req.agent_source or agent_id or "unknown"
         )
+
     if ingestion:
         try:
             await ingestion.ingest(
@@ -441,6 +446,108 @@ async def run_reflection(
     engine = ReflectionEngine(pg_repo, graph_store, registry=registry, retrieval=retrieval)
     report = await engine.reflect_all(team_id)
     return report
+
+
+# ── V7.1 Category Stats & Skills Stats API ──────────────────
+
+@router.get("/memory/categories")
+async def get_memory_categories(
+    team_id: str = Depends(get_current_team)
+):
+    if not pg_repo:
+        raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT category, count, latest_at, contributing_agents
+            FROM memory_category_stats
+            WHERE team_id = $1
+        """, team_id)
+        return [
+            {
+                "category": r["category"],
+                "count": r["count"],
+                "latest_at": r["latest_at"].isoformat() if r["latest_at"] else None,
+                "contributing_agents": r["contributing_agents"] or []
+            }
+            for r in rows
+        ]
+
+@router.get("/memory/categories/{category}")
+async def get_memories_by_category(
+    category: str,
+    limit: int = 50,
+    team_id: str = Depends(get_current_team)
+):
+    if not pg_repo:
+        raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, title, content, layer, category, agent_source, created_at
+            FROM memories
+            WHERE team_id = $1 AND category = $2 AND layer = 'L1'
+            ORDER BY created_at DESC
+            LIMIT $3
+        """, team_id, category, limit)
+        return [
+            {
+                "id": str(r["id"]),
+                "title": r["title"],
+                "content": r["content"],
+                "layer": r["layer"],
+                "category": r["category"],
+                "agent_source": r["agent_source"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None
+            }
+            for r in rows
+        ]
+
+@router.get("/skills/stats")
+async def get_skills_stats(
+    team_id: str = Depends(get_current_team)
+):
+    if not pg_repo:
+        raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        overall = await conn.fetchrow("""
+            SELECT COUNT(*) AS total_skills,
+                   COALESCE(SUM(usage_count), 0) AS total_usage,
+                   COALESCE(AVG(effectiveness), 1.0) AS avg_effectiveness,
+                   COALESCE(SUM(evolved_count), 0) AS total_evolved
+            FROM memory_skills
+            WHERE team_id = $1
+        """, team_id)
+        
+        skills = await conn.fetch("""
+            SELECT id, skill_name, skill_content, trigger_pattern,
+                   usage_count, fail_count, effectiveness, source_agents, verified_by, evolved_count, created_at, updated_at
+            FROM memory_skills
+            WHERE team_id = $1
+            ORDER BY effectiveness DESC, usage_count DESC
+        """, team_id)
+        
+        return {
+            "total_skills": overall["total_skills"] if overall else 0,
+            "total_usage": overall["total_usage"] if overall else 0,
+            "avg_effectiveness": float(overall["avg_effectiveness"]) if overall and overall["avg_effectiveness"] is not None else 1.0,
+            "total_evolved": overall["total_evolved"] if overall else 0,
+            "skills": [
+                {
+                    "id": str(r["id"]),
+                    "skill_name": r["skill_name"],
+                    "skill_content": r["skill_content"],
+                    "trigger_pattern": r["trigger_pattern"],
+                    "usage_count": r["usage_count"],
+                    "fail_count": r.get("fail_count", 0),
+                    "effectiveness": float(r["effectiveness"]) if r["effectiveness"] is not None else 1.0,
+                    "source_agents": r.get("source_agents") or [],
+                    "verified_by": r.get("verified_by") or [],
+                    "evolved_count": r.get("evolved_count", 0),
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None
+                }
+                for r in skills
+            ]
+        }
 
 
 @router.get("/memory/{memory_id}")
@@ -860,7 +967,7 @@ async def search_memory(
             min_confidence=req.min_confidence,
         ) or []
         # Fuse: interleave personal memories with team results
-        fused = []
+        fused: list[dict[str, Any]] = []
         pi, ki = 0, 0
         while len(fused) < req.top_k and (pi < len(personal) or ki < len(results)):
             if pi < len(personal) and (ki >= len(results) or pi <= ki):
@@ -892,7 +999,8 @@ async def search_memory(
     if req.source_type:
         results = [r for r in results if (r.get("payload",{}).get("source_type") or r.get("memory",{}).get("source_type")) == req.source_type]
 
-        results = results[:req.top_k]
+    results = results[:req.top_k]
+
     
     # Enrich with PostgreSQL metadata if available
     memory_ids = [r["payload"].get("memory_id", r["id"]) for r in results]
@@ -902,11 +1010,11 @@ async def search_memory(
         rows = await pg_repo.get_by_ids(memory_ids)
         pg_rows = {str(row["id"]): dict(row) for row in rows}
 
-    out = []
+    final_results: list[MemorySearchResult] = []
     for r in results:
         mid = r["payload"].get("memory_id", r["id"])
         pg = pg_rows.get(str(mid), {})
-        out.append(MemorySearchResult(
+        final_results.append(MemorySearchResult(
             memory=MemoryResponse(
                 id=str(mid),
                 team_id=team_id,
@@ -929,7 +1037,7 @@ async def search_memory(
             chunk_text=r["payload"].get("text"),
             graph_context=r.get("graph_context", []),
         ))
-    return out
+    return final_results
 
 
 
@@ -1082,6 +1190,7 @@ async def get_longterm(
                 memory_type=r["payload"].get("memory_type", "general"),
                 importance=float(r["payload"].get("importance", 0.5)),
                 confidence=float(r["payload"].get("confidence", 0.5)),
+                embedding_model=r["payload"].get("embedding_model", "text-embedding-v3"),
                 source_type="human",
                 tags=r["payload"].get("tags", []),
                 created_at="2026-05-01T00:00:00Z",
@@ -1320,31 +1429,13 @@ async def list_skills(team_id: str = Depends(get_current_team), limit: int = 50)
     if not pg_repo: raise HTTPException(503)
     async with pg_repo.pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, skill_name, skill_content, trigger_pattern, usage_count, effectiveness, created_at FROM memory_skills WHERE team_id=$1 ORDER BY usage_count DESC LIMIT $2",
+            "SELECT id, skill_name, skill_content, trigger_pattern, usage_count, fail_count, effectiveness, source_agents, last_used_at, created_at FROM memory_skills WHERE team_id=$1 ORDER BY usage_count DESC LIMIT $2",
             team_id, limit)
     return {"skills": [dict(r) for r in rows]}
 
 @router.post("/api/skills/crystallize")
 async def trigger_crystallize(team_id: str = Depends(get_current_team)):
     """Manually trigger L4 skill crystallization."""
-    from backend.pipeline.l4_skills import crystallize_skills
-    import asyncio
-    asyncio.create_task(crystallize_skills(pg_repo, team_id))
-    return {"message": "Crystallization started"}
-
-# ── V7.0 L4 Skills API ────────────────────────────────────
-
-@router.get("/api/skills")
-async def list_skills(team_id: str = Depends(get_current_team), limit: int = 50):
-    if not pg_repo: raise HTTPException(503)
-    async with pg_repo.pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT id, skill_name, skill_content, trigger_pattern, usage_count, effectiveness, created_at FROM memory_skills WHERE team_id=$1 ORDER BY usage_count DESC LIMIT $2",
-            team_id, limit)
-    return {"skills": [dict(r) for r in rows]}
-
-@router.post("/api/skills/crystallize")
-async def trigger_crystallize(team_id: str = Depends(get_current_team)):
     from backend.pipeline.l4_skills import crystallize_skills
     import asyncio
     asyncio.create_task(crystallize_skills(pg_repo, team_id))
@@ -1367,3 +1458,6 @@ async def _pg_fallback_search(team_id, source_type, top_k, pg_repo):
     async with pg_repo.pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM memories WHERE team_id=$1 AND source_type=$2 ORDER BY created_at DESC LIMIT $3", team_id, source_type, top_k)
     return [{"payload": {"memory_id": str(dict(r)["id"]), "text": dict(r).get("content","")[:500]}, "score": 1.0} for r in rows]
+
+
+

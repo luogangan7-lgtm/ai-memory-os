@@ -53,7 +53,7 @@ class InternalizationService:
         
         if is_sqlite:
             import aiosqlite
-            db_conn = await aiosqlite.connect(self.pg.db_path)
+            db_conn = await aiosqlite.connect(getattr(self.pg, "db_path"))
             db_conn.row_factory = aiosqlite.Row
             cursor = await db_conn.execute("""
                 SELECT id, title, content, category, importance, metadata 
@@ -76,14 +76,15 @@ class InternalizationService:
         promoted_count = 0
         try:
             for r in rows:
-                mid, content, importance = r["id"], r["content"], r["importance"]
-                content = content or ""
-                if importance is None: importance = 0.5
-                if _contains_secrets(content) or _contains_secrets(r.get("title", "")): continue
-                if importance is None: importance = 0.5
-                content = content or ""
+                mid = r["id"]
+                content = r["content"] or ""
+                importance = r["importance"]
+                if importance is None:
+                    importance = 0.5
+                title = r["title"] or ""
+                if _contains_secrets(content) or _contains_secrets(title):
+                    continue
 
-                
                 # 2. Quality & Redundancy Check
                 min_len = int(settings.internalize_min_content_length)
                 if len(content) < min_len and importance < 0.8:
@@ -108,10 +109,23 @@ class InternalizationService:
                 if not is_redundant and is_valuable:
                     # 4. Promote to Knowledge with a small importance boost
                     new_importance = min(1.0, importance + 0.1)
-                    logging.info(f"Internalizing memory {mid}: {r['title']}")
+                    logging.info(f"Internalizing memory {mid}: {title}")
+
+                    # Extract metadata fields
+                    cat = r["category"] or "general"
+                    metadata_val = r["metadata"]
+                    if isinstance(metadata_val, str):
+                        try:
+                            meta = json.loads(metadata_val)
+                        except Exception:
+                            meta = {}
+                    else:
+                        meta = metadata_val or {}
+                    subcat = meta.get("subcategory") or ""
+                    topic_val = meta.get("topic") or ""
+
                     if is_sqlite:
                         # Update metadata in SQLite
-                        meta = json.loads(r["metadata"]) if r["metadata"] else {}
                         meta["internalized"] = True
                         meta["internalized_at"] = datetime.now(timezone.utc).isoformat()
                         await db_conn.execute("""
@@ -128,10 +142,10 @@ class InternalizationService:
                                 category = $3,
                                 subcategory = $4,
                                 topic = $5,
-                                importance = $6,
+                                importance = $2,
                                 metadata = metadata || '{"internalized": true, "internalized_at": "now"}'
                             WHERE id = $1
-                        """, mid, new_importance, category, subcategory or "", topic or "")
+                        """, mid, new_importance, cat, subcat, topic_val)
 
                     # Re-index vector into public Qdrant collection
                     if self.retrieval and hasattr(self.retrieval, 'qdrant'):

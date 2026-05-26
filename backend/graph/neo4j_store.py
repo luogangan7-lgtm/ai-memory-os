@@ -201,3 +201,46 @@ class GraphStore:
                 "MATCH (m:Memory {id: $id}) DETACH DELETE m",
                 id=memory_id,
             )
+
+    async def ingest_code_entity(self, entity_id: str, name: str, entity_type: str, file_path: str, team_id: str = "default") -> None:
+        query = """
+        MERGE (c:Code {id: $id})
+        SET c.name = $name, c.entity_type = $entity_type, c.file_path = $file_path, c.team_id = $team_id, c.indexed_at = datetime()
+        """
+        async with self.driver.session() as session:
+            await session.run(
+                query,
+                id=entity_id, name=name,
+                entity_type=entity_type, file_path=file_path, team_id=team_id
+            )
+
+    async def create_code_relation(self, source_id: str, target_id: str, relation_type: str) -> None:
+        import re
+        rel_type = relation_type.upper()
+        if not re.match(r"^[A-Z0-9_]+$", rel_type):
+            rel_type = "DEPENDS_ON"
+        async with self.driver.session() as session:
+            await session.run(f"""
+                MATCH (a {{id: $source_id}})
+                MATCH (b {{id: $target_id}})
+                MERGE (a)-[r:{rel_type}]->(b)
+                SET r.created_at = datetime()
+            """, source_id=source_id, target_id=target_id)
+
+    async def find_contradictions(self, team_id: str = "default") -> list[dict[str, Any]]:
+        async with self.driver.session() as session:
+            result = await session.run("""
+                MATCH (a:Memory)-[r:CONTRADICTS]-(b:Memory)
+                WHERE a.id < b.id
+                RETURN a.id AS source, b.id AS target, a.title AS source_title, b.title AS target_title
+            """)
+            return [
+                {
+                    "source": record["source"],
+                    "target": record["target"],
+                    "source_title": record["source_title"],
+                    "target_title": record["target_title"]
+                }
+                async for record in result
+            ]
+

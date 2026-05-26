@@ -196,7 +196,7 @@ import time
 _last_zombie_check = 0
 
 
-_l4_counter = {}
+_l4_counter: dict[str, float] = {}
 async def _do_l4(team_id):
     try:
         from backend.pipeline.l4_skills import crystallize_skills
