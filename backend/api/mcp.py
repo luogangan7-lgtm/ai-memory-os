@@ -220,20 +220,12 @@ async def mcp_post_handler(
                         "inputSchema": {
                             "type": "object",
                             "properties": {
-                                "query": {
-                                    "type": "string",
-                                    "description": "The natural language query or concept to search for in memory."
-                                },
-                                "workspace_id": {
-                                    "type": "string",
-                                    "description": "Optional specific workspace identifier to filter.",
-                                    "default": "default"
-                                },
-                                "top_k": {
-                                    "type": "integer",
-                                    "description": "Max number of memory chunks to retrieve.",
-                                    "default": 3
-                                },
+                                "query": {"type": "string", "description": "The natural language query or concept to search for in memory."},
+                                "limit": {"type": "integer", "description": "Max results", "default": 5},
+                                "since": {"type": "string", "description": "Start date ISO format, e.g. 2026-03-01"},
+                                "until": {"type": "string", "description": "End date ISO format, e.g. 2026-04-30"},
+                                "layer": {"type": "string", "enum": ["L1","L2","L3","L4","DOC"], "description": "Memory layer filter"},
+                                "source_type": {"type": "string", "description": "Source filter: human/agent/document"},
                                 "limit": {
                                     "type": "integer",
                                     "description": "Max results",
@@ -412,6 +404,9 @@ async def mcp_post_handler(
         try:
             if tool_name == "memory_search":
                 query = arguments.get("query")
+                limit = int(arguments.get("limit", 3))
+                since = arguments.get("since")
+                until = arguments.get("until")
                 workspace_id = arguments.get("workspace_id", "default")
                 top_k = int(arguments.get("top_k", 3))
 

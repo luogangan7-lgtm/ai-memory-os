@@ -8,8 +8,9 @@ import type { PipelineStatus, PipelineJob } from '../api/types';
 import { CortexMark } from '../components/CortexMark';
 import { SkillLibrary } from '../components/SkillLibrary';
 import { KnowledgeMap } from '../components/KnowledgeMap';
+import { CodeGraph } from '../components/CodeGraph';
 
-type DashTab = "overview" | "memory" | "connect" | "myllm" | "canvas" | "persona" | "plan" | "skills" | "map";
+type DashTab = "overview" | "memory" | "connect" | "myllm" | "canvas" | "persona" | "plan" | "skills" | "map" | "codegraph";
 const DASH_TABS: { id: DashTab; label: string }[] = [
   { id: "overview", label: "概览 Overview" },
   { id: "memory",   label: "知识库 Library" },
@@ -109,6 +110,7 @@ function Dashboard() {
           {tab === "plan" && <PlanPanel />}
           {tab === "skills" && <SkillLibrary />}
           {tab === "map" && <KnowledgeMap />}
+          {tab === "codegraph" && <CodeGraph token={token} />}
         </main>
       </div>
     </div>
