@@ -26,7 +26,7 @@ class RetrievalPipeline:
         from backend.services.config import load_system_config
         sys_config = load_system_config()
         rag_cfg = sys_config.get("rag", {})
-        top_k = rag_cfg.get("top_k", top_k)
+        top_k = max(top_k, rag_cfg.get("top_k", top_k))
         min_similarity = rag_cfg.get("min_similarity", 0.60)
 
         query_vector = await embedding_fn(query)

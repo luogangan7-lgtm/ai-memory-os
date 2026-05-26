@@ -1316,3 +1316,10 @@ async def list_code_entities(team_id: str = Depends(get_current_team), limit: in
             "SELECT entity_type, name, file_path, language, indexed_at FROM code_entities WHERE team_id=$1 ORDER BY indexed_at DESC LIMIT $2",
             team_id, limit)
     return {"entities": [dict(r) for r in rows]}
+
+# V7 Fallback PG search when Qdrant empty
+async def _pg_fallback_search(team_id, source_type, top_k, pg_repo):
+    if not pg_repo: return []
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM memories WHERE team_id=$1 AND source_type=$2 ORDER BY created_at DESC LIMIT $3", team_id, source_type, top_k)
+    return [{"payload": {"memory_id": str(dict(r)["id"]), "text": dict(r).get("content","")[:500]}, "score": 1.0} for r in rows]
