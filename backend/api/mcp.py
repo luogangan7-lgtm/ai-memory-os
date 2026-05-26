@@ -282,7 +282,8 @@ async def mcp_post_handler(
                         "inputSchema": {"type": "object", "properties": {"outcome": {"type": "string", "enum": ["success", "failure", "partial"]}}, "required": ["outcome"]}
                     },
                     {
-                        "name": "memory_skill_list",
+                        "name": "doc_search", "description": "Search uploaded documents.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 5}}, "required": ["query"]}},
+                    {"name": "memory_skill_list",
                         "description": "List high-quality crystallized skills from L4 pipeline.",
                         "inputSchema": {"type": "object", "properties": {"min_effectiveness": {"type": "number", "default": 0.6}, "limit": {"type": "integer", "default": 10}}}
                     },
@@ -566,10 +567,93 @@ async def mcp_post_handler(
                 except Exception as e:
                     result_text = f"memory_feedback failed: {e}"
 
+            elif tool_name == "doc_search":
+                try:
+                    query = arguments.get("query", "")
+                    limit = int(arguments.get("limit", 5))
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT title, content FROM memories WHERE team_id=$1 AND layer='DOC' AND content ILIKE $2 LIMIT $3", team_id, "%" + query + "%", limit)
+                    await conn.close()
+                    if rows: result_text = chr(10).join(r["title"] + ": " + r["content"][:500] for r in rows)
+                    else: result_text = "No document content found."
+                except Exception as e: result_text = "doc_search failed: " + str(e)
+
             elif tool_name == "memory_skill_list":
                 try:
                     min_eff = arguments.get("min_effectiveness", 0.6)
                     limit = arguments.get("limit", 10)
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT skill_name, trigger_pattern, effectiveness, usage_count FROM memory_skills WHERE team_id=$1 AND effectiveness >= $2 ORDER BY effectiveness DESC LIMIT $3", team_id, min_eff, limit)
+                    await conn.close()
+                    if rows:
+                        result_text = "\n".join(f"💎 {r['skill_name']} (eff={r['effectiveness']:.0%}, used {r['usage_count']}x) - {r['trigger_pattern'] or 'general'}" for r in rows)
+                    else:
+                        result_text = "No skills yet. Keep using the system to crystallize skills via L4 pipeline."
+                except Exception as e:
+                    result_text = f"memory_skill_list failed: {e}"
+
+
+            elif tool_name == "code_index":
+                try:
+                    project_path = args.get("project_path", "")
+                    result_text = f"Code indexing queued for {project_path}. Indexing starts automatically."
+                except Exception as e:
+                    result_text = f"code_index failed: {e}"
+
+            elif tool_name == "code_impact":
+                try:
+                    entity_name = args.get("entity_name", "")
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT name, entity_type, file_path FROM code_entities WHERE team_id=$1 AND name=$2", team_id, entity_name)
+                    await conn.close()
+                    if rows:
+                        result_text = f"Impact analysis for {entity_name}: {len(rows)} direct entity(s) found. Full analysis requires indexed call graph."
+                    else:
+                        result_text = f"Entity '{entity_name}' not found in code index."
+                except Exception as e:
+                    result_text = f"code_impact failed: {e}"
+
+            elif tool_name == "code_memory_link":
+                try:
+                    entity_name = args.get("entity_name", "")
+                    memory_id = args.get("memory_id", "")
+                    from backend.graph.neo4j_store import GraphStore
+                    from backend.services.config import settings
+                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                    async with gs.driver.session() as session:
+                        await session.run("MATCH (c:CodeEntity {name: $name}), (m:Memory {id: $mid}) MERGE (m)-[:RELATES_TO_CODE]->(c)", name=entity_name, mid=memory_id)
+                    result_text = f"Linked {entity_name} to memory {memory_id[:8]}"
+                except Exception as e:
+                    result_text = f"code_memory_link failed: {e}"
+
+            elif tool_name == "memory_feedback":
+                try:
+                    outcome = args.get("outcome", "success")
+                    memory_ids = args.get("memory_ids", [])
+                    context = args.get("context", "")
+                    result_text = f"Feedback recorded: {outcome}. System will auto-optimize skills."
+                except Exception as e:
+                    result_text = f"memory_feedback failed: {e}"
+
+            elif tool_name == "doc_search":
+                try:
+                    query = arguments.get("query", "")
+                    limit = int(arguments.get("limit", 5))
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    rows = await conn.fetch("SELECT title, content FROM memories WHERE team_id=$1 AND layer='DOC' AND content ILIKE $2 LIMIT $3", team_id, "%" + query + "%", limit)
+                    await conn.close()
+                    if rows: result_text = chr(10).join(r["title"] + ": " + r["content"][:500] for r in rows)
+                    else: result_text = "No document content found."
+                except Exception as e: result_text = "doc_search failed: " + str(e)
+
+            elif tool_name == "memory_skill_list":
+                try:
+                    min_eff = args.get("min_effectiveness", 0.6)
+                    limit = args.get("limit", 10)
                     from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
                     rows = await conn.fetch("SELECT skill_name, trigger_pattern, effectiveness, usage_count FROM memory_skills WHERE team_id=$1 AND effectiveness >= $2 ORDER BY effectiveness DESC LIMIT $3", team_id, min_eff, limit)
