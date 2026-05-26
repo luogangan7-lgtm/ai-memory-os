@@ -552,7 +552,17 @@ async def mcp_post_handler(
                     outcome = arguments.get("outcome", "success")
                     memory_ids = arguments.get("memory_ids", [])
                     context = arguments.get("context", "")
-                    result_text = f"Feedback recorded: {outcome}. System will auto-optimize skills."
+                    # Update skill effectiveness
+                    from backend.api.db_helper import get_db_conn
+                    conn = await get_db_conn()
+                    if outcome == "success":
+                        await conn.execute("UPDATE memory_skills SET effectiveness = LEAST(1.0, COALESCE(effectiveness,1.0) + 0.05), usage_count = COALESCE(usage_count,0) + 1, last_used_at = NOW() WHERE team_id = $1", team_id)
+                    elif outcome == "failure":
+                        await conn.execute("UPDATE memory_skills SET effectiveness = GREATEST(0.1, COALESCE(effectiveness,1.0) - 0.1), usage_count = COALESCE(usage_count,0) + 1, fail_count = COALESCE(fail_count,0) + 1, last_used_at = NOW() WHERE team_id = $1", team_id)
+                    else:
+                        await conn.execute("UPDATE memory_skills SET usage_count = COALESCE(usage_count,0) + 1, last_used_at = NOW() WHERE team_id = $1", team_id)
+                    await conn.close()
+                    result_text = f"Feedback recorded: {outcome}. Skills auto-optimized."
                 except Exception as e:
                     result_text = f"memory_feedback failed: {e}"
 
