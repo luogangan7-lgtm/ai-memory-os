@@ -214,6 +214,8 @@ async def remember(
             importance=req.importance, confidence=req.confidence,
             source_type=req.source_type or "agent", source_uri=req.source_uri,
             tags=req.tags, metadata=req.metadata,
+            dedup_hash=dedup_hash,
+
         )
     if ingestion:
         try:
@@ -576,6 +578,16 @@ async def store_memory(
     memory_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
+    # V7: Semantic dedup — skip if identical content exists
+    import hashlib
+    dedup_hash = hashlib.md5(req.content.encode()).hexdigest() if req.content else ""
+    if pg_repo and dedup_hash:
+        async with pg_repo.pool.acquire() as conn:
+            dup = await conn.fetchrow("SELECT id FROM memories WHERE team_id=$1 AND dedup_hash=$2 LIMIT 1", team_id, dedup_hash)
+            if dup:
+                existing = dict(dup)
+            return {"status": "deduplicated", "id": str(dup["id"]), "title": existing.get("title","") or "dedup", "content": existing.get("content","") or "", "importance": float(existing.get("importance",0.5)), "confidence": float(existing.get("confidence",0.5)), "source_type": existing.get("source_type","human") or "human", "created_at": str(existing.get("created_at","")), "updated_at": str(existing.get("updated_at",""))}
+
     # Enforce max memory length from security config
     from backend.services.config import load_system_config
     sys_config = load_system_config()
@@ -662,6 +674,8 @@ async def store_memory(
             source_uri=req.source_uri,
             tags=req.tags,
             metadata=req.metadata,
+            dedup_hash=dedup_hash,
+
         )
 
     # Ingest into Qdrant (vector search)
