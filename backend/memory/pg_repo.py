@@ -267,7 +267,7 @@ class MemoryRepo:
     @retry(max_retries=2, delay=0.3)
     async def insert(self, **kw):
         now = datetime.now(timezone.utc)
-        fields = ["id","team_id","workspace_id","agent_id","category","subcategory","topic","memory_type","title","content","summary","embedding_model","importance","confidence","source_type","source_uri","tags","metadata","created_at","updated_at", "dedup_hash"]
+        fields = ["id","team_id","workspace_id","agent_id","category","subcategory","topic","memory_type","title","content","summary","embedding_model","importance","confidence","source_type","source_uri","tags","metadata","created_at","updated_at","dedup_hash","layer"]
         vals = {**kw, "created_at": now, "updated_at": now, "tags": kw.get("tags",[]), "metadata": json.dumps(kw.get("metadata",{}))}
         q = "INSERT INTO memories (" + ",".join(fields) + ") VALUES (" + ",".join("$"+str(i+1) for i in range(len(fields))) + ")"
         async with self.pool.acquire() as conn:

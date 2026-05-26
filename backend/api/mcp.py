@@ -571,13 +571,44 @@ async def mcp_post_handler(
                 try:
                     query = arguments.get("query", "")
                     limit = int(arguments.get("limit", 5))
-                    from backend.api.db_helper import get_db_conn
-                    conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT title, content FROM memories WHERE team_id=$1 AND layer='DOC' AND content ILIKE $2 LIMIT $3", team_id, "%" + query + "%", limit)
-                    await conn.close()
-                    if rows: result_text = chr(10).join(r["title"] + ": " + r["content"][:500] for r in rows)
-                    else: result_text = "No document content found."
-                except Exception as e: result_text = "doc_search failed: " + str(e)
+                    if not query:
+                        result_text = "请提供搜索关键词。"
+                    elif retrieval and registry:
+                        # Fix: 改用向量语义检索 + source_type 过滤，替代原来的 SQL LIKE 搜索
+                        use_rerank = hasattr(registry, "reranker") and registry.reranker is not None
+                        raw_results = await retrieval.search(
+                            query=query,
+                            embedding_fn=registry.embed_single,
+                            team_id=team_id,
+                            workspace_id="default",
+                            top_k=limit,
+                            use_rerank=use_rerank,
+                            rerank_fn=registry.rerank if use_rerank else None,
+                            source_type_filter="document",  # 只搜文档
+                        )
+                        if raw_results:
+                            from backend.services.context_compiler import ContextCompiler
+                            result_text = ContextCompiler.compile_context(raw_results, query)
+                        else:
+                            # Fallback: SQL 全文搜索兜底（兼容未重建向量的老文档）
+                            from backend.api.db_helper import get_db_conn
+                            conn = await get_db_conn()
+                            rows = await conn.fetch(
+                                "SELECT title, content FROM memories "
+                                "WHERE team_id=$1 AND source_type='document' AND content ILIKE $2 LIMIT $3",
+                                team_id, "%" + query + "%", limit
+                            )
+                            await conn.close()
+                            if rows:
+                                result_text = "\n\n---\n\n".join(
+                                    f"📄 {r['title']}\n{r['content'][:500]}" for r in rows
+                                )
+                            else:
+                                result_text = "未找到相关文档内容。请确认文档已上传并处理完成。"
+                    else:
+                        result_text = "检索引擎未初始化。"
+                except Exception as e:
+                    result_text = "doc_search failed: " + str(e)
 
             elif tool_name == "memory_skill_list":
                 try:

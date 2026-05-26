@@ -108,6 +108,8 @@ class IngestionPipeline:
                     "category": kwargs.get("category", ""),
                     "memory_type": kwargs.get("memory_type", "general"),
                     "agent_id": kwargs.get("agent_id", ""),
+                    "source_type": kwargs.get("source_type", ""),  # Fix: 文档检索需要此字段
+                    "layer": kwargs.get("layer", ""),               # Fix: doc_search 按 layer 过滤
                 },
             )
 

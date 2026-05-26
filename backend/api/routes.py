@@ -312,6 +312,7 @@ async def upload_file(
         embedding_model="text-embedding-v3",
         importance=importance, confidence=0.9,
         source_type=source_type, source_uri=source_uri,
+        layer="DOC",  # Fix: 文档标记为 DOC 层，doc_search 按此过滤
         tags=tags.split(",") if tags else [],
         metadata={"filename": file.filename, "size": len(text)},
     )
@@ -321,7 +322,9 @@ async def upload_file(
         content=text, memory_id=memory_id,
         team_id=team_id, workspace_id="default",
         embedding_fn=registry.embed_single,
-        title=file.filename, category=final_category, source_type=source_type,
+        title=file.filename, category=final_category,
+        source_type=source_type,  # Fix: 传入 source_type 让 Qdrant payload 携带此字段
+        layer="DOC",              # Fix: 传入 layer 让 Qdrant payload 携带此字段
     )
 
     # 6. Record Document Meta in Postgres documents table (for file tracking)
