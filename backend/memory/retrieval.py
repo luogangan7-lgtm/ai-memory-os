@@ -17,6 +17,8 @@ class RetrievalPipeline:
         team_id: str = "default",
         workspace_id: str = "default",
         top_k: int = 10,
+        include_public: bool = True,
+        source_filter: str = None,
         use_rerank: bool = True,
         rerank_fn: Optional[Callable] = None,
         use_graph: bool = False,
@@ -31,29 +33,33 @@ class RetrievalPipeline:
 
         query_vector = await embedding_fn(query)
 
-        # Phase 1: Hybrid retrieval (overfetch for rerank)
-        results = self.qdrant.hybrid_search(
-            query_vector=query_vector,
-            query_text=query,
-            team_id=team_id,
-            workspace_id=workspace_id,
-            top_k=top_k * 3 if use_rerank else top_k,
-            source_type=source_type_filter,
-        )
-
-        # Also search public knowledge pool (cross-team shared)
-        try:
-            public_results = self.qdrant.hybrid_search(
-                query_vector=query_vector,
-                query_text=query,
-                team_id="public",
-                workspace_id=workspace_id,
-                top_k=top_k,
-                source_type="knowledge",
+        # Phase 1: Private pool (weight x1.1)
+        if source_filter != 'public':
+            results = self.qdrant.hybrid_search(
+                query_vector=query_vector, query_text=query,
+                team_id=team_id, workspace_id=workspace_id,
+                top_k=top_k * 3 if use_rerank else top_k,
+                source_type=source_type_filter,
             )
-            results = list(results) + list(public_results)
-        except Exception:
-            pass  # public collection may not exist yet
+            for r in results:
+                r.score = getattr(r, 'score', 0.5) * 1.1
+                r.source_pool = 'private'
+        else:
+            results = []
+
+        # Phase 2: Public pool (included by default)
+        if include_public and source_filter != 'private':
+            try:
+                pub = self.qdrant.hybrid_search(
+                    query_vector=query_vector, query_text=query,
+                    team_id='public', workspace_id=workspace_id,
+                    top_k=top_k, source_type='knowledge',
+                )
+                for r in pub:
+                    r.source_pool = 'public'
+                results = list(results) + list(pub)
+            except Exception:
+                pass
 
 
         # Deduplicate by memory_id
