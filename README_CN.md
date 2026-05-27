@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Version: V7.1](https://img.shields.io/badge/Version-V7.1-00f0d4.svg?style=flat-square)](#)
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-violet.svg)](#)
-[![MCP工具: 17个](https://img.shields.io/badge/MCP工具-17个-amber.svg)](#)
+[![MCP工具: 18个](https://img.shields.io/badge/MCP工具-18个-amber.svg)](#)
 [![LLM厂商: 14+](https://img.shields.io/badge/LLM厂商-14%2B-ff6b6b.svg)](#)
 
 **赋予你的 AI 智能体永久长期记忆，为你的团队构建统一的知识大脑。**
@@ -27,7 +27,7 @@
 ## 🚀 V7.1 新特性
 
 | 功能 | 说明 |
-|------|------|
+|---------|-------------|
 | **K2 三阶段知识管道** | 实时话题分类 → 超大话题自动拆分（阈值20条）→ 语义合并 |
 | **LLM 质量门控** | 内化前用用户自己的 LLM 评分（0–1），低于 0.5 跳过 |
 | **推理标签集中剥离** | `<think>` 标签自动剥离，兼容 MiniMax-M2.7 / DeepSeek-R1 / Qwen |
@@ -41,7 +41,7 @@
 
 ## 🌟 核心能力
 
-### 1. 🔌 MCP 记忆网关（17个工具）
+### 1. 🔌 MCP 记忆网关（18个工具）
 完整兼容 Anthropic MCP 规范，支持 Cursor / Claude Desktop / Cline / Roo Code / Codex CLI。
 
 | 类别 | 工具 |
@@ -49,7 +49,7 @@
 | 记忆 CRUD（9个） | `memory_search`、`memory_store`、`memory_list`、`memory_delete`、`memory_reflect`、`memory_get_persona`、`memory_task_canvas_get`、`memory_task_canvas_update`、`memory_status` |
 | 代码图谱（5个） | `code_index`、`code_search`、`code_relations`、`code_impact`、`code_memory_link` |
 | 技能与反馈（2个） | `memory_feedback`、`memory_skill_list` |
-| 文档检索（1个） | `doc_search` |
+| 文档与公共池（2个） | `doc_search`、`public_browse` |
 
 ### 2. 🧠 五层认知管线（L0 → L4）
 ```

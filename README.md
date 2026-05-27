@@ -6,7 +6,7 @@
 [![Version: V7.1](https://img.shields.io/badge/Version-V7.1-00f0d4.svg?style=flat-square)](#)
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-violet.svg)](#)
 [![Node: 18+](https://img.shields.io/badge/Node-18%2B-emerald.svg)](#)
-[![MCP: 17 Tools](https://img.shields.io/badge/MCP-17%20Tools-amber.svg)](#)
+[![MCP: 18 Tools](https://img.shields.io/badge/MCP-18%20Tools-amber.svg)](#)
 [![Providers: 14+](https://img.shields.io/badge/LLM%20Providers-14%2B-ff6b6b.svg)](#)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ed.svg)](#)
 
@@ -44,7 +44,7 @@
 
 ## 🌟 Core Pillars
 
-### 1. 🔌 MCP Memory Gateway (17 Tools)
+### 1. 🔌 MCP Memory Gateway (18 Tools)
 Full compatibility with Anthropic's MCP spec. One-click integration for **Cursor, Claude Desktop, Cline, Roo Code, Codex CLI, Continue**.
 
 | Category | Tools |
@@ -52,7 +52,7 @@ Full compatibility with Anthropic's MCP spec. One-click integration for **Cursor
 | Memory CRUD | `memory_search`, `memory_store`, `memory_list`, `memory_delete`, `memory_reflect`, `memory_get_persona`, `memory_task_canvas_get`, `memory_task_canvas_update`, `memory_status` |
 | Code Graph | `code_index`, `code_search`, `code_relations`, `code_impact`, `code_memory_link` |
 | Skills & Feedback | `memory_feedback`, `memory_skill_list` |
-| Documents | `doc_search` |
+| Documents & Public | `doc_search`, `public_browse` |
 
 ### 2. 🧠 5-Layer Cognitive Pipeline (L0 → L4)
 ```
