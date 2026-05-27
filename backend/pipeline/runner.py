@@ -220,6 +220,23 @@ async def process_queue():
     global _last_zombie_check
     while True:
         try:
+            # Self-healing: recover waiting_key tasks when user now has LLM
+            try:
+                waiting = await _repo.pool.fetch(
+                    "SELECT DISTINCT team_id FROM pipeline_queue WHERE status='waiting_key'"
+                )
+                for w in waiting:
+                    team = w['team_id']
+                    cfg = await _repo.get_active_user_provider_config(team)
+                    if cfg and cfg.get('api_key'):
+                        res = await _repo.pool.execute(
+                            "UPDATE pipeline_queue SET status='pending', started_at=NULL WHERE team_id=\$1 AND status='waiting_key'",
+                            team)
+                        if res and res != "UPDATE 0":
+                            logger.info(f"Resumed {res} waiting_key tasks for user {team} (LLM configured)")
+            except Exception as e:
+                logger.warning(f"waiting_key recovery check failed: {e}")
+
             # Self-healing: recover tasks stuck in processing for >15 minutes
             now = time.time()
             if now - _last_zombie_check > 300: # Every 5 minutes

@@ -45,6 +45,11 @@ class QdrantStore:
                 }
             self.client.create_collection(**kwargs)
 
+
+    def ensure_collection(self, collection_name: str) -> None:
+        """Public API: ensure a collection exists."""
+        self._ensure_collection(collection_name)
+
     async def async_upsert(
         self, point_id: str, vector: list[float],
         payload: dict[str, Any], text: str = "",

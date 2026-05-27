@@ -15,12 +15,12 @@ async def crystallize_skills(repo: MemoryRepo, team_id: str) -> int:
     
     async with repo.pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT LOWER(title) as norm_title, COUNT(*) as freq,
+            SELECT COALESCE(NULLIF(category,''), title) as norm_title, COUNT(*) as freq,
                    array_agg(id ORDER BY created_at) as atom_ids,
                    array_agg(content ORDER BY created_at) as contents
             FROM memories WHERE team_id=$1 AND layer='L1'
-            AND created_at > NOW() - INTERVAL '30 days'
-            GROUP BY LOWER(title) HAVING COUNT(*) >= 3
+            AND created_at > NOW() - INTERVAL '60 days'
+            GROUP BY COALESCE(NULLIF(category,''), title) HAVING COUNT(*) >= 2
         """, team_id)
     
     new_skills = 0

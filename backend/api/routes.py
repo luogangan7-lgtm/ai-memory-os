@@ -1469,6 +1469,41 @@ async def trigger_crystallize(team_id: str = Depends(get_current_team)):
     asyncio.create_task(crystallize_skills(pg_repo, team_id))
     return {"message": "Crystallization started"}
 
+# ── Public Knowledge API ──────────────────────────────────
+
+@router.get("/memory/public-topics")
+async def get_public_topics():
+    """Public knowledge topic list."""
+    if not pg_repo: raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT topic, COUNT(*) AS count, MAX(created_at) AS latest
+            FROM memories WHERE team_id = 'public' AND topic IS NOT NULL AND topic != ''
+            GROUP BY topic ORDER BY count DESC LIMIT 30
+        """)
+    return {"topics": [dict(r) for r in rows]}
+
+
+@router.get("/memory/public-knowledge")
+async def browse_public_knowledge(topic: str = None, limit: int = 20, offset: int = 0):
+    """Browse public knowledge by topic."""
+    if not pg_repo: raise HTTPException(503)
+    async with pg_repo.pool.acquire() as conn:
+        if topic:
+            rows = await conn.fetch("""
+                SELECT id, title, content, topic, tags, importance, created_at
+                FROM memories WHERE team_id = 'public' AND topic ILIKE $1
+                ORDER BY importance DESC, created_at DESC LIMIT $2 OFFSET $3
+            """, f"%{topic}%", limit, offset)
+        else:
+            rows = await conn.fetch("""
+                SELECT id, title, content, topic, tags, importance, created_at
+                FROM memories WHERE team_id = 'public'
+                ORDER BY importance DESC, created_at DESC LIMIT $1 OFFSET $2
+            """, limit, offset)
+    return {"knowledge": [dict(r) for r in rows]}
+
+
 # ── V7.0 Code Entities API ──────────────────────────────────
 
 @router.get("/api/code-entities")

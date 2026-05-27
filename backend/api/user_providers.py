@@ -81,6 +81,19 @@ async def save_user_llm(data: dict, team_id: str = Depends(get_current_team)):
     except Exception as e:
         print(f"save_user_provider_config failed: {e}")
 
+    # Resume any waiting_key pipeline tasks when user saves LLM config
+    try:
+        from backend.memory.pg_repo import safe_uuid
+        if pg_repo and pg_repo.pool:
+            async with pg_repo.pool.acquire() as conn:
+                r = await conn.execute(
+                    "UPDATE pipeline_queue SET status='pending', started_at=NULL WHERE team_id=$1 AND status='waiting_key'",
+                    team_id)
+                if r and r != "UPDATE 0":
+                    print(f"[LLM] Resumed {r} waiting pipeline tasks for {team_id}")
+    except Exception as e:
+        print(f"[LLM] Resume check: {e}")
+
     # Check if there are any pending memories for this user
     try:
         from backend.api.routes import pg_repo
