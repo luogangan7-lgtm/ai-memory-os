@@ -6,6 +6,9 @@ import App from "./App";
 if (window.location.pathname.startsWith("/app") && !window.location.hash.startsWith("#/app")) {
   window.location.replace("/app/#/app");
 }
+if (window.location.pathname.startsWith("/manage") && !window.location.hash.startsWith("#/")) {
+  window.location.replace("/manage/#/");
+}
 
 import "./index.css";
 

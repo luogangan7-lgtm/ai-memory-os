@@ -8,19 +8,10 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="manifest" href="./manifest.json" />
     <title>Cortex — long-term memory for AI agents</title>
-    <script type="module" crossorigin src="./assets/index-Bp51iM21.js"></script>
+    <script type="module" crossorigin src="./assets/index-BeD1VB0Q.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-KQume7wS.css">
   </head>
   <body>
     <div id="root"></div>
-<script>
-// Inline health check — runs before React
-fetch('/admin/health', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'') } })
-  .then(r => r.json()).then(d => {
-    const s = d.services || {};
-    window.__HEALTH = s;
-    document.title = Object.values(s).every(v=>v) ? '✅ ALL OK' : '⚠️ ' + Object.values(s).filter(v=>!v).length + ' DOWN';
-  }).catch(() => { document.title = '❌ API DOWN'; });
-</script>
   </body>
 </html>

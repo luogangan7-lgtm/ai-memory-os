@@ -1,9 +1,9 @@
 # Cortex — Long-term Memory OS for AI Agents
-<!-- formerly AI Memory OS V6.0 -->
+<!-- formerly AI Memory OS V7.1 -->
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version: V6.0](https://img.shields.io/badge/Version-V6.0-00f0d4.svg?style=flat-square)](#)
+[![Version: V7.1](https://img.shields.io/badge/Version-V7.1-00f0d4.svg?style=flat-square)](#)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-violet.svg)](#)
 [![Node: 18+](https://img.shields.io/badge/Node-18%2B-emerald.svg)](#)
 [![MCP: SSE/Stdio](https://img.shields.io/badge/MCP-SSE%20%2F%20Stdio-amber.svg)](#)
@@ -16,9 +16,9 @@
 
 ---
 
-## 🏆 黄金生产级大圆满里程碑 (V6.0 新突破)
+## 🏆 黄金生产级大圆满里程碑 (V7.1 新突破)
 
-本系统已顺利通过第九轮双端（管理后台 & 租户个人空间）自动化浏览器全量实测与交叉审计，已实现下述核心突破：
+本系统已顺利通过第十一轮双端（管理后台 & 租户个人空间）自动化浏览器全量实测与交叉审计，已实现下述核心突破：
 * **🛡️ 算力提供商加密数据库持久化**：告别了不安全的内存临时字典！用户配置的自定义 LLM 提供商密钥及基地址完全与底层 SQLite/PostgreSQL 实现加密持久化同步，保障进程重启/断电配置永不丢失，并成功打通了 `/v1/chat/completions` 网关的动态上下文注入对话代理！
 * **📊 精准独立的算力中心使用度量**：修复了旧版本统计数据复制粘贴代码导致的展示错误。现在，用户空间的“💾 记忆”、“🔢 Token”和“🔄 管线”三个指标完全解耦，分别映射并正确展示真实的 `stats.mem`、`stats.tokens` 和 `stats.calls` 数据。
 * **📋 任务画布高科技 SVG 流程图动态渲染**：引入 `mermaid.js` 依赖，重构 `CanvasPanel`，将原本仅能展示的 Mermaid 纯文本图谱直接编译渲染为极具超现实暗黑玻璃态（Neural Void Glassmorphism）质感的多层流程拓扑 SVG 图谱。
