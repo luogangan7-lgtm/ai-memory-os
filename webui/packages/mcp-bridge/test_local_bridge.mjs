@@ -24,19 +24,16 @@ async function main() {
         await client.connect(transport);
         console.log("✅ Local MCP Bridge connected to server successfully!");
 
-        console.log("Fetching tools list...");
-        const tools = await client.listTools();
-        console.log(`\n✅ Retrieved ${tools.tools.length} tools:`);
-        for (const tool of tools.tools) {
-            console.log(`  - ${tool.name}: ${tool.description.substring(0, 80)}...`);
-        }
-
-        console.log("\nTesting tool call (memory_status)...");
-        const res = await client.callTool({
-            name: "memory_status",
-            arguments: {}
+        console.log("\nTesting tool call (memory_feedback)...");
+        const fbRes = await client.callTool({
+            name: "memory_feedback",
+            arguments: {
+                skill_id: "3f87fb8e-dbe6-4bf4-9e86-bb09d9844253",
+                outcome: "success",
+                context: "Auto-test verification of schema"
+            }
         });
-        console.log("\n✅ Tool call response:", JSON.stringify(res, null, 2));
+        console.log("\n✅ Tool call (memory_feedback) response:", JSON.stringify(fbRes, null, 2));
 
     } catch (e) {
         console.error("❌ Test failed:", e);
