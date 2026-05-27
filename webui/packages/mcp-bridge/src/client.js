@@ -1,38 +1,156 @@
 export class MemoryOSClient {
   constructor({ token, server }) {
-    this.token  = token;
+    this.token = token;
     this.server = server.replace(/\/$/, '');
+    this.postUrl = null;
+    this.connected = false;
+    this.pendingRequests = new Map();
+    this.nextId = 1;
     this.headers = {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'User-Agent': 'ai-memory-os-mcp/1.0',
     };
   }
-  async request(method, path, body = null) {
-    const url = `${this.server}${path}`;
-    const opts = { method, headers: this.headers, signal: AbortSignal.timeout(15000) };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(url, opts);
-    if (!res.ok) { const err = await res.text().catch(() => res.statusText); throw new Error(`Memory OS API Error ${res.status}: ${err}`); }
-    return res.json();
+
+  async connect() {
+    return new Promise(async (resolve, reject) => {
+      let resolved = false;
+      const resolveConnect = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+      const rejectConnect = (err) => {
+        if (!resolved) {
+          resolved = true;
+          reject(err);
+        }
+      };
+
+      try {
+        const url = `${this.server}/mcp?token=${this.token}`;
+        const res = await fetch(url, {
+          headers: { 'Accept': 'text/event-stream' }
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => res.statusText);
+          throw new Error(`API Handshake Error ${res.status}: ${errText}`);
+        }
+        if (!res.body) {
+          throw new Error("Response body is null");
+        }
+
+        // Start background reader
+        this._readStream(res.body.getReader(), resolveConnect, rejectConnect);
+
+      } catch (err) {
+        rejectConnect(err);
+      }
+    });
   }
-  search({ query, limit = 5, filter_type = 'all' }) { return this.request('POST', '/memory/search', { query, limit, source_type: filter_type === 'all' ? undefined : filter_type }); }
-  store({ content, title, tags = [], importance = 'normal' }) { 
-    const imp = { 'low': 0.25, 'normal': 0.5, 'high': 0.85, 'critical': 1.0 }[importance] ?? importance;
-    return this.request('POST', '/memory/store', { content, title, tags, importance: imp, source_type: 'agent' }); 
+
+  async _readStream(reader, resolveConnect, rejectConnect) {
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let eventBoundary;
+        while ((eventBoundary = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, eventBoundary);
+          buffer = buffer.slice(eventBoundary + 2);
+          this._handleEventBlock(block, resolveConnect);
+        }
+      }
+    } catch (err) {
+      process.stderr.write(`[Memory OS] SSE stream error: ${err.message}\n`);
+      rejectConnect(err);
+    } finally {
+      this.connected = false;
+      const closeErr = new Error("SSE connection closed");
+      for (const [id, pending] of this.pendingRequests) {
+        pending.reject(closeErr);
+      }
+      this.pendingRequests.clear();
+    }
   }
-  list({ limit = 10, offset = 0 }) { return this.request('GET', `/memory/recent?limit=${limit}&offset=${offset}`); }
-  delete({ memory_id }) { return this.request('DELETE', `/memory/${memory_id}`); }
-  status() { return this.request('GET', '/stats'); }
-  getPersona() { return this.request('GET', '/persona/default'); }
-  reflect() { return this.request('POST', '/memory/reflect'); }
-  getCanvas({ agent_id = 'default' }) { 
-    return this.request('GET', `/canvas`).then(arr => {
-      if (!Array.isArray(arr)) return arr;
-      return arr.find(x => x.agent_id === agent_id) || null;
-    }); 
+
+  _handleEventBlock(block, resolveConnect) {
+    const lines = block.split('\n');
+    let eventType = 'message';
+    let dataStr = '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        dataStr += line.slice(5).trim();
+      }
+    }
+
+    if (eventType === 'endpoint') {
+      const postPath = dataStr.trim();
+      this.postUrl = `${this.server}${postPath}`;
+      this.connected = true;
+      resolveConnect();
+    } else if (eventType === 'message') {
+      try {
+        const msg = JSON.parse(dataStr);
+        if (msg.id !== undefined) {
+          const pending = this.pendingRequests.get(msg.id);
+          if (pending) {
+            this.pendingRequests.delete(msg.id);
+            if (msg.error) {
+              pending.reject(new Error(msg.error.message || JSON.stringify(msg.error)));
+            } else {
+              pending.resolve(msg.result);
+            }
+          }
+        }
+      } catch (e) {
+        process.stderr.write(`[Memory OS] Failed to parse message JSON: ${e.message}\n`);
+      }
+    }
   }
-  updateCanvas({ agent_id = 'default', mermaid, title = '', completed = [], next = [] }) { 
-    return this.request('POST', `/canvas`, { agent_id, mermaid, title, completed, next }); 
+
+  async sendRequest(method, params = {}) {
+    if (!this.connected || !this.postUrl) {
+      throw new Error("Client is not connected to SSE server");
+    }
+    const id = this.nextId++;
+    return new Promise(async (resolve, reject) => {
+      this.pendingRequests.set(id, { resolve, reject });
+
+      // Timeout safety
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id);
+          reject(new Error(`Request ${method} (id: ${id}) timed out after 30s`));
+        }
+      }, 30000);
+
+      try {
+        const res = await fetch(this.postUrl, {
+          method: 'POST',
+          headers: this.headers,
+          body: JSON.stringify({ jsonrpc: '2.0', id, method, params })
+        });
+        if (!res.ok) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(id);
+          const errText = await res.text().catch(() => res.statusText);
+          throw new Error(`Failed to POST request: ${res.status} ${errText}`);
+        }
+        // POST response is usually just acknowledgment like {"status":"ok"}, actual result comes via SSE.
+      } catch (err) {
+        clearTimeout(timeoutId);
+        this.pendingRequests.delete(id);
+        reject(err);
+      }
+    });
   }
 }
