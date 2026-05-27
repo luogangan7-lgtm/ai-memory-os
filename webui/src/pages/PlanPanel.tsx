@@ -64,7 +64,7 @@ export function PlanPanel() {
       {/* Upgrade — contact admin */}
       {plan !== 'exempt' && plan !== 'pro' && (
         <div className="v6-card" style={{ textAlign: 'center', padding: 28, marginBottom: 20 }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>💎</div>
+          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--v6-fg)', marginBottom: 4 }}>Pro 专业版</div>
           <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--v6-teal)', marginBottom: 4 }}>¥29</div>
           <div style={{ fontSize: 12, color: 'var(--v6-fg-muted)', marginBottom: 20 }}>RMB · 月付 · 30 天</div>

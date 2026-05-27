@@ -11,6 +11,15 @@
   </head>
   <body>
     <div id="root"></div>
+<script>
+// Inline health check — runs before React
+fetch('/admin/health', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('admin_token')||localStorage.getItem('mos_admin_token')||'') } })
+  .then(r => r.json()).then(d => {
+    const s = d.services || {};
+    window.__HEALTH = s;
+    document.title = Object.values(s).every(v=>v) ? '✅ ALL OK' : '⚠️ ' + Object.values(s).filter(v=>!v).length + ' DOWN';
+  }).catch(() => { document.title = '❌ API DOWN'; });
+</script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

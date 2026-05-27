@@ -95,4 +95,5 @@ class DeepSeekProvider(BaseProvider):
             if tokens:
                 from backend.services.cost_tracker import CostTracker
                 CostTracker.record(model, tokens, provider="deepseek")
-            return data["choices"][0]["message"]["content"]
+            from backend.utils.response import clean_llm_response
+            return clean_llm_response(data)

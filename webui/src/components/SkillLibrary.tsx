@@ -19,6 +19,7 @@ export function SkillLibrary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [crystallizing, setCrystallizing] = useState(false);
+  const [evolving, setEvolving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const fetchSkills = async () => {
@@ -34,12 +35,22 @@ export function SkillLibrary() {
     }
   };
 
+  const triggerEvolve = async () => {
+    setEvolving(true);
+    setMsg('');
+    try {
+      await api.post("/api/skills/evolve", {});
+      setMsg("技能进化任务已启动，请稍后刷新。");
+      setTimeout(() => { fetchSkills(); setEvolving(false); }, 5000);
+    } catch { setMsg("进化触发失败"); setEvolving(false); }
+  };
+
   const triggerCrystallize = async () => {
     setCrystallizing(true);
     setMsg(null);
     try {
       await api.post("/api/skills/crystallize", {});
-      setMsg("🧠 技能固化提取任务已启动，请稍后刷新查看。");
+      setMsg(" 技能固化提取任务已启动，请稍后刷新查看。");
       setTimeout(() => setMsg(null), 5000);
     } catch (e: any) {
       setError(e?.message || "触发技能固化失败");
@@ -70,7 +81,7 @@ export function SkillLibrary() {
     <div className="v6-card" style={{ position: "relative", overflow: "hidden" }}>
       <div className="v6-card__head">
         <div className="v6-card__title">
-          💎 智能体技能库 Skill Library (L4)
+           智能体技能库 Skill Library (L4)
           <span className="v6-card__title-hint">查看由 L1 记忆固化、演化出的核心技能模式</span>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -79,10 +90,13 @@ export function SkillLibrary() {
             onClick={triggerCrystallize}
             disabled={crystallizing}
           >
-            {crystallizing ? "提取中..." : "🧠 固化技能"}
+            {crystallizing ? "提取中..." : " 固化技能"}
           </button>
           <button className="v6-btn v6-btn--xs" onClick={fetchSkills} disabled={loading}>
             刷新
+          </button>
+          <button className="v6-btn v6-btn--xs v6-btn--secondary" onClick={triggerEvolve} disabled={evolving}>
+            {evolving ? "进化中..." : "进化优化"}
           </button>
         </div>
       </div>
@@ -205,7 +219,7 @@ export function SkillLibrary() {
                   }}
                 >
                   <div style={{ display: "flex", gap: 16 }}>
-                    <span>📊 调用次数: <strong>{skill.usage_count}</strong></span>
+                    <span> 调用次数: <strong>{skill.usage_count}</strong></span>
                     {skill.fail_count !== undefined && (
                       <span>❌ 失败次数: <strong>{skill.fail_count}</strong></span>
                     )}
@@ -225,6 +239,33 @@ export function SkillLibrary() {
           })}
         </div>
       )}
+      {skills.length > 0 && (
+        <div className="v6-section-label" style={{ marginTop: 20 }}>
+          <span>Agent 贡献 Agent Contributions</span>
+        </div>
+      )}
+      {(() => {
+        const agents: Record<string, number> = {};
+        skills.forEach((s: any) => {
+          (s.source_agents || []).forEach((a: string) => {
+            agents[a] = (agents[a] || 0) + 1;
+          });
+        });
+        const sorted = Object.entries(agents).sort((a, b) => b[1] - a[1]);
+        if (sorted.length === 0) return null;
+        return (
+          <div className="v6-modellist" style={{ marginBottom: 20 }}>
+            {sorted.slice(0, 10).map(([agent, count], i) => (
+              <div key={i} className="v6-usage-row">
+                <div className="v6-usage-row__label">{agent}</div>
+                <div className="v6-usage-row__nums">
+                  <span>{count} 技能 skills</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

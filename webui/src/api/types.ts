@@ -19,6 +19,8 @@ export interface DashboardStats {
   today_writes: number;
   tokens_saved: number;
   memory_growth?: string;
+  skills_count?: number;
+  code_entities_count?: number;
 }
 
 export interface ThroughputPoint {

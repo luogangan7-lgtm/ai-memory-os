@@ -204,6 +204,16 @@ async def _do_l4(team_id):
     except Exception as e:
         print(f"[L4] Error: {e}")
 
+_evolve_counter: dict[str, float] = {}
+async def _do_evolve(team_id):
+    try:
+        from backend.pipeline.skill_evolver import evolve_similar_skills
+        count = await evolve_similar_skills(_repo.pool, team_id, _repo)
+        if count > 0:
+            print(f'[Evolve] team={team_id} evolved {count} skills')
+    except Exception as e:
+        print(f'[Evolve] Error: {e}')
+
 async def process_queue():
     """Background worker: parallel processing of pending tasks."""
     if _repo is None: return

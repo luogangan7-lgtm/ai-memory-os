@@ -46,3 +46,5 @@ config/.env
 gcp_test_key*
 cloudflared/
 deploy/
+*.bak
+test-results/

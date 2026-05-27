@@ -53,7 +53,7 @@ export function LoginOverlay() {
   return (
     <div className="login-overlay">
       <div className="login-box">
-        <div className="login-logo">🧠</div>
+        <div className="login-logo"></div>
         <div className="login-title">
           {isUserApp ? (isRegister ? "创建数字凭证" : "验证记忆权限") : "管理中心授权"}
         </div>

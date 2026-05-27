@@ -22,6 +22,8 @@ export function KnowledgeMap() {
   const [stats, setStats] = useState<CategoryStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<any[]>([]);
+  const [totalNodes, setTotalNodes] = useState(0);
   
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
@@ -31,8 +33,13 @@ export function KnowledgeMap() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<CategoryStat[]>("/memory/categories");
+      const [data, rec] = await Promise.all([
+        api.get<CategoryStat[]>("/memory/categories"),
+        api.get<any[]>("/memory/recent?limit=12"),
+      ]);
       setStats(data || []);
+      setRecent(rec || []);
+      setTotalNodes((data || []).reduce((s: number, x: any) => s + (x.count || 0), 0));
     } catch (e: any) {
       setError(e?.message || "无法加载知识地图统计信息");
     } finally {
@@ -100,6 +107,11 @@ export function KnowledgeMap() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div className="v6-metric-grid v6-metric-grid--2" style={{marginBottom:18}}>
+            <div className="v6-metric-tile"><div className="v6-metric-tile__label">总节点 Nodes</div><div className="v6-metric-tile__value">{totalNodes}</div></div>
+            <div className="v6-metric-tile"><div className="v6-metric-tile__label">分类数 Categories</div><div className="v6-metric-tile__value">{stats.length}</div></div>
+          </div>
+          {recent.length > 0 && (<><div className="v6-section-label"><span>最近记忆 Recent</span></div><div className="v6-modellist" style={{marginBottom:18}}>{recent.slice(0,8).map((m:any,i:number)=>(<div key={i} className="v6-usage-row"><span>{m.title?.substring(0,50)||"无标题"}</span><span style={{fontSize:11,color:"var(--v6-fg-muted)"}}>{m.source_type||""} · {new Date(m.created_at).toLocaleDateString("zh-CN",{month:"2-digit",day:"2-digit"})}</span></div>))}</div></>)}
           {/* Overview Stat Row */}
           <div
             style={{

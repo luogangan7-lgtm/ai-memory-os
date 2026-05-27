@@ -359,3 +359,38 @@
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-20px) scale(1.05); }
 }
+
+/* ── Login responsive improvements ─────────────────────────────────────── */
+@media (max-width: 480px) {
+  .v6-authcard-wrap { padding: 16px; }
+  .v6-authcard { padding: 24px 18px; }
+  .v6-authcard__title { font-size: 18px; }
+  .v6-input, .v6-btn { font-size: 14px; padding: 12px 14px; }
+  .v6-hero__geo { display: none; }
+  .v6-nav__brand { font-size: 14px; }
+  .v6-nav__brand-orb { width: 28px; height: 28px; }
+}
+@media (max-width: 380px) {
+  .v6-authcard { padding: 20px 14px; border-radius: 14px; }
+  .v6-authcard__title { font-size: 16px; }
+  .v6-authcard__switch button { font-size: 12px; padding: 6px 10px; }
+}
+
+/* ── Mobile layout fixes ───────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .v6-auth { overflow-y: auto; }
+  .v6-hero { padding: 36px 18px; gap: 18px; }
+  .v6-hero__title { font-size: 28px; max-width: 100%; }
+  .v6-hero__sub { font-size: 14px; max-width: 100%; }
+  .v6-hero__cta { flex-direction: column; width: 100%; }
+  .v6-hero__cta button { width: 100%; }
+  .v6-features { padding: 0 18px 32px; grid-template-columns: 1fr; }
+  .v6-feature { padding: 16px; }
+  .v6-feature__title { font-size: 13px; }
+  .v6-feature__desc { font-size: 12px; }
+}
+@media (max-width: 400px) {
+  .v6-hero { padding: 28px 14px; gap: 14px; }
+  .v6-hero__title { font-size: 24px; }
+  .v6-feature { padding: 14px; }
+}

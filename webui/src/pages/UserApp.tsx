@@ -19,9 +19,70 @@ const DASH_TABS: { id: DashTab; label: string }[] = [
   { id: "canvas",   label: "画布 Canvas" },
   { id: "plan",     label: "订阅 Plan" },
   { id: "persona",  label: "画像 Persona" },
-  { id: "skills",   label: "💎 技能 Skills" },
-  { id: "map",      label: "🗺️ 知识地图 Map" },
+  { id: "skills",   label: "技能 Skills" },
+  { id: "map",      label: "知识地图 Map" },
+  { id: "codegraph", label: "代码图谱 CodeGraph" },
 ];
+
+function HamburgerTabs({ tabs, active, onSelect }: { tabs: {id:string;label:string}[], active: string, onSelect: (id: any) => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => { setOpen(false); }, [active]);
+
+  return (
+    <>
+      <div className="v6-app__tabs v6-app__tabs--desktop">
+        {tabs.map((t) => (
+          <button key={t.id} className="v6-app__tab"
+            aria-current={active === t.id ? "page" : undefined}
+            onClick={() => onSelect(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="v6-sidebar-trigger">
+        <button className="v6-app__tab"
+          onClick={() => setOpen(!open)}
+          style={{ gap: 8, fontWeight: 500 }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <line x1="2" y1="3" x2="14" y2="3" />
+            <line x1="2" y1="8" x2="14" y2="8" />
+            <line x1="2" y1="13" x2="14" y2="13" />
+          </svg>
+          <span>菜单</span>
+        </button>
+        <aside className={"v6-sidebar" + (open ? " v6-sidebar--open" : "")}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px 16px" }}>
+            <span style={{ fontSize: 18, fontWeight: 600, color: "var(--v6-fg)" }}>导航</span>
+            <button onClick={() => setOpen(false)}
+              style={{ background: "none", border: "none", color: "var(--v6-fg-muted)", cursor: "pointer", fontSize: 18 }}>
+              ✕
+            </button>
+          </div>
+          <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {tabs.map((t) => (
+              <button key={t.id}
+                onClick={() => onSelect(t.id)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left",
+                  padding: "10px 12px", fontSize: 14,
+                  fontWeight: active === t.id ? 600 : 400,
+                  borderRadius: 8, border: "none",
+                  background: active === t.id ? "var(--v6-bg-sunken)" : "transparent",
+                  color: active === t.id ? "var(--v6-fg)" : "var(--v6-fg-muted)",
+                  cursor: "pointer", fontFamily: "var(--v6-font-sans)",
+                  transition: "background 0.15s"
+                }}>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+        {open && <div className="v6-sidebar-overlay" onClick={() => setOpen(false)} />}
+      </div>
+    </>
+  );
+}
+
 
 function Dashboard() {
   const [tab, setTab] = useState<DashTab>("overview");
@@ -57,18 +118,7 @@ function Dashboard() {
             <CortexMark size={26} breathing />
             <span>Cortex</span>
           </div>
-          <div className="v6-app__tabs">
-            {DASH_TABS.map((t) => (
-              <button
-                key={t.id}
-                className="v6-app__tab"
-                aria-current={tab === t.id ? "page" : undefined}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <HamburgerTabs tabs={DASH_TABS} active={tab} onSelect={setTab} />
           <div className="v6-app__nav-right">
             <LLMStatusBar />
             <button
@@ -285,11 +335,12 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
           <div className="v6-section-label" style={{ marginBottom: 10 }}>
             <span>管道层级 · Layers</span>
           </div>
-          <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+          <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
             {[
               { label: 'L1 知识提取 Extract', key: 'l1_total', color: '#7A7A82' },
               { label: 'L2 场景聚合 Synthesis', key: 'l2_total', color: '#E5A23B' },
-              { label: 'L3 画像生成 Persona', key: 'l3_total', color: '#2DBFA8' }
+              { label: 'L3 画像生成 Persona', key: 'l3_total', color: '#2DBFA8' },
+              { label: 'L4 技能结晶 Skills', key: 'l4_total', color: '#A855F7' }
             ].map(layer => {
               const count = (pipeline?.[layer.key] as number) ?? 0;
               const pc = pipelineCounts as Record<string,number>;
@@ -314,6 +365,7 @@ function OverviewPanel({ onNavigate }: { onNavigate: (tab: DashTab) => void }) {
               );
             })}
           </div>
+          <BillingBlock />
           {/* ── 系统健康 ── */}
           <div className="v6-section-label"><span>系统健康 · Health</span></div>
           <div className="v6-health-list">
@@ -649,11 +701,29 @@ const SOURCE_LABELS: Record<string, string> = {
   image: 'ocr',
 };
 
+
+function BillingBlock() {
+  const [d, sd] = useState<any>(null);
+  useEffect(() => {
+    const a = { Authorization: "Bearer " + (localStorage.getItem("admin_token") || localStorage.getItem("mos_admin_token") || "") };
+    const L = () => fetch("/user/stats", { headers: a }).then(r => r.json()).then(sd).catch(()=>{});
+    L(); const i = setInterval(L, 30000); return () => clearInterval(i);
+  }, []);
+  const m = d?.usage_by_model || [];
+  if (m.length === 0) return (<div className="v6-card" style={{marginBottom:20}}><div className="v6-card__head"><div className="v6-card__title">用量与计费 · Usage & Billing</div></div><div className="v6-empty" style={{padding:14}}>暂无用量数据 No usage data yet</div></div>);
+  const tp = m.reduce((s:number,x:any)=>s+(x.prompt_tokens||0),0);
+  const tc = m.reduce((s:number,x:any)=>s+(x.completion_tokens||0),0);
+  const fn = (n:number) => n>=1000 ? (n/1000).toFixed(1)+"K" : String(n);
+  return (<div className="v6-card" style={{marginBottom:20}}><div className="v6-card__head"><div className="v6-card__title">用量与计费 · Usage & Billing</div></div><div className="v6-metric-grid v6-metric-grid--2"><div className="v6-metric-tile"><div className="v6-metric-tile__label">Prompt Tokens · 输入</div><div className="v6-metric-tile__value" style={{fontSize:24}}>{fn(tp)}</div></div><div className="v6-metric-tile"><div className="v6-metric-tile__label">Completion Tokens · 输出</div><div className="v6-metric-tile__value" style={{fontSize:24}}>{fn(tc)}</div></div></div><div className="v6-byok" style={{marginTop:10}}><span className="v6-byok__icon">i</span><div>费用直接结算给 Provider · Cortex 不抽成</div></div>{m.slice(0,5).map((x:any,i:number)=>(<div key={i} className="v6-usage-row"><div className="v6-usage-row__label">{x.provider_name} / {x.model_name}</div><div className="v6-usage-row__nums"><span>{fn(x.prompt_tokens)} in</span><span>{fn(x.completion_tokens)} out</span><span>{fn(x.total_tokens)} total</span></div></div>))}</div>);
+}
+
 function MemoryPanel() {
   const [memories, setMemories] = useState<UserMemory[]>([]);
   const [documents, setDocuments] = useState<UserDocument[]>([]);
   const [subTab, setSubTab] = useState<'memories' | 'documents' | 'public'>('memories');
   const [query, setQuery] = useState('');
+  const [since, setSince] = useState('');
+  const [until, setUntil] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
@@ -684,7 +754,7 @@ function MemoryPanel() {
     }finally{
       setLoading(false);
     }
-  },[loading]);
+  },[]); // eslint-disable-next-line
 
   const fetchMemories = useCallback(async()=>{
     setLoading(true);
@@ -712,7 +782,10 @@ function MemoryPanel() {
         })));
       } else {
         // Semantic search
-        const d = await api.post<any[]>('/memory/search', { query, top_k: 20 });
+        const params: any = { query, top_k: 20 };
+        if (since) params.since = since;
+        if (until) params.until = until;
+        const d = await api.post<any[]>('/memory/search', params);
         setMemories(d.map((x: any)=>({
           id: x.memory?.id || '',
           title: x.memory?.title || x.chunk_text?.slice(0, 20) || '无标题',
@@ -910,6 +983,8 @@ function MemoryPanel() {
               placeholder="Search memories…"
               onKeyDown={(e) => e.key === 'Enter' && fetchMemories()}
             />
+            <input type="date" className="v6-input-global" value={since} onChange={e => setSince(e.target.value)} style={{maxWidth:130,fontSize:11}} title="起始 Since" />
+            <input type="date" className="v6-input-global" value={until} onChange={e => setUntil(e.target.value)} style={{maxWidth:130,fontSize:11}} title="截止 Until" />
             <button className="v6-btn" onClick={fetchMemories} disabled={loading}>
               {loading ? '…' : 'Search'}
             </button>
@@ -975,12 +1050,14 @@ function MemoryPanel() {
                     <div className="v6-list__item-aside">
                       {m.score !== undefined && <span>{(m.score * 100).toFixed(0)}%</span>}
                       <span>{formatDate(m.created_at)}</span>
-                      <button
-                        className="v6-btn v6-btn--ghost v6-btn--danger v6-btn--xs"
-                        onClick={() => handleDelete(m.id)}
-                      >
-                        Delete
-                      </button>
+                      {(subTab !== 'public' && m.source_type !== 'knowledge') && (
+                        <button
+                          className="v6-btn v6-btn--ghost v6-btn--danger v6-btn--xs"
+                          onClick={() => handleDelete(m.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="v6-list__item-body">{m.content}</div>
@@ -1069,7 +1146,8 @@ function MemoryPanel() {
               <button className="v6-btn v6-btn--xs" onClick={() => { navigator.clipboard.writeText(drawer.id).catch(()=>{}); }}>
                 Copy ID
               </button>
-              <button className="v6-btn v6-btn--danger v6-btn--xs" onClick={() => { handleDelete(drawer.id); setDrawer(null); }}>
+              <button className="v6-btn v6-btn--danger v6-btn--xs" onClick={() => { handleDelete(drawer.id); setDrawer(null); }}
+                  style={{ display: (drawer.source_type === 'knowledge' ? 'none' : 'inline-flex') }}>
                 Delete
               </button>
             </div>
@@ -1142,7 +1220,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
     cursor: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], env: {} } } }, null, 2),
     claude: JSON.stringify({ mcpServers: { 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp'], env: { MOS_TOKEN: token, MOS_SERVER: getServerUrl() } } } }, null, 2),
     openclaw: 'SSE endpoint: ' + getServerUrl() + '/mcp?token=' + token,
-    cline: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], disabled: false, autoApprove: ['memory_search', 'memory_list', 'memory_status'] } }, null, 2),
+    cline: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], disabled: false, autoApprove: ['memory_search', 'memory_list', 'memory_status', 'memory_store', 'memory_get_persona', 'code_search'] } }, null, 2),
     continue: JSON.stringify({ experimental: { modelContextProtocolServers: [{ transport: { type: 'stdio', command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()] } }] } }, null, 2),
     roo: JSON.stringify({ 'ai-memory-os': { command: 'npx', args: ['-y', 'ai-memory-os-mcp', '--token=' + token, '--server=' + getServerUrl()], alwaysAllow: ['memory_search', 'memory_store'] } }, null, 2),
     codex: '# ~/.codex/config.toml\n[[mcp_servers]]\nname = "ai-memory-os"\ncommand = "npx"\nargs = ["-y", "ai-memory-os-mcp", "--token=' + token + '", "--server=' + getServerUrl() + '"]',
@@ -1179,8 +1257,8 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
   };
 
   // eslint-disable-next-line
-  const SYSTEM_PROMPTS: Record<string, string> = { standard: '你已连接 Cortex 长期记忆系统（9个工具）。\n\n【对话开始时，静默执行以下操作】：\n1. 调用 memory_get_persona → 了解用户背景和偏好\n2. 调用 memory_task_canvas_get → 恢复未完成任务（如有）\n3. 调用 memory_search(用户问题关键词) → 检索相关知识\n\n【对话中，发现以下内容时立即调用 memory_store】：\n- 用户偏好、习惯、要求\n- 技术决策及原因\n- 项目结构、约定、配置\n- 用户说"记住"的任何内容\n- 解决的复杂问题（问题+方案）\n\n【长任务进行中】：\n每完成一个重要阶段，调用 memory_task_canvas_update 更新 Mermaid 任务画布\n\n【对话结束时】：\n若对话产生了有价值的结论或方案，调用 memory_store 保存摘要\n\n所有上述操作静默完成，不向用户报告，除非操作失败', concise: '[记忆规则] ①开始→persona+search+canvas_get ②重要信息→store ③进展→canvas_update ④记住/忘掉/搜索→对应操作。静默执行。', dev: '你是连接了 AI Memory OS 的开发助手。记忆工具是你感知能力的延伸。\n\n【每次对话开始】静默执行：\n① memory_get_persona 了解技术栈和项目背景\n② memory_task_canvas_get 恢复上次未完成的开发任务\n③ memory_search(项目名/功能关键词) 检索相关代码约定\n\n【代码工作中】：\n- 确定了技术方案 → memory_store（tags: ["架构决策"]）\n- 解决了 Bug → memory_store（title: "Bug修复: xxx"，tags: ["bug", "技术栈"]）\n- 完成了功能阶段 → memory_task_canvas_update（更新进度图）\n\n【存储代码记忆时】：\n只存逻辑摘要和关键决策，不存完整大段代码。\n格式：问题背景 + 解决思路 + 关键代码片段（< 20行）\n\n所有操作静默完成。' };
-  const [pType, setPType] = useState<'standard' | 'concise' | 'dev'>('standard');
+  const SYSTEM_PROMPTS: Record<string, string> = { complete: '你已接入 AI Memory OS — 长期记忆 + 代码知识图谱系统（17工具）。以下规则必须严格遵守，不可跳过。\n\n═══════════════════════════════════════════\n第一部分：记忆规则（每次对话强制执行）\n═══════════════════════════════════════════\n\n【对话启动 — 静默执行】\n① memory_get_persona → 读取用户技术栈、项目结构、编码习惯\n② memory_task_canvas_get → 恢复未完成开发任务（Mermaid画布）\n③ memory_search(用户提问关键词) → 检索历史决策和相关记忆\n④ 如涉及代码 → code_search(关键词)\n\n【对话中 — 发现以下内容立即 memory_store】\n- 用户偏好、习惯、要求\n- 技术决策及原因（tags: ["架构决策"]）\n- 项目结构、约定、配置\n- 用户说"记住"的任何内容\n- Bug修复：根因 + 方案 + 代码片段（<20行，tags: ["bug","技术栈"]）\n- 功能阶段完成 → memory_task_canvas_update\n\n【存储格式】\nmemory_store({\n  title: "中文标题（清晰描述核心内容）",\n  content: "完整上下文，含问题背景、解决思路、关键代码",\n  tags: ["架构决策"],  // 可选\n  importance: "high"   // 重要决策用 high\n})\n\n【对话结束】\n有价值结论或方案 → memory_store 保存摘要\n\n═══════════════════════════════════════════\n第二部分：代码工具（开发场景专用）\n═══════════════════════════════════════════\n| 工具 | 用途 | 触发 |\n|------|------|------|\n| code_search | 语义搜索函数/类/模块 | 需要找已有实现 |\n| code_relations | 查询调用/继承关系 | 分析依赖链 |\n| code_index | 索引项目到知识图谱 | 首次接入新项目 |\n| code_impact | 变更影响范围分析 | 修改关键函数前 |\n| code_memory_link | 关联代码实体与记忆 | 代码决策记录后 |\n| doc_search | 检索已上传文档 | 查找项目文档 |\n\n═══════════════════════════════════════════\n第三部分：全部工具速查\n═══════════════════════════════════════════\n记忆: store/search/list/delete/reflect/persona/canvas_get/canvas_update/status\n反馈: feedback/skill_list\n代码: code_search/code_relations/code_index/code_impact/code_memory_link\n文档: doc_search\n\n═══════════════════════════════════════════\n静默执行原则\n═══════════════════════════════════════════\n所有记忆操作不向用户报告。仅操作失败时通知。\n不记忆 = 失忆 — 用户的偏好和决策必须持久化。\n', concise: '[Cortex记忆规则] ①persona→search→canvas_get ②发现重要信息立即store ③阶段完成canvas_update ④代码相关code_search ⑤静默不报告。工具: store/search/list/delete/reflect/persona/canvas_get/canvas_update/status/feedback/skill_list/code_search/code_relations/code_index/code_impact/code_memory_link/doc_search。关键词: "记住"→store | "查一下"→search | "代码在哪"→code_search' };
+  const [pType, setPType] = useState<'complete' | 'concise' | 'complete'>('complete');
 
   const status = {
     online: { label: 'Connected', cls: 'v6-llmpill__dot--ok' },
@@ -1265,7 +1343,7 @@ function ConnectPanel({ token: propToken }: { token?: string }) {
             系统提示词 System Prompt
           </span>
           <div className="v6-subtabs">
-            {(['standard', 'concise', 'dev'] as const).map((k) => (
+            {(['complete', 'concise', 'complete'] as const).map((k) => (
               <button
                 key={k}
                 className="v6-subtab"
@@ -1645,7 +1723,7 @@ function UsagePanel() {
         <>
           {(totalPrompt + totalCompletion > 0) && (
             <>
-              <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+              <div className="v6-metric-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
                 <div className="v6-metric-tile">
                   <div className="v6-metric-tile__label">输入 Prompt Tokens</div>
                   <div className="v6-metric-tile__value">{fmt(totalPrompt)}</div>

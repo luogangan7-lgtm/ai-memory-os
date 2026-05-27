@@ -91,7 +91,7 @@ export function ConfigPage() {
       <h1 style={{ font: "600 22px var(--v6-font-sans)", color: "var(--v6-fg)", marginBottom: 4 }}>系统配置 Configuration</h1>
       <div style={{ color: "var(--v6-fg-muted)", fontSize: 13, marginBottom: 24 }}>RAG 检索参数 · 安全策略 · 限速规则 · RAG retrieval parameters, security policies, and rate limits</div>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+      <div className='v6-grid-2col'>
         <div className="v6-card">
           <div className="v6-card__head">
             <div className="v6-card__title">RAG 检索参数 RAG Parameters</div>

@@ -2,6 +2,7 @@
 # All providers here use the OpenAI API format with a different base URL.
 # They share the GenericOpenAIProvider logic, only base_url and catalog differ.
 
+
 import httpx
 from backend.providers.base import BaseProvider, ModelCapability, ModelInfo, ProviderConfig
 
@@ -49,7 +50,8 @@ def _make_compat_provider(name: str, base_url: str, catalog: list[ModelInfo]):
                 if tokens:
                     from backend.services.cost_tracker import CostTracker
                     CostTracker.record(model, tokens, provider=self.provider_name)
-                return data["choices"][0]["message"]["content"]
+                from backend.utils.response import clean_llm_response
+            return clean_llm_response(data)
 
         async def embed(self, texts: list[str]) -> list[list[float]]:
             base = self.config.api_base or self._base_url

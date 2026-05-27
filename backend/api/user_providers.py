@@ -269,7 +269,7 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
             "configured": configured, "error": str(e),
         }
 
-    l1_total = l2_total = l3_total = 0
+    l1_total = l2_total = l3_total = l4_total = 0
     try:
         conn2 = await get_db_conn()
         l1_row = await conn2.fetchrow(
@@ -293,6 +293,13 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
         if l3_row:
             l3_total = l3_row["ver"]
             
+        l4_row = await conn2.fetchrow(
+            "SELECT COUNT(*)::integer as cnt FROM memory_skills WHERE team_id = $1",
+            team_id
+        )
+        if l4_row:
+            l4_total = l4_row["cnt"]
+            
         await conn2.close()
     except Exception as e:
         logger.error(f"Failed to query pipeline database entity counts: {e}")
@@ -307,6 +314,7 @@ async def get_pipeline_status(team_id: str = Depends(get_current_team)):
         "l1_total": l1_total,
         "l2_total": l2_total,
         "l3_total": l3_total,
+        "l4_total": l4_total,
     }
 
 

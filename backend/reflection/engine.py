@@ -30,9 +30,18 @@ class ReflectionEngine:
         rpt["auto_promoted"] = await self._auto_promote(team_id)
         rpt["relations_found"] = await self._discover_relations(team_id)
         rpt["contradictions_found"] = await self._detect_contradictions(team_id)
-        # K2: aggregate public knowledge
-        from backend.services.k2_aggregator import aggregate_public_knowledge
-        rpt["knowledge_merged"] = await aggregate_public_knowledge(self.pg)
+        # K2: topic categorization, split oversized, then aggregate public knowledge
+        try:
+            from backend.services.k2_aggregator import (
+                categorize_and_topic_knowledge, split_oversized_topics,
+                aggregate_public_knowledge
+            )
+            rpt["k2_categorized"] = await categorize_and_topic_knowledge(self.pg)
+            rpt["k2_split"] = await split_oversized_topics(self.pg)
+            rpt["k2_merged"] = await aggregate_public_knowledge(self.pg)
+        except Exception as e:
+            print(f"[K2] pipeline failed: {e}")
+            rpt["k2_error"] = str(e)[:100]
         rpt["duplicates_found"] = await self._dedup(team_id)
         logging.getLogger("reflection").info("Cycle done: %s", str(rpt))
         return rpt
@@ -70,15 +79,30 @@ class ReflectionEngine:
             for r in rows:
                 try:
                     s = None
-                    if self.registry:
+                    # Try user LLM first, fall back to admin registry
+                    provider = await self.pg.get_active_user_provider_config(team_id)
+                    if provider:
+                        try:
+                            async with httpx.AsyncClient(timeout=30) as cl:
+                                resp = await cl.post(
+                                    f"{provider['api_base_url'].rstrip('/')}/chat/completions",
+                                    headers={"Authorization": f"Bearer {provider['api_key']}"},
+                                    json={"model": provider["model_name"], "messages": [
+                                        {"role":"system","content":"Summarize in 2-3 short sentences."},
+                                        {"role":"user","content":r["content"][:3000]}
+                                    ], "max_tokens": 150})
+                                if resp.status_code == 200:
+                                    s = resp.json()["choices"][0]["message"]["content"]
+                        except Exception:
+                            pass
+                    if not s and self.registry:
                         try:
                             s = await self.registry.chat_for_engine("reflection", [
                                 {"role":"system","content":"Summarize in 2-3 short sentences."},
                                 {"role":"user","content":r["content"][:3000]}
                             ], max_tokens=150)
-                        except Exception as e:
-                            print(f"DEBUG: Registry chat_for_engine ('reflection') failed: {e}, falling back to Dashscope.", flush=True)
-
+                        except Exception:
+                            pass
                     if not s:
                         async with httpx.AsyncClient(timeout=30) as cl:
                             resp = await cl.post(
@@ -178,6 +202,7 @@ class ReflectionEngine:
             return gaps
 
     async def _detect_contradictions(self, team_id: str) -> int:
+        import json
         """Query LLM to detect contradictions among recent L1 memories and link them via CONTRADICTS in Neo4j."""
         if not self.graph:
             return 0

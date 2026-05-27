@@ -38,22 +38,23 @@ async def crystallize_skills(repo: MemoryRepo, team_id: str) -> int:
             if resp.status_code != 200: continue
             skill = json.loads(resp.json()["choices"][0]["message"]["content"].strip().lstrip("```json").rstrip("```"))
             
-            await conn.execute("""
+            async with repo.pool.acquire() as conn2:
+                await conn2.execute("""
                 INSERT INTO memory_skills (team_id, skill_name, skill_content, trigger_pattern, source_atom_ids)
                 VALUES ($1,$2,$3,$4,$5)""",
-                team_id, skill.get("skill_name", row['norm_title']),
-                skill.get("skill_content", ""), skill.get("trigger_pattern", ""),
-                [str(a) for a in row['atom_ids'][:10]])
+                    team_id, skill.get("skill_name", row['norm_title']),
+                    skill.get("skill_content", ""), skill.get("trigger_pattern", ""),
+                    [str(a) for a in row['atom_ids'][:10]])
             
-            import uuid
-            await conn.execute("""
+                import uuid
+                await conn2.execute("""
                 INSERT INTO memories (id, team_id, title, content, source_type, layer, category, importance)
                 VALUES ($1,$2,$3,$4,'agent','L4','skill',0.9)""",
                 str(uuid.uuid4()), team_id,
-                f"[L4 Skill] {skill.get('skill_name','')}",
-                skill.get("skill_content", ""))
-            
-            new_skills += 1
+                    f"[L4 Skill] {skill.get('skill_name','')}",
+                    skill.get("skill_content", ""))
+                
+                new_skills += 1
         except Exception as e:
             print(f"[L4] crystallize failed: {e}")
     

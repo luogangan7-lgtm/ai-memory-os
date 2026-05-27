@@ -47,7 +47,7 @@ export function ReflectionPage() {
     <div>
       <h1 style={{ font: "600 22px var(--v6-font-sans)", color: "var(--v6-fg)", marginBottom: 4 }}>知识整合 Reflection</h1>
       <div style={{ color: "var(--v6-fg-muted)", fontSize: 13, marginBottom: 24 }}>全局知识的语义网络重构与记忆衰减调度 · Semantic network restructuring and memory decay scheduling</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+      <div className='v6-grid-2col'>
         <div className="v6-card">
           <div className="v6-card__head">
             <div className="v6-card__title">

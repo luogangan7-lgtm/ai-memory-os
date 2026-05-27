@@ -116,6 +116,7 @@ services:
     volumes:
       - backend_config:/app/config
       - ./webui-dist:/app/webui-dist:ro
+      - ./backend:/app/backend
     ports:
       - "8003:8003"
     depends_on:

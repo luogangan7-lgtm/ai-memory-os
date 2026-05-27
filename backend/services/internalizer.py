@@ -40,6 +40,66 @@ from backend.services.config import settings
 from backend.memory.retrieval import RetrievalPipeline
 from backend.manager.registry import ModelRegistry
 
+
+async def _llm_quality_gate(pg, team_id: str, title: str, content: str) -> bool:
+    """Use user's LLM to evaluate if content is knowledge-worthy for internalization."""
+    try:
+        provider = await pg.get_active_user_provider_config(team_id)
+        if not provider:
+            return True  # No LLM configured → fall through to existing checks
+    except Exception:
+        return True
+
+    prompt = f"""You are a knowledge quality evaluator. Determine if the following user content is suitable for public knowledge base internalization.
+
+Good for internalization:
+- Technical insights, architecture decisions, best practices
+- Bug fixes with clear root cause and solution
+- Project conventions, configuration knowledge
+- Domain expertise and research findings
+- Tutorials and how-to guides
+
+NOT suitable (personal/private):
+- Personal chat, greetings, casual conversation
+- Private API keys, passwords, tokens
+- Personal contact information
+- Work-in-progress notes without conclusions
+- User-specific preferences of low general value
+
+Content title: {title}
+Content: {content[:1000]}
+
+Reply with ONLY a JSON object: {{"quality_score": 0.0-1.0, "decision": "approve"|"reject", "reason": "brief reason (max 30 chars)"}}"""
+
+    import httpx, json
+    try:
+        base_url = (provider.get("api_base_url") or "").rstrip("/")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {provider['api_key']}"},
+                json={
+                    "model": provider.get("model_name", "gpt-3.5-turbo"),
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 150,
+                    "temperature": 0.1
+                }
+            )
+        if resp.status_code != 200:
+            return True  # LLM unavailable → allow through
+
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = json.loads(raw.strip())
+        score = float(result.get("quality_score", 0.5))
+        return score >= 0.5  # Threshold: >=0.5 qualifies
+    except Exception:
+        return True  # On any error, allow through (don't block internalization)
+
+
 class InternalizationService:
     def __init__(self, pg: MemoryRepo, retrieval: RetrievalPipeline, registry: ModelRegistry):
         self.pg = pg
@@ -60,7 +120,8 @@ class InternalizationService:
                 FROM memories 
                 WHERE source_type IN ('agent', 'human', 'document') 
                 AND (json_extract(metadata, '$.internalized') IS NOT TRUE)
-                LIMIT 50
+                ORDER BY created_at DESC
+                LIMIT 20
             """)
             rows = await cursor.fetchall()
         else:
@@ -68,10 +129,12 @@ class InternalizationService:
             rows = await pool_conn.fetch("""
                 SELECT id, title, content, category, importance, metadata 
                 FROM memories 
-                WHERE source_type IN ('agent', 'human', 'document') 
+                WHERE team_id = $1
+                AND source_type IN ('agent', 'human', 'document') 
                 AND (metadata->>'internalized')::boolean IS NOT TRUE
-                LIMIT 50
-            """)
+                ORDER BY created_at DESC
+                LIMIT 20
+            """, team_id)
 
         promoted_count = 0
         try:
@@ -106,7 +169,8 @@ class InternalizationService:
                     is_redundant = any(res["score"] > settings.internalize_similarity_threshold for res in results)
                     is_valuable = importance > 0.5 and len(content) > 100
                 
-                if not is_redundant and is_valuable:
+                llm_approved = await _llm_quality_gate(self.pg, team_id, title, content)
+                if not is_redundant and is_valuable and llm_approved:
                     # 4. Promote to Knowledge with a small importance boost
                     new_importance = min(1.0, importance + 0.1)
                     logging.info(f"Internalizing memory {mid}: {title}")

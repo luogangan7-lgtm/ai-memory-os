@@ -9,9 +9,9 @@ import uuid
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import UploadFile, File, Form
+from fastapi import BackgroundTasks, UploadFile, File, Form
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import BackgroundTasks, APIRouter, Depends, HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +160,7 @@ async def logout_endpoint():
 @router.post("/memory/promote")
 async def promote_to_knowledge(
     data: dict,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
     agent_id: str = Depends(get_agent_id),
 ):
@@ -184,6 +185,7 @@ async def promote_to_knowledge(
 @router.post("/memory/remember")
 async def remember(
     req: MemoryStoreRequest,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
     agent_id: str = Depends(get_agent_id),
 ):
@@ -242,6 +244,7 @@ async def remember(
 
 @router.get("/memory/recent")
 async def list_recent_memories(
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
     limit: int = 24,
     filter: str = "all",
@@ -262,6 +265,7 @@ async def list_recent_memories(
 async def update_memory(
     memory_id: str,
     body: dict,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
 ):
     """Update an existing memory (V6.0)."""
@@ -272,6 +276,7 @@ async def update_memory(
 
 @router.post("/memory/upload")
 async def upload_file(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     category: str = Form(None),
     source_type: str = Form("document"),
@@ -343,6 +348,9 @@ async def upload_file(
         file_size=len(file_bytes),
         tags=tags.split(",") if tags else []
     )
+
+    # T2: background deep processing (auto-matches user LLM)
+    background_tasks.add_task(_run_doc_tier2, memory_id, file.filename or "untitled", team_id)
 
     return {
         "id": memory_id,
@@ -438,6 +446,7 @@ async def knowledge_gaps(team_id: str = Depends(get_current_team)):
 
 @router.post("/memory/reflect")
 async def run_reflection(
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
 ):
     """Run a full reflection cycle: auto-promote, decay freshness, detect duplicates."""
@@ -624,6 +633,8 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
     pipeline_calls = 0
     new_today = 0
     total_documents = 0
+    skills_count = 0
+    code_entities_count = 0
     active_agents: list[str] = []
     try:
         from backend.memory.pg_repo import safe_uuid
@@ -654,6 +665,12 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
             )
             total_documents = int(doc_row["n"]) if doc_row else 0
 
+            # V7: L4 skills and code entities counts
+            sr = await conn.fetchrow("SELECT COUNT(*) as c FROM memory_skills")
+            skills_count = int(sr["c"]) if sr else 0
+            cr = await conn.fetchrow("SELECT COUNT(*) as c FROM code_entities")
+            code_entities_count = int(cr["c"]) if cr else 0
+
             # Distinct non-default agents active in the last 7 days
             agent_rows = await conn.fetch(
                 """SELECT DISTINCT agent_id FROM memories
@@ -679,11 +696,14 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
         "total_documents": total_documents,
         "active_agents": active_agents,
         "agent": 0,
+        "skills_count": skills_count,
+        "code_entities_count": code_entities_count,
     }
 
 @router.post("/memory/store", response_model=MemoryResponse)
 async def store_memory(
     req: MemoryStoreRequest,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
     agent_id: str = Depends(get_agent_id),
 ):
@@ -899,6 +919,7 @@ async def store_memory(
 @router.post("/memory/search", response_model=list[MemorySearchResult])
 async def search_memory(
     req: MemorySearchRequest,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
     agent_id: str = Depends(get_agent_id),
 ):
@@ -1040,6 +1061,7 @@ async def search_memory(
 
 @router.post("/memory/upload-image")
 async def upload_image(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     category: str = Form("general"),
     team_id: str = Depends(get_current_team),
@@ -1084,6 +1106,7 @@ async def upload_image(
 @router.post("/memory/lifecycle")
 async def transition_lifecycle(
     req: LifecycleTransitionRequest,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
 ):
     """Manually promote or demote a memory between lifecycle stages."""
@@ -1136,6 +1159,7 @@ async def graph_summary():
 @router.post("/memory/graph", response_model=GraphResponse)
 async def query_graph(
     req: GraphQueryRequest,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
 ):
     if not graph_store:
@@ -1157,6 +1181,7 @@ async def query_graph(
 @router.post("/memory/longterm", response_model=list[MemorySearchResult])
 async def get_longterm(
     req: LongTermMemoryRequest,
+    background_tasks: BackgroundTasks,
     team_id: str = Depends(get_current_team),
 ):
     if not retrieval:
@@ -1418,7 +1443,8 @@ async def get_user_audit_logs(
 # ── V7.0 L4 Skills API ────────────────────────────────────
 
 @router.get("/api/skills")
-async def list_skills(team_id: str = Depends(get_current_team), limit: int = 50):
+async def list_skills(background_tasks: BackgroundTasks,
+    team_id: str = Depends(get_current_team), limit: int = 50):
     """Get user's L4 crystallized skills."""
     if not pg_repo: raise HTTPException(503)
     async with pg_repo.pool.acquire() as conn:
@@ -1426,6 +1452,14 @@ async def list_skills(team_id: str = Depends(get_current_team), limit: int = 50)
             "SELECT id, skill_name, skill_content, trigger_pattern, usage_count, fail_count, effectiveness, source_agents, last_used_at, created_at FROM memory_skills WHERE team_id=$1 ORDER BY usage_count DESC LIMIT $2",
             team_id, limit)
     return {"skills": [dict(r) for r in rows]}
+
+@router.post("/api/skills/evolve")
+async def trigger_evolve(team_id: str = Depends(get_current_team)):
+    """Manually trigger skill evolution."""
+    from backend.pipeline.skill_evolver import evolve_similar_skills
+    import asyncio
+    asyncio.create_task(evolve_similar_skills(pg_repo.pool, team_id, pg_repo))
+    return {"message": "Skill evolution started"}
 
 @router.post("/api/skills/crystallize")
 async def trigger_crystallize(team_id: str = Depends(get_current_team)):
@@ -1438,13 +1472,42 @@ async def trigger_crystallize(team_id: str = Depends(get_current_team)):
 # ── V7.0 Code Entities API ──────────────────────────────────
 
 @router.get("/api/code-entities")
-async def list_code_entities(team_id: str = Depends(get_current_team), limit: int = 20):
+async def list_code_entities(background_tasks: BackgroundTasks,
+    team_id: str = Depends(get_current_team), limit: int = 50,
+    language: str = None, entity_type: str = None):
+    """Get code entities with language/type filtering + file grouping stats."""
     if not pg_repo: raise HTTPException(503)
     async with pg_repo.pool.acquire() as conn:
+        where = ["team_id=$1"]
+        params = [team_id]
+        p = 2
+        if language and language != "all":
+            where.append(f"language=${p}"); params.append(language); p += 1
+        if entity_type and entity_type != "all":
+            where.append(f"entity_type=${p}"); params.append(entity_type); p += 1
+        w = " AND ".join(where)
+        # Entities
         rows = await conn.fetch(
-            "SELECT entity_type, name, file_path, language, indexed_at FROM code_entities WHERE team_id=$1 ORDER BY indexed_at DESC LIMIT $2",
-            team_id, limit)
-    return {"entities": [dict(r) for r in rows]}
+            f"SELECT entity_type, name, file_path, language, project_path, indexed_at FROM code_entities WHERE {w} ORDER BY indexed_at DESC LIMIT ${p}",
+            *params, limit)
+        # File grouping
+        file_rows = await conn.fetch(
+            f"SELECT file_path, language, COUNT(*) as ecnt, string_agg(DISTINCT entity_type, ', ') as types FROM code_entities WHERE {w} GROUP BY file_path, language ORDER BY ecnt DESC LIMIT 30",
+            *params)
+        # Language stats
+        lang_rows = await conn.fetch(
+            f"SELECT language, COUNT(*) as cnt, string_agg(DISTINCT entity_type, ', ') as types FROM code_entities WHERE {w} GROUP BY language ORDER BY cnt DESC",
+            *params)
+        # Project stats
+        proj_rows = await conn.fetch(
+            f"SELECT project_path, COUNT(*) as cnt, string_agg(DISTINCT language, ', ') as langs FROM code_entities WHERE {w} AND project_path IS NOT NULL GROUP BY project_path ORDER BY cnt DESC",
+            *params)
+    return {
+        "entities": [dict(r) for r in rows],
+        "files": [dict(r) for r in file_rows],
+        "languages": [dict(r) for r in lang_rows],
+        "projects": [dict(r) for r in proj_rows],
+    }
 
 # V7 Fallback PG search when Qdrant empty
 async def _pg_fallback_search(team_id, source_type, top_k, pg_repo):
@@ -1455,3 +1518,13 @@ async def _pg_fallback_search(team_id, source_type, top_k, pg_repo):
 
 
 
+
+
+async def _run_doc_tier2(doc_id: str, doc_title: str, team_id: str):
+    try:
+        from backend.memory.document_processor import process_tier2
+        from backend.api.routes import pg_repo as _pg, qdrant_store as _qs, registry as _reg
+        result = await process_tier2(doc_id, doc_title, team_id, _pg, _qs, _reg)
+        print(f"[Doc T2] {doc_title}: {result}")
+    except Exception as e:
+        print(f"[Doc T2] Failed {doc_title}: {e}")

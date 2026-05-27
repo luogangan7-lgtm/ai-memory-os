@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Chart, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { getStats, getThroughput, getHealth, getRouting, testEngine, getLLMEngineConfig } from '../api/endpoints';
+import { getStats, getThroughput, getRouting, testEngine, getLLMEngineConfig } from '../api/endpoints';
 import type { DashboardStats, ServiceHealth } from '../api/types';
 import { PROVIDERS } from '../data/models';
 
@@ -102,25 +102,21 @@ export function DashboardPage() {
     runEngineTest('rerank');
   }, [runEngineTest]);
 
-  const ld = useCallback(async () => {
+const ld = useCallback(async () => {
+    // Health: direct fetch, independent
+    const token = localStorage.getItem('admin_token') || localStorage.getItem('mos_admin_token') || '';
+    fetch('/admin/health', { headers: token ? { Authorization: 'Bearer ' + token } : {} })
+      .then(r => r.json()).then(d => { if (d.services) setSvc(d.services); }).catch(() => {});
+    // Stats + throughput (main data)
     try {
-      const [sr, tp, h, rt, eng] = await Promise.all([
-        getStats(),
-        getThroughput(),
-        getHealth(),
-        getRouting(),
-        getLLMEngineConfig()
-      ]);
+      const [sr, tp] = await Promise.all([getStats(), getThroughput()]);
       setStats(sr);
-      setTpL(tp.labels);
-      setTpV(tp.values);
-      setSvc(h.services as ServiceHealth);
-      setRouting(rt);
-      setLlmEngine(eng);
-      setLog(p => [...p, `[${new Date().toLocaleTimeString()}] ${sr.total} mems | ${sr.active_users} users`].slice(-50));
-    } catch {
-      /* API unavailable, silent */
-    }
+      setTpL(tp.labels || []); setTpV(tp.values || []);
+      setLog(p => [...p, '[' + new Date().toLocaleTimeString() + '] ' + (sr.total||0) + ' mems | ' + (sr.active_users||0) + ' users'].slice(-50));
+    } catch {}
+    // Routing + LLM engine (non-critical, async)
+    getRouting().then(r => { if (r) setRouting(r); }).catch(() => {});
+    getLLMEngineConfig().then(e => { if (e) setLlmEngine(e); }).catch(() => {});
   }, []);
 
   useEffect(() => {

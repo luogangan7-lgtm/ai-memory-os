@@ -90,7 +90,7 @@ export function MonitoringPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 22 }}>
+      <div className="v6-grid-2col" style={{ marginBottom: 22 }}>
         <div className="v6-card" style={{ marginBottom: 0 }}>
           <div className="v6-card__head">
             <div className="v6-card__title">

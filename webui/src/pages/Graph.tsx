@@ -92,7 +92,7 @@ export function GraphPage(){
             <span style={{ fontWeight: 'bold', color: 'var(--v6-fg)', letterSpacing: 0.5 }}>NEO4J 神经网络控制器 Neural Controller</span>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12, borderBottom: '1px solid var(--v6-border)', paddingBottom: 12 }}>
+          <div className='v6-grid-2col' style={{ gap: 12, marginBottom: 12, borderBottom: '1px solid var(--v6-border)', paddingBottom: 12 }}>
             <div>
               <div style={{ color: 'var(--v6-fg-muted)', fontSize: 10 }}>实体节点数 Nodes</div>
               <div style={{ fontSize: 20, fontWeight: 'bold', color: stats.nodes === 0 ? 'var(--v6-fg-muted)' : 'var(--v6-fg)' }}>{stats.nodes}</div>

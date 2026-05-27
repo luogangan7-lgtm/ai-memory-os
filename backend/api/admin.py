@@ -260,8 +260,9 @@ _graph_store = None
 _minio_store = None
 
 def init_registry(reg: ModelRegistry, pg=None, qs=None, gs=None, ms=None) -> None:
-    global _pg_repo, _qdrant_store, _graph_store, _minio_store
+    global _pg_repo, _qdrant_store, _graph_store, _minio_store, _registry
     _pg_repo = pg
+    _registry = reg
     _qdrant_store = qs
     _graph_store = gs
     _minio_store = ms
@@ -586,6 +587,16 @@ def cost_summary():
     from backend.services.cost_tracker import CostTracker
     return CostTracker.summary()
 
+@router.post("/knowledge/enhance")
+async def enhance_public_knowledge_endpoint():
+    """Admin: trigger public knowledge enhancement using admin LLM."""
+    from backend.services.knowledge_enhancer import enhance_public_knowledge
+    from backend.api.admin import _pg_repo, _registry
+    if not _pg_repo or not _registry:
+        raise HTTPException(503, "Services not ready")
+    result = await enhance_public_knowledge(_pg_repo, _registry)
+    return result
+
 @router.get("/stats")
 async def get_dashboard_stats():
     """General dashboard stats matching DashboardStats interface."""
@@ -595,6 +606,8 @@ async def get_dashboard_stats():
     total_memories = 0
     total_teams = 0
     pipeline_calls = 0
+    skills_count = 0
+    code_entities_count = 0
     total_tokens = summary.get("total_tokens", 0)
     
     if _pg_repo:
@@ -608,11 +621,17 @@ async def get_dashboard_stats():
             row2 = await conn.fetchrow("SELECT SUM(total_tokens) as tokens FROM user_token_usage")
             if row2 and row2["tokens"]:
                 total_tokens += int(row2["tokens"])
+            
+            sr = await conn.fetchrow("SELECT COUNT(*) as c FROM memory_skills")
+            if sr: skills_count = int(sr["c"])
+            cr = await conn.fetchrow("SELECT COUNT(*) as c FROM code_entities")
+            if cr: code_entities_count = int(cr["c"])
 
     # Calculate today's writes from history
     import time
     today_str = time.strftime("%Y-%m-%d")
     today_writes = summary.get("daily_trends", {}).get(today_str, 0)
+
 
     return {
         "total": total_memories,
@@ -622,7 +641,9 @@ async def get_dashboard_stats():
         "active_users": total_teams,
         "today_writes": today_writes,
         "tokens_saved": int(total_tokens * 0.4),
-        "memory_growth": "+0%" # Future: compute from history
+        "memory_growth": "+0%",
+        "skills_count": skills_count,
+        "code_entities_count": code_entities_count # Future: compute from history
     }
 
 @router.get("/stats/throughput")

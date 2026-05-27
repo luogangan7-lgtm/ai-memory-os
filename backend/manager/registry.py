@@ -536,7 +536,15 @@ class ModelRegistry:
         provider_name = cfg["provider"]
         model_name = cfg["model"]
         api_key = cfg.get("api_key", "")
-        base_url = cfg.get("base_url")
+        base_url = cfg.get("base_url") or ""
+        
+        # Fallback to provider's stored API key if engine config has no key
+        if not api_key and provider_name in self.configs:
+            pk = self.configs[provider_name].api_key
+            if pk:
+                api_key = pk
+                if not base_url:
+                    base_url = self.configs[provider_name].api_base or ""
         
         from backend.utils.crypto import decrypt_key
         if api_key:
@@ -560,7 +568,20 @@ class ModelRegistry:
             return await self.chat(messages, **kwargs)
         prov = cls(prov_cfg)
         prov.config.enabled_models["llm"] = model_name
-        res = await prov.chat(messages, **kwargs)
+        # Retry on rate limit (429) with exponential backoff
+        import asyncio as _asyncio
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                res = await prov.chat(messages, **kwargs)
+                break
+            except Exception as e:
+                if '429' in str(e) and attempt < max_retries - 1:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    print(f'[Registry] 429 rate limited, retrying in {wait}s...')
+                    await _asyncio.sleep(wait)
+                    continue
+                raise
         
         # Token usage logging (direct await with guard)
         if not kwargs.get("stream"):
