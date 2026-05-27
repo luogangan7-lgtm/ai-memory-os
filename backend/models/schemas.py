@@ -115,6 +115,9 @@ class MemorySearchRequest(BaseModel):
     until: Optional[str] = None
     use_graph: bool = False
     min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Knowledge pool filter (V7.1+)
+    source: Optional[str] = None          # "private" / "public" / None (both)
+    include_public: bool = True           # include shared public knowledge pool
 
 
 class MemorySearchResult(BaseModel):

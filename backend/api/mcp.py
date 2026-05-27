@@ -216,7 +216,7 @@ async def mcp_post_handler(
                 "tools": [
                     {
                         "name": "memory_search",
-                        "description": "Semantic search across all memory layers. Supports time range (since/until), layer filter (L1-L4), and source type filter.",
+                        "description": "Semantic search across all memory layers. Automatically includes results from both your private memories and the shared public knowledge pool (built from high-quality internalized memories via K2 pipeline). Supports time range (since/until), layer filter (L1-L4), and source pool filter.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -225,33 +225,11 @@ async def mcp_post_handler(
                                 "since": {"type": "string", "description": "Start date ISO format, e.g. 2026-03-01"},
                                 "until": {"type": "string", "description": "End date ISO format, e.g. 2026-04-30"},
                                 "layer": {"type": "string", "enum": ["L1","L2","L3","L4","DOC"], "description": "Memory layer filter"},
-                                "source_type": {"type": "string", "description": "Source filter: human/agent/document"},
-                                "limit": {
-                                    "type": "integer",
-                                    "description": "Max results",
-                                    "default": 5
-                                },
-                                "since": {
-                                    "type": "string",
-                                    "description": "Start date ISO format, e.g. 2026-03-01"
-                                },
-                                "until": {
-                                    "type": "string",
-                                    "description": "End date ISO format, e.g. 2026-04-30"
-                                },
-                                "layer": {
-                                    "type": "string",
-                                    "enum": ["L1", "L2", "L3", "L4"],
-                                    "description": "Memory layer filter"
-                                },
-                                "source_type": {
-                                    "type": "string",
-                                    "description": "Source filter: human/agent/document"
-                                }
+                                "source_type": {"type": "string", "description": "Content type filter: human/agent/document/knowledge"},
+                                "source": {"type": "string", "enum": ["private", "public"], "description": "Pool filter: 'private'=only your memories, 'public'=only shared knowledge pool, omit=both"}
                             },
                             "required": ["query"]
                         }
-
                     },
                     {
                         "name": "memory_store",
@@ -384,6 +362,18 @@ async def mcp_post_handler(
                         "name": "memory_status",
                         "description": "Get memory system status (total, health, storage).",
                         "inputSchema": {"type": "object", "properties": {}}
+                    },
+                    {
+                        "name": "public_browse",
+                        "description": "Browse the shared public knowledge pool built from internalized high-quality memories. No args: returns topic list. Use topic='xxx' to filter by K2 topic. Use query='xxx' for semantic search within public knowledge only.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "Semantic search within public knowledge (leave empty for topic list)"},
+                                "topic": {"type": "string", "description": "Filter by K2 topic name, e.g. 'Python' or '架构设计'"},
+                                "limit": {"type": "integer", "default": 8, "description": "Max results to return"}
+                            }
+                        }
                     }
                 ]
             }
@@ -752,6 +742,78 @@ async def mcp_post_handler(
                 except Exception as e:
                     result_text = f"memory_skill_list failed: {e}"
 
+            elif tool_name == "public_browse":
+                query = arguments.get("query", "").strip()
+                topic = arguments.get("topic", "").strip()
+                limit = int(arguments.get("limit", 8))
+                try:
+                    if pg_repo:
+                        async with pg_repo.pool.acquire() as conn:
+                            if not query and not topic:
+                                # Return topic list
+                                topics = await conn.fetch("""
+                                    SELECT topic, COUNT(*) AS cnt
+                                    FROM memories
+                                    WHERE team_id = 'public'
+                                      AND topic IS NOT NULL AND topic != ''
+                                    GROUP BY topic ORDER BY cnt DESC LIMIT 20
+                                """)
+                                if not topics:
+                                    result_text = "📚 公共知识库暂无内容，随着用户数据积累会自动丰富。"
+                                else:
+                                    lines = [f"📚 公共知识库主题（共 {len(topics)} 个）\n"]
+                                    for t in topics:
+                                        lines.append(f"  • {t['topic']}（{t['cnt']} 条）")
+                                    lines.append("\n提示：用 topic='主题名' 查看具体内容，用 query='关键词' 语义搜索")
+                                    result_text = "\n".join(lines)
+                            elif topic and not query:
+                                # Browse by topic
+                                rows = await conn.fetch("""
+                                    SELECT title, content, topic, importance, created_at
+                                    FROM memories
+                                    WHERE team_id = 'public'
+                                      AND topic ILIKE $1
+                                    ORDER BY importance DESC, created_at DESC
+                                    LIMIT $2
+                                """, f"%{topic}%", limit)
+                                if not rows:
+                                    result_text = f"主题「{topic}」暂无公共知识。可调用 public_browse 不带参数查看所有主题。"
+                                else:
+                                    lines = [f"📖 公共知识 · {topic}（{len(rows)} 条）\n"]
+                                    for r in rows:
+                                        lines.append(f"**{r['title']}**\n{(r['content'] or '')[:300]}")
+                                    result_text = "\n---\n".join(lines)
+                            else:
+                                # Semantic search in public pool only
+                                if retrieval and registry:
+                                    use_rerank = hasattr(registry, "reranker") and registry.reranker is not None
+                                    raw = await retrieval.search(
+                                        query=query,
+                                        embedding_fn=registry.embed_single,
+                                        team_id="public",
+                                        top_k=limit,
+                                        use_rerank=use_rerank,
+                                        rerank_fn=registry.rerank if use_rerank else None,
+                                        source_type_filter="knowledge",
+                                    ) or []
+                                    if not raw:
+                                        result_text = f"公共知识库中未找到「{query}」相关内容。"
+                                    else:
+                                        lines = [f"🌐 公共知识检索：{query}（{len(raw)} 条）\n"]
+                                        for i, r in enumerate(raw, 1):
+                                            score = f"{r.get('score', 0):.0%}"
+                                            p = r.get("payload", {})
+                                            lines.append(
+                                                f"[{i}] **{p.get('title', '(无标题)')}** [{score}]\n"
+                                                f"{(p.get('text') or '')[:300]}"
+                                            )
+                                        result_text = "\n---\n".join(lines)
+                                else:
+                                    result_text = "检索引擎未就绪，无法执行语义搜索。"
+                    else:
+                        result_text = "数据库未连接，public_browse 不可用。"
+                except Exception as e:
+                    result_text = f"public_browse 执行失败: {e}"
             else:
                 is_error = True
                 result_text = f"Tool '{tool_name}' not found."
