@@ -205,9 +205,9 @@ async def root_redirect():
 
 
 # UI routes
-UI_DIR = Path(__file__).parent.parent / "webui-dist"
-APP_DIR = Path(__file__).parent.parent / "webui-dist"
-WEBUI_DIST = Path(__file__).parent.parent / "webui-dist"
+UI_DIR = Path(__file__).parent.parent / "ui"
+APP_DIR = Path(__file__).parent.parent / "ui"
+WEBUI_DIST = Path(__file__).parent.parent / "ui"
 
 @app.get("/manage/{full_path:path}")
 async def serve_manage_ui(full_path: str):

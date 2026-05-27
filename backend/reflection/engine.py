@@ -166,8 +166,8 @@ class ReflectionEngine:
                         await self.graph.create_memory_node(r["id_b"], "","","")
                         await self.graph.create_semantic_relation(r["id_a"], r["id_b"], "SUPPORTS", team_id, 0.7)
                         n += 1
-                    except: pass
-                    import traceback; logging.getLogger("reflection").warning("Relation failed: %s", traceback.format_exc())
+                    except Exception as e:
+                        logging.getLogger("reflection").warning("Relation failed: %s", str(e)[:100])
         return n
 
     async def _dedup(self, team_id):

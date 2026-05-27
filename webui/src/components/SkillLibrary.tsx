@@ -40,9 +40,9 @@ export function SkillLibrary() {
     setMsg('');
     try {
       await api.post("/api/skills/evolve", {});
-      setMsg("技能进化任务已启动，请稍后刷新。");
-      setTimeout(() => { fetchSkills(); setEvolving(false); }, 5000);
-    } catch { setMsg("进化触发失败"); setEvolving(false); }
+      setMsg("进化已启动，3秒后刷新...");
+      setTimeout(() => { fetchSkills(); setEvolving(false); }, 3500);
+    } catch { setMsg("进化触发失败，请检查 LLM 配置"); setEvolving(false); }
   };
 
   const triggerCrystallize = async () => {
@@ -50,11 +50,10 @@ export function SkillLibrary() {
     setMsg(null);
     try {
       await api.post("/api/skills/crystallize", {});
-      setMsg(" 技能固化提取任务已启动，请稍后刷新查看。");
-      setTimeout(() => setMsg(null), 5000);
+      setMsg("固化已启动，3秒后刷新...");
+      setTimeout(() => { fetchSkills(); setMsg(null); setCrystallizing(false); }, 3500);
     } catch (e: any) {
-      setError(e?.message || "触发技能固化失败");
-    } finally {
+      setError(e?.message || "固化失败，请先配置 LLM");
       setCrystallizing(false);
     }
   };

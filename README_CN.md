@@ -1,154 +1,171 @@
-# Cortex — AI Agent 长期记忆操作系统
-<!-- formerly AI Memory OS V6.0 -->
+# Cortex — AI Agent 长期记忆操作系统 V7.1
+
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version: V6.0](https://img.shields.io/badge/Version-V6.0-00f0d4.svg?style=flat-square)](#)
-[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-violet.svg)](#)
-[![Node: 18+](https://img.shields.io/badge/Node-18%2B-emerald.svg)](#)
-[![MCP: SSE/Stdio](https://img.shields.io/badge/MCP-SSE%20%2F%20Stdio-amber.svg)](#)
+[![Version: V7.1](https://img.shields.io/badge/Version-V7.1-00f0d4.svg?style=flat-square)](#)
+[![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-violet.svg)](#)
+[![MCP工具: 17个](https://img.shields.io/badge/MCP工具-17个-amber.svg)](#)
+[![LLM厂商: 14+](https://img.shields.io/badge/LLM厂商-14%2B-ff6b6b.svg)](#)
 
-**赋予你的 AI 智能体永久长短期记忆，为你的团队构建统一的数字大脑。**
+**赋予你的 AI 智能体永久长期记忆，为你的团队构建统一的知识大脑。**
 
-[English Introduction](README.md) | [功能特性](#-核心支柱) | [系统架构](#-系统架构) | [部署指南](#-部署与运行指南) | [MCP 接入](#-mcp-智能体连接指南)
+[English README](README.md) | [功能特性](#-核心能力) | [架构图](#-系统架构) | [快速部署](#-快速开始) | [MCP接入](#-mcp接入)
 
 </div>
 
 ---
 
-## 🏆 黄金生产级大圆满里程碑 (V6.0 新突破)
+<div align="center">
 
-本系统已顺利通过第九轮双端（管理后台 & 租户个人空间）自动化浏览器全量实测与交叉审计，已实现下述核心突破：
-* **🛡️ 算力提供商加密数据库持久化**：告别了不安全的内存临时字典！用户配置的自定义 LLM 提供商密钥及基地址完全与底层 SQLite/PostgreSQL 实现加密持久化同步，保障进程重启/断电配置永不丢失，并成功打通了 `/v1/chat/completions` 网关的动态上下文注入对话代理！
-* **📊 精准独立的度量指标**：修复了旧版本统计数据复制粘贴代码导致的展示错误。现在，用户空间的“💾 记忆”、“🔢 Token”和“🔄 管线”三个指标完全解耦，分别映射并正确展示真实的 `stats.mem`、`stats.tokens` 和 `stats.calls` 数据。
-* **📋 任务画布高科技 SVG 流程图动态渲染**：引入 `mermaid.js` 依赖，重构 `CanvasPanel`，将原本仅能展示的 Mermaid 纯文本图谱直接编译渲染为极具超现实暗黑玻璃态（Neural Void Glassmorphism）质感的多层流程拓扑 SVG 图谱。
+![Cortex V7.1 用户界面](docs/images/cortex_v71_dashboard.png)
+
+</div>
 
 ---
 
-## 🌟 核心支柱 (Key Features)
+## 🚀 V7.1 新特性
 
-### 1. 🔌 跨智能体 MCP 记忆网关 (Model Context Protocol)
-* **多智能体一键连接**：完美兼容 Anthropic 官方 MCP 规范。为 **Cursor, Claude Desktop, Cline, Continue, Roo Code, Codex CLI** 提供一键即插即用的配置 JSON 与 Stdio/SSE 传输链路。
-* **九大极客核心工具链**：提供记忆检索、事实持久化、长期知识树反射修剪、画像意图抓取、任务画布更新、实体精准删除等 9 个自适应感知感知工具，支持别名路由拦截。
+| 功能 | 说明 |
+|------|------|
+| **K2 三阶段知识管道** | 实时话题分类 → 超大话题自动拆分（阈值20条）→ 语义合并 |
+| **LLM 质量门控** | 内化前用用户自己的 LLM 评分（0–1），低于 0.5 跳过 |
+| **推理标签集中剥离** | `<think>` 标签自动剥离，兼容 MiniMax-M2.7 / DeepSeek-R1 / Qwen |
+| **429 指数退避重试** | 限流时自动重试，1s→2s→4s（最多3次），生产级稳定性 |
+| **L4 技能进化** | 合并相似技能，PRM 反馈闭环更新 effectiveness 评分 |
+| **代码图谱 REST 视图** | `/api/code-entities` 三视图（文件/实体/语言）替代 MCP 文本搜索 |
+| **中文分块修复** | CJK 字符数计词（原：词数，导致中文文档只生成1块的 Bug 已修复） |
+| **内联健康检测** | 页面 title 实时显示 `✅ ALL OK` / `⚠️ N DOWN` / `❌ API DOWN` |
 
-### 2. 🧠 三位一体混合检索与 RAG 减免引擎 (Hybrid Search & Rerank)
-* 融合 **Qdrant / LanceDB 密集向量搜索** + **Neo4j 神经网络知识图谱关系推理** + **FastEmbed 语义级全文 BM25 检索**，通过重排序（Rerank）实现业界顶尖的相关度过滤，全局 Token 消耗平均减少 **40%**。
+---
 
-### 3. 🤖 算力中心代理网关 (OpenAI-Compatible completions Proxy)
-* 提供标准的 OpenAI 兼容 completions 网关接口（`/v1/chat/completions`），自动在 completions 请求载荷中精准注入当前租户的长期对话背景及关系画像，同时对阿里千问、DeepSeek、OpenAI、SiliconFlow 等 21 家主流算力节点进行国别归集（🇨🇳中国/🌐海外）及一键连接校验。
+## 🌟 核心能力
 
-### 4. 🎛️ L1-L3 神经认知压缩与自动化反射管线 (Reflection Engine)
-* **L0-L1 (短期会话存储)**：捕捉实时对话。
-* **L2 (片段语义块整合)**：对松散对话进行提取和分类器打标。
-* **L3 (高阶画像及知识图谱沉淀)**：后台反射引擎（Reflection Engine）定期唤醒，将 L2 的信息压缩为高度凝练 L3 长期事实及 Neo4j 实体关系，实现记忆的衰减与增强。
+### 1. 🔌 MCP 记忆网关（17个工具）
+完整兼容 Anthropic MCP 规范，支持 Cursor / Claude Desktop / Cline / Roo Code / Codex CLI。
 
-### 5. 💎 Neural Void 顶奢级超现实玻璃态视觉系统 (UX/UI)
-* 采用极富视觉冲击力的暗黑霓虹磨砂玻璃态（Void Glassmorphic）交互美学。配备动态 Orb 神经网络粒子背景、动态服务健康心跳灯及一键诊断 HUD 控制台。
+| 类别 | 工具 |
+|------|------|
+| 记忆 CRUD（9个） | `memory_search`、`memory_store`、`memory_list`、`memory_delete`、`memory_reflect`、`memory_get_persona`、`memory_task_canvas_get`、`memory_task_canvas_update`、`memory_status` |
+| 代码图谱（5个） | `code_index`、`code_search`、`code_relations`、`code_impact`、`code_memory_link` |
+| 技能与反馈（2个） | `memory_feedback`、`memory_skill_list` |
+| 文档检索（1个） | `doc_search` |
+
+### 2. 🧠 五层认知管线（L0 → L4）
+```
+L0 记录   → 原始记忆存储 + 向量化
+L1 提取   → LLM 提取事实/决策/偏好
+L2 聚合   → 相似事实聚合为场景
+L3 画像   → 生成用户画像 + 知识图谱
+L4 技能   → 重复行为结晶为可复用技能
+K2 话题   → 公共知识池分类/拆分/合并
+```
+
+### 3. 🤖 14+ 厂商 LLM 支持
+智谱 · MiniMax · DeepSeek · 阿里云百炼 · OpenAI · Anthropic · Moonshot · 字节豆包 · 百度文心 · 腾讯混元 · 讯飞星火 · 阶跃星辰 · 零一万物 · SiliconFlow + 兼容 OpenAI 的通用接入
+
+所有厂商统一处理推理标签，响应自动清洗。
+
+### 4. 📄 文档双层处理
+- **T1（系统成本）**：文本提取 → 语义分块 → 向量化 → 立即可检索
+- **T2（用户 LLM）**：深度摘要 + 实体抽取 + 知识图谱关联
 
 ---
 
 ## 🏗️ 系统架构
 
-```mermaid
-graph TD
-    User((开发者/用户)) -->|REST API / Web UI| Gateway[FastAPI 核心网关]
-    
-    subgraph 认知管道 (Cognitive Pipelines)
-        Gateway -->|Ingestion Pipeline| L1_Queue[L1 记忆缓冲队列]
-        L1_Queue -->|Classifier / Tagging| L2_Synthesizer[L2 事实整合器]
-        L2_Synthesizer -->|Reflection Engine| L3_Graph[L3 知识图谱/画像归档]
-    end
+<div align="center">
 
-    subgraph 数据底座 (Storage Engines)
-        Gateway -->|1. 关系与账单数据| RDBMS[(PostgreSQL / SQLite 双端多路复用)]
-        Gateway -->|2. 拓扑与语义图谱| Neo4j[(Neo4j 图数据库)]
-        Gateway -->|3. 混合向量库| VectorStore[(Qdrant / LanceDB 嵌入式向量库)]
-        Gateway -->|4. 文件/文档归档| MinIO[(MinIO / 本地对象存储)]
-    end
+![Cortex V7.1 架构图](docs/images/cortex_v71_architecture.png)
 
-    subgraph 外部生态 (External Integrations)
-        Gateway -->|MCP Bridge (SSE/Stdio)| Agent[Cursor / Claude Desktop / Cline]
-        Gateway -->|OpenAI Proxy| UpstreamLLM[DeepSeek / Qwen / SiliconFlow / OpenAI]
-    end
-```
+</div>
 
 ---
 
-## 📦 部署与运行指南
+## 📦 快速开始
 
-AI Memory OS 支持三种运行模式：**开箱即用桌面客户端 (Desktop Application, 推荐)**、**生产级多容器模式 (Docker Compose)** 和 **轻量级免 Docker 单机模式 (Standalone Mode)**。
-
-### 🚀 方式一：开箱即用桌面客户端安装 (Desktop App, 最简极速)
-我们已为您编译并打包了包含最新生产级后端的所有平台安装包，您可以直接在 GitHub Releases 处下载安装使用：
-* **Mac 客户端下载**：前往 [GitHub Releases](https://github.com/luogangan7-lgtm/ai-memory-os/releases/tag/v6.0.0-release) 页面下载最新 `AI Memory OS-1.0.0-arm64.dmg`。双击挂载后拖入 `Applications` 文件夹即可一键启动！
-* 桌面端具备系统托盘管理功能，能自检测本地 Docker 环境，并自动在系统后台运行独立的 FastAPI 算力网关。
-
-### 💡 方式二：生产级多容器模式 (Docker Compose)
-该模式包含完整的 PostgreSQL 关系数据库、Qdrant 向量库、Neo4j 图谱数据库、Redis 缓存及 MinIO 静态存储，适合商业化部署或团队协作。
+### 方式 A：Docker Compose（推荐）
 
 ```bash
-# 1. 克隆代码仓库
+# 1. 克隆项目
 git clone https://github.com/luogangan7-lgtm/ai-memory-os.git
 cd ai-memory-os
 
-# 2. 一键拉取并启动所有生产容器组件
+# 2. 配置环境变量（生产环境必须修改密码！）
+cp .env.example .env
+# 编辑 .env：设置 POSTGRES_PASSWORD / NEO4J_PASSWORD / MEMORY_OS_MASTER_KEY
+
+# 3. 启动
 docker compose up -d
 
-# 3. 访问系统
-# 管理控制台 (Command Deck): http://localhost:8003/ (使用默认管理员账号: admin / admin)
-# 用户个人记忆空间 (Personal Space): http://localhost:8003/app/ (使用测试账号: tester@test.com / tester123)
+# 4. 验证
+curl http://localhost:8003/admin/health
+
+# 访问：
+# 用户端：http://localhost:8003/app
+# 管理端：http://localhost:8003/manage（默认账号: admin / admin）
 ```
 
-### 💡 方式三：免 Docker 轻量单机模式 (Standalone Mode)
-系统包含一套自主研发的**双端多路复用数据库中介拦截引擎 (DBConn)**。在 Standalone 模式下，系统将**自动切换为 SQLite 嵌入式数据库 + LanceDB 本地向量库**，实现 0-Docker 依赖，单 Python 进程在本地极速拉起！
+### 方式 B：单机模式（无需 Docker）
 
-#### 1. 启动后端服务器 (Python 3.10+)
 ```bash
-cd ai-memory-os
-
-# 创建虚拟环境并安装 Python 依赖包
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
-
-# 以单机 standalone 模式启动后端 (会自动在 ~/.codex/memory-os/ 目录下初始化 memories.db 数据库)
 USE_STANDALONE=true python3 run.py
 ```
 
-#### 2. 编译并预览 React WebUI (Node.js 18+, 可选)
-项目默认附带编译完成的 `webui-dist` 静态资源，此步骤通常可选。若需要进行二次开发修改：
+---
+
+## 🔌 MCP接入
+
+### SSE 连接
+```
+GET https://你的域名/mcp?token=mos_你的token
+```
+
+### Cursor / Cline / Codex CLI
+```json
+{
+  "mcpServers": {
+    "cortex-memory": {
+      "command": "npx",
+      "args": ["-y", "ai-memory-os-mcp", "--token=mos_你的token", "--server=https://你的域名"]
+    }
+  }
+}
+```
+
+---
+
+## 🛡️ 安全
+
+- **多租户隔离**：`team_id` 全链路隔离，不同用户数据完全分离
+- **Key 加密存储**：用户 LLM 密钥 AES-256-GCM 加密落盘（`MEMORY_OS_MASTER_KEY`）
+- **JWT 认证**：24小时 access token，HMAC 签名
+- **PII 过滤**：内化前自动检测并拦截 API Key / 邮箱 / 手机号 / 身份证
+- **速率限制**：Redis 限流，防滥用
+
+### ⚠️ 生产部署前必改
+
 ```bash
-cd webui
-npm install
-npm run build
-# 编译后的静态资源将自动就地输出，供 FastAPI 后端直接无缓存伺服
+MEMORY_OS_MASTER_KEY=<base64编码的32字节随机密钥>
+MEMORY_OS_JWT_SECRET=<64位随机十六进制>
+POSTGRES_PASSWORD=<强密码，非默认值>
+NEO4J_PASSWORD=<强密码，非默认值>
 ```
 
 ---
-
-## 🔌 MCP 智能体连接指南
-
-在您的 AI 智能体（如 Cursor 或 Claude Desktop）中接入 AI Memory OS，即可让它在对话过程中静默调用记忆。
-
-### 1. Stdio 管道接入 (Cursor / Cline / Continue / Roo Code / Codex)
-以 **Cursor** 为例，只需打开 `Settings` -> `Models` -> `MCP`，点击 `Add New MCP Server`，输入：
-* **Name**: `ai-memory-os`
-* **Type**: `command`
-* **Command**: `npx -y ai-memory-os-mcp --token=<您的MCP-Token> --server=http://localhost:8003`
-
-### 2. SSE 网络流接入 (OpenClaw / Dify / 商业网关)
-将网关地址指向后端的 SSE 节点：
-```http
-GET http://localhost:8003/mcp?token=<您的MCP-Token>
-```
-
----
-
-## 🛡️ 安全合规与隐私隔离
-
-* **租户物理隔离**：系统对每位注册用户生成唯一的 `team_id` 租户标识，并在底层对 Qdrant / LanceDB 的向量集合建立专属的 `memory_team_<team_id>` 独立表实体，防范任何形式的越权数据泄露。
-* **API 密钥高阶加密**：所有写入 `user_provider_configs` 数据库的第三方 LLM 算力 Key 均经过高标准的加密散列算法落盘存储，杜绝明文泄露风险。
 
 ## 📄 开源协议
 
-基于 [MIT License](LICENSE) 协议开源。
+基于 [MIT License](LICENSE) 开源。
+
+---
+
+<div align="center">
+
+**Cortex V7.1** | Python 3.11 + FastAPI + React + Qdrant + Neo4j + PostgreSQL
+
+*让你的 AI 智能体真正记住重要的事情。*
+
+</div>
