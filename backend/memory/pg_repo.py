@@ -64,10 +64,20 @@ class MemoryRepo:
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     memory_id TEXT,
                     agent_id TEXT,
+                    team_id TEXT,
+                    user_id TEXT,
                     action TEXT NOT NULL,
+                    resource_type TEXT,
+                    resource_id UUID,
                     details JSONB DEFAULT '{}',
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
                 );
+
+                -- Add columns to audit_log if they were missing
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS team_id TEXT;
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS user_id TEXT;
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS resource_type TEXT;
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS resource_id UUID;
 
                 -- Ensure user_provider_configs table exists
                 CREATE TABLE IF NOT EXISTS user_provider_configs (

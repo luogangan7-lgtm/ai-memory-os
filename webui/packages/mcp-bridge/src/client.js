@@ -14,6 +14,24 @@ export class MemoryOSClient {
   }
 
   async connect() {
+    this._shouldReconnect = true;
+    this._reconnectAttempt = 0;
+    while (this._shouldReconnect) {
+      try {
+        await this._doConnect();
+        this._reconnectAttempt = 0;
+        return;
+      } catch (err) {
+        this._reconnectAttempt++;
+        const delay = Math.min(1000 * Math.pow(2, this._reconnectAttempt), 30000);
+        process.stderr.write(`[Memory OS] Connection failed (attempt ${this._reconnectAttempt}), retrying in ${delay}ms: ${err.message}
+`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+
+  async _doConnect() {
     return new Promise(async (resolve, reject) => {
       let resolved = false;
       const resolveConnect = () => {
@@ -114,6 +132,30 @@ export class MemoryOSClient {
       } catch (e) {
         process.stderr.write(`[Memory OS] Failed to parse message JSON: ${e.message}\n`);
       }
+    }
+  }
+
+
+  async _reconnect() {
+    this._reconnectAttempt = 0;
+    while (this._shouldReconnect) {
+      try {
+        process.stderr.write(`[Memory OS] Reconnecting (attempt ${this._reconnectAttempt + 1})...
+`);
+        // Open new SSE connection
+        const url = `${this.server}/mcp?token=${this.token}`;
+        const res = await fetch(url, { headers: { 'Accept': 'text/event-stream' } });
+        if (!res.ok) throw new Error(`Handshake ${res.status}`);
+        if (!res.body) throw new Error("No body");
+        this._reconnectAttempt++;
+        const delay = Math.min(1000 * Math.pow(2, this._reconnectAttempt), 30000);
+        process.stderr.write(`[Memory OS] Reconnecting in ${delay}ms...
+`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      this._reconnectAttempt = 0;
+      return;
     }
   }
 

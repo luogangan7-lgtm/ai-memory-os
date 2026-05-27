@@ -1,5 +1,6 @@
 """LLM client — calls user's own LLM config. Zero cost to system owner."""
 from __future__ import annotations
+import asyncio
 import httpx
 
 from backend.api.user_providers import _user_llm_configs
@@ -66,11 +67,27 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
             # Split timeouts: connect=10s, read=90s (slow models need time), write=10s
             _timeout = httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=5.0)
             async with httpx.AsyncClient(timeout=_timeout) as client:
-                resp = await client.post(
-                    base_url.rstrip("/") + "/chat/completions",
-                    json={"model": user_cfg.get("model", "deepseek-chat"), "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
-                    headers={"Authorization": f"Bearer {api_key}"})
-                resp.raise_for_status()
+                max_retries = 3
+                for attempt in range(max_retries + 1):
+                    try:
+                        resp = await client.post(
+                            base_url.rstrip("/") + "/chat/completions",
+                            json={"model": user_cfg.get("model", "deepseek-chat"), "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
+                            headers={"Authorization": f"Bearer {api_key}"})
+                        if resp.status_code == 429 and attempt < max_retries:
+                            wait_time = 2.0 ** attempt
+                            print(f"[llm_client] 429 Too Many Requests, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        resp.raise_for_status()
+                        break
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429 and attempt < max_retries:
+                            wait_time = 2.0 ** attempt
+                            print(f"[llm_client] 429 Too Many Requests exception, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        raise
                 data = resp.json()
                 text = data["choices"][0]["message"]["content"]
                 tokens = data.get("usage", {}).get("total_tokens", 0)
@@ -132,11 +149,28 @@ async def call_llm(prompt: str, team_id: str = "", engine_type: str = "classifie
         # Split timeouts: connect=10s, read=90s, write=10s
         _timeout = httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=5.0)
         async with httpx.AsyncClient(timeout=_timeout) as client:
-            resp = await client.post(
-                f"{base_url}/chat/completions",
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
-                headers={"Authorization": f"Bearer {provider.api_key}"}
-            )
+            max_retries = 3
+            for attempt in range(max_retries + 1):
+                try:
+                    resp = await client.post(
+                        f"{base_url}/chat/completions",
+                        json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
+                        headers={"Authorization": f"Bearer {provider.api_key}"}
+                    )
+                    if resp.status_code == 429 and attempt < max_retries:
+                        wait_time = 2.0 ** attempt
+                        print(f"[llm_client fallback] 429 Too Many Requests, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    resp.raise_for_status()
+                    break
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429 and attempt < max_retries:
+                        wait_time = 2.0 ** attempt
+                        print(f"[llm_client fallback] 429 Too Many Requests exception, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
             tokens = data.get("usage", {}).get("total_tokens", 0)

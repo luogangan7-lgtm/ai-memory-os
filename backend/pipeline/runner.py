@@ -230,7 +230,7 @@ async def process_queue():
                     cfg = await _repo.get_active_user_provider_config(team)
                     if cfg and cfg.get('api_key'):
                         res = await _repo.pool.execute(
-                            "UPDATE pipeline_queue SET status='pending', started_at=NULL WHERE team_id=\$1 AND status='waiting_key'",
+                            "UPDATE pipeline_queue SET status='pending', started_at=NULL WHERE team_id=$1 AND status='waiting_key'",
                             team)
                         if res and res != "UPDATE 0":
                             logger.info(f"Resumed {res} waiting_key tasks for user {team} (LLM configured)")
