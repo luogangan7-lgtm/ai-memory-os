@@ -128,7 +128,7 @@ async def split_oversized_topics(repo: MemoryRepo) -> dict:
                     continue
 
                 entries_list = "\n".join(
-                    f"- [{title[:80]}] {content[:200]}" for _, title, content in entries
+                    f"- [{r['title'][:80]}] {r['content'][:200]}" for r in entries
                 )
 
                 split_prompt = (
@@ -238,7 +238,7 @@ async def aggregate_public_knowledge(repo: MemoryRepo) -> int:
                        lifecycle_stage, topic, importance, category)
                        VALUES ($1, 'public', $2, $3, 'knowledge', 'longterm',
                        'merged', 0.9, 'knowledge')""",
-                    str(mid), merged_title[:100], clean[:5000])
+                    str(mid), merged_title[:100], merged_text[:5000])
 
                 for old_id, _, _ in items:
                     await conn.execute(

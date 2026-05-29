@@ -95,27 +95,38 @@ async def mcp_get_handler(request: Request, token: Optional[str] = None):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+# Track running index tasks: team_id -> {status, progress, error}
+_index_tasks: dict[str, dict] = {}
+
 async def index_project_bg(project_path: str, team_id: str):
     import os
     import uuid
     from backend.memory.code_parser import parse_file
     from backend.api.routes import pg_repo, graph_store
+
+    _index_tasks[team_id] = {"status": "running", "files": 0, "entities": 0, "error": None}
+
     if not pg_repo:
+        _index_tasks[team_id] = {"status": "error", "error": "pg_repo not initialized", "files": 0, "entities": 0}
         return
     try:
         abs_path = os.path.abspath(project_path)
         if not os.path.exists(abs_path):
-            logger.warning(f"Project path does not exist: {abs_path}")
+            msg = f"Path does not exist inside the server container: {abs_path}. Note: code_index runs on the SERVER, not your local machine. You must provide a path accessible by the server."
+            logger.warning(msg)
+            _index_tasks[team_id] = {"status": "error", "error": msg, "files": 0, "entities": 0}
             return
-            
+
         file_count = 0
         entity_count = 0
-        
-        # Walk directory
+        relation_count = 0
+
+        # name -> entity_id map for resolving relation targets in Neo4j
+        name_to_id: dict[str, str] = {}
+
+        # ── Pass 1: write all nodes (PG + Neo4j) ──
         for root, dirs, files in os.walk(abs_path):
-            # Ignore common ignore-folders
-            if any(ignored in root for ignored in (".venv", "node_modules", ".git", "__pycache__", "build", "dist")):
-                continue
+            dirs[:] = [d for d in dirs if d not in (".venv", "node_modules", ".git", "__pycache__", "build", "dist", ".mypy_cache", ".pytest_cache")]
             for file in files:
                 ext = os.path.splitext(file)[1].lower()
                 if ext in (".py", ".js", ".ts", ".tsx"):
@@ -124,13 +135,12 @@ async def index_project_bg(project_path: str, team_id: str):
                         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                             content = f.read()
                         entities = parse_file(file_path, content)
-                        
+
                         async with pg_repo.pool.acquire() as conn:
                             for ent in entities:
                                 entity_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{team_id}:{file_path}:{ent['qualified_name']}"))
                                 lang = "python" if ext == ".py" else ("typescript" if "ts" in ext else "javascript")
-                                
-                                # Insert or update in Postgres
+
                                 await conn.execute("""
                                     INSERT INTO code_entities (id, team_id, project_path, entity_type, name, qualified_name, file_path, language, description, signature, start_line, end_line, indexed_at)
                                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
@@ -148,22 +158,69 @@ async def index_project_bg(project_path: str, team_id: str):
                                         end_line = EXCLUDED.end_line,
                                         indexed_at = NOW()
                                 """, entity_id, team_id, abs_path, ent["entity_type"], ent["name"], ent["qualified_name"], file_path, lang, ent["description"], ent["signature"], ent["start_line"], ent["end_line"])
-                                
-                                # Ingest in Neo4j
+
                                 if graph_store:
-                                    await graph_store.ingest_code_entity(entity_id, ent["name"], ent["entity_type"], file_path, team_id)
-                                
+                                    await graph_store.ingest_code_entity(
+                                        entity_id,
+                                        ent["name"],
+                                        ent["entity_type"],
+                                        file_path,
+                                        team_id,
+                                        qualified_name=ent["qualified_name"]
+                                    )
+
+                                # Track name → id for relation resolution
+                                name_to_id[ent["name"]] = entity_id
+                                name_to_id[ent["qualified_name"]] = entity_id
                                 entity_count += 1
+
                         file_count += 1
-                        if file_count >= 100:  # limit to 100 files for safety
+                        _index_tasks[team_id]["files"] = file_count
+                        _index_tasks[team_id]["entities"] = entity_count
+                        if file_count >= 200:
                             break
                     except Exception as fe:
                         logger.warning(f"Failed to parse file {file_path}: {fe}")
-            if file_count >= 100:
+            if file_count >= 200:
                 break
-        logger.info(f"Background indexing completed for {project_path}: {file_count} files, {entity_count} entities.")
+
+        # ── Pass 2: write edges to Neo4j (CALLS / INHERITS / IMPORTS) ──
+        logger.info(f"[code_index] Pass 2 starting. graph_store: {graph_store is not None}, name_to_id size: {len(name_to_id)}")
+        if graph_store and name_to_id:
+            for root, dirs, files in os.walk(abs_path):
+                dirs[:] = [d for d in dirs if d not in (".venv", "node_modules", ".git", "__pycache__", "build", "dist", ".mypy_cache", ".pytest_cache")]
+                for file in files:
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext in (".py", ".js", ".ts", ".tsx"):
+                        file_path = os.path.join(root, file)
+                        try:
+                            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                                content = f.read()
+                            entities = parse_file(file_path, content)
+                            rel_path = os.path.relpath(file_path, abs_path)
+                            for ent in entities:
+                                source_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{team_id}:{rel_path}:{ent['qualified_name']}"))
+                                for rel in ent.get("relations", []):
+                                    target_name = rel.get("target_name", "")
+                                    rel_type = rel.get("rel_type", "DEPENDS_ON")
+                                    target_id = name_to_id.get(target_name)
+                                    if target_id and target_id != source_id:
+                                        try:
+                                            await graph_store.create_code_relation(source_id, target_id, rel_type)
+                                            relation_count += 1
+                                            if relation_count <= 5:
+                                                logger.info(f"[code_index] created relation {relation_count}: {ent.get('name')} --[{rel_type}]--> {target_name}")
+                                        except Exception as re_err:
+                                            logger.info(f"[code_index] relation {rel_type} error: {re_err}")
+                        except Exception as file_err:
+                            logger.info(f"[code_index] file parse error: {file_err}")
+
+        _index_tasks[team_id] = {"status": "done", "files": file_count, "entities": entity_count, "relations": relation_count, "error": None}
+        logger.info(f"[code_index] {team_id}: {file_count} files, {entity_count} entities, {relation_count} Neo4j edges from {abs_path}")
     except Exception as e:
-        logger.error(f"Background indexing error: {e}")
+        _index_tasks[team_id] = {"status": "error", "error": str(e), "files": 0, "entities": 0}
+        logger.error(f"Background indexing error for {team_id}: {e}")
+
 
 
 @router.post("")
@@ -324,8 +381,13 @@ async def mcp_post_handler(
                     },
                     {
                         "name": "code_index",
-                        "description": "Index a code project into the knowledge graph.",
-                        "inputSchema": {"type": "object", "properties": {"project_path": {"type": "string"}}, "required": ["project_path"]}
+                        "description": "Index a code project into the knowledge graph. IMPORTANT: The path must exist on the SERVER (inside Docker container), not your local machine. Use /app/backend or similar container paths.",
+                        "inputSchema": {"type": "object", "properties": {"project_path": {"type": "string", "description": "Absolute path on the SERVER filesystem (e.g. /app/backend)"}}, "required": ["project_path"]}
+                    },
+                    {
+                        "name": "code_index_status",
+                        "description": "Check the status of a running or completed code_index operation.",
+                        "inputSchema": {"type": "object", "properties": {}}
                     },
                     {
                         "name": "code_impact",
@@ -567,14 +629,14 @@ async def mcp_post_handler(
                 except Exception as e:
                     result_text = f"memory_status failed: {e}"
 
-
             elif tool_name == "code_search":
                 try:
                     query = arguments.get("query", "")
                     limit = arguments.get("limit", 10)
                     from backend.api.db_helper import get_db_conn
                     conn = await get_db_conn()
-                    rows = await conn.fetch("SELECT name, entity_type, file_path, language, description FROM code_entities WHERE team_id=$1 AND (name ILIKE $2 OR description ILIKE $2) LIMIT $3", team_id, f"%{query}%", limit)
+                    project_path = arguments.get("project_path", "/app/backend")
+                    rows = await conn.fetch("SELECT name, entity_type, file_path, language, description FROM code_entities WHERE team_id=$1 AND project_path=$2 AND (name ILIKE $3 OR description ILIKE $3) LIMIT $4", team_id, project_path, f"%{query}%", limit)
                     await conn.close()
                     if rows:
                         result_text = "\n".join(f"[{r['entity_type']}] {r['name']} ({r['language'] or '?'}) @ {r['file_path'] or '?'}" for r in rows)
@@ -586,48 +648,110 @@ async def mcp_post_handler(
             elif tool_name == "code_relations":
                 try:
                     entity_name = arguments.get("entity_name", "")
-                    from backend.graph.neo4j_store import GraphStore
-                    from backend.services.config import settings
-                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                    from backend.api.routes import graph_store as gs
                     async with gs.driver.session() as session:
-                        r = await session.run("MATCH (a:CodeEntity {name: $name})-[rel]->(b:CodeEntity) RETURN a.name as src, type(rel) as rel, b.name as dst", name=entity_name)
-                        data = await r.data()
-                    if data:
-                        result_text = "\n".join(f"{d['src']} --[{d['rel']}]--> {d['dst']}" for d in data)
+                        # Outgoing: what this entity calls/inherits/imports
+                        r_out = await session.run("""
+                            MATCH (a:Code {team_id: $tid})-[rel]->(b:Code {team_id: $tid})
+                            WHERE a.name = $name OR a.qualified_name = $name
+                            RETURN a.name as src, type(rel) as rel, b.name as dst
+                            LIMIT 30
+                        """, name=entity_name, tid=team_id)
+                        out_data = await r_out.data()
+                        # Incoming: what calls/uses this entity
+                        r_in = await session.run("""
+                            MATCH (a:Code {team_id: $tid})-[rel]->(b:Code {team_id: $tid})
+                            WHERE b.name = $name OR b.qualified_name = $name
+                            RETURN a.name as src, type(rel) as rel, b.name as dst
+                            LIMIT 30
+                        """, name=entity_name, tid=team_id)
+                        in_data = await r_in.data()
+                    all_data = out_data + in_data
+                    if all_data:
+                        lines = [f"Relations for '{entity_name}':"]
+                        if out_data:
+                            lines.append("  Outgoing (calls/inherits/imports):")
+                            for d in out_data:
+                                lines.append(f"    {d['src']} --[{d['rel']}]--> {d['dst']}")
+                        if in_data:
+                            lines.append("  Incoming (called by / used by):")
+                            for d in in_data:
+                                lines.append(f"    {d['src']} --[{d['rel']}]--> {d['dst']}")
+                        result_text = "\n".join(lines)
                     else:
-                        result_text = f"No relations found for '{entity_name}'"
+                        result_text = f"No relations found for '{entity_name}'. Tip: run code_index first, then re-query."
                 except Exception as e:
                     result_text = f"code_relations failed: {e}"
 
 
             elif tool_name == "code_index":
-                try:
-                    project_path = arguments.get("project_path", "")
-                    asyncio.create_task(index_project_bg(project_path, team_id))
-                    result_text = f"Code indexing queued for {project_path}. Parsing starts asynchronously."
-                except Exception as e:
-                    result_text = f"code_index failed: {e}"
+                import os
+                project_path = arguments.get("project_path", "").strip()
+                if not project_path:
+                    result_text = "code_index error: project_path is required."
+                else:
+                    # Validate path accessibility BEFORE queuing so user gets immediate feedback
+                    abs_path = os.path.abspath(project_path)
+                    if not os.path.exists(abs_path):
+                        result_text = (
+                            f"code_index error: path '{abs_path}' does not exist on the server.\n"
+                            "Note: code_index indexes files on the SERVER side. "
+                            "Provide a path that exists inside the Docker container (e.g. /app/backend) "
+                            "or mount your project directory into the container first."
+                        )
+                    else:
+                        # Check if already running
+                        existing = _index_tasks.get(team_id, {})
+                        if existing.get("status") == "running":
+                            result_text = f"Code indexing already in progress for {team_id}: {existing.get('files', 0)} files processed so far."
+                        else:
+                            try:
+                                # Use ensure_future so task survives SSE connection close
+                                loop = asyncio.get_event_loop()
+                                loop.create_task(index_project_bg(project_path, team_id))
+                                result_text = (
+                                    f"Code indexing started for '{abs_path}'.\n"
+                                    f"Use code_index_status tool to check progress."
+                                )
+                            except Exception as e:
+                                result_text = f"code_index failed to start: {e}"
+
+            elif tool_name == "code_index_status":
+                task = _index_tasks.get(team_id)
+                if not task:
+                    result_text = "No code indexing task found for your account. Use code_index to start one."
+                else:
+                    s = task.get("status", "unknown")
+                    files = task.get("files", 0)
+                    entities = task.get("entities", 0)
+                    err = task.get("error")
+                    if s == "running":
+                        result_text = f"⏳ Indexing in progress: {files} files / {entities} entities processed so far."
+                    elif s == "done":
+                        result_text = f"✅ Indexing complete: {files} files, {entities} entities indexed."
+                    elif s == "error":
+                        result_text = f"❌ Indexing failed: {err}"
+                    else:
+                        result_text = f"Status: {s}"
 
             elif tool_name == "code_impact":
                 try:
                     entity_name = arguments.get("entity_name", "")
-                    from backend.graph.neo4j_store import GraphStore
-                    from backend.services.config import settings
-                    gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
+                    from backend.api.routes import graph_store as gs
                     async with gs.driver.session() as session:
                         r = await session.run("""
-                            MATCH (dep)-[rel]->(tar:Code {name: $name})
+                            MATCH (dep:Code {team_id: $tid})-[rel]->(tar:Code {team_id: $tid})
+                            WHERE tar.name = $name OR tar.qualified_name = $name
                             RETURN dep.name as name, dep.entity_type as type, type(rel) as rel_type
-                            LIMIT 20
-                        """, name=entity_name)
+                            LIMIT 30
+                        """, name=entity_name, tid=team_id)
                         data = await r.data()
-                    await gs.close()
                     if data:
-                        result_text = f"Impact analysis for '{entity_name}' (dependent elements):\n" + "\n".join(
-                            f"- [{d['type'] or 'Code'}] {d['name']} --[{d['rel_type']}]--> {entity_name}" for d in data
+                        result_text = f"Impact analysis for '{entity_name}' — {len(data)} dependent(s):\n" + "\n".join(
+                            f"  [{d['type'] or 'Code'}] {d['name']} --[{d['rel_type']}]--> {entity_name}" for d in data
                         )
                     else:
-                        result_text = f"No direct dependencies found for '{entity_name}' in the Neo4j graph."
+                        result_text = f"No dependents found for '{entity_name}' in the code graph. Tip: run code_index first."
                 except Exception as e:
                     result_text = f"code_impact failed: {e}"
 
@@ -637,16 +761,14 @@ async def mcp_post_handler(
                     memory_id = arguments.get("memory_id", "")
                     from backend.api.db_helper import get_db_conn
                     from backend.graph.neo4j_store import GraphStore
-                    from backend.services.config import settings
+                    from backend.api.routes import graph_store as gs
                     conn = await get_db_conn()
-                    row = await conn.fetchrow("SELECT id FROM code_entities WHERE team_id=$1 AND name=$2 LIMIT 1", team_id, entity_name)
+                    row = await conn.fetchrow("SELECT id FROM code_entities WHERE team_id=$1 AND (name ILIKE $2 OR qualified_name ILIKE $2) LIMIT 1", team_id, entity_name)
                     await conn.close()
                     if row:
                         ent_id = str(row["id"])
-                        gs = GraphStore(uri=settings.neo4j_uri, user=settings.neo4j_user, password=settings.neo4j_password)
                         await gs.create_memory_node(memory_id, "", "", "")
                         await gs.create_code_relation(memory_id, ent_id, "RELATES_TO_CODE")
-                        await gs.close()
                         result_text = f"Linked memory {memory_id[:8]} to code entity {entity_name} ({ent_id[:8]})"
                     else:
                         result_text = f"Code entity '{entity_name}' not found in database. Please index the project first."

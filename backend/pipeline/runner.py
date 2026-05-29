@@ -96,8 +96,8 @@ async def _process_one(row):
                 if not has_llm:
                     try:
                         rows = await _repo.pool.fetch(
-                            "SELECT * FROM user_provider_configs WHERE is_active=true AND api_key IS NOT NULL AND api_key != '' AND (user_id=$1 OR user_id=$2) ORDER BY updated_at DESC LIMIT 1",
-                            team, str(safe_uuid(team))
+                            "SELECT * FROM user_provider_configs WHERE is_active=true AND api_key IS NOT NULL AND api_key != '' AND user_id=$1 ORDER BY updated_at DESC LIMIT 1",
+                            safe_uuid(team)
                         )
                         if rows:
                             r = dict(rows[0])

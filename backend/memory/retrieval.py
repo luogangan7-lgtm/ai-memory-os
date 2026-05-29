@@ -42,8 +42,8 @@ class RetrievalPipeline:
                 source_type=source_type_filter,
             )
             for r in results:
-                r.score = getattr(r, 'score', 0.5) * 1.1
-                r.source_pool = 'private'
+                r['score'] = r.get('score', 0.5) * 1.1
+                r['source_pool'] = 'private'
         else:
             results = []
 
@@ -56,7 +56,7 @@ class RetrievalPipeline:
                     top_k=top_k, source_type='knowledge',
                 )
                 for r in pub:
-                    r.source_pool = 'public'
+                    r['source_pool'] = 'public'
                 results = list(results) + list(pub)
             except Exception:
                 pass

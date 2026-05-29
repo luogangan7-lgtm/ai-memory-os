@@ -715,26 +715,30 @@ async def get_monitoring():
                     if t.hour == hr and t.day == dy:
                         writes_values[i] += int(row["writes"] or 0)
 
+            token_rows = await conn.fetch("""
+                SELECT user_id, SUM(total_tokens) as tokens
+                FROM user_token_usage
+                GROUP BY user_id
+            """)
+            from backend.memory.pg_repo import safe_uuid
+            token_map = {str(r["user_id"]): int(r["tokens"] or 0) for r in token_rows}
+
             tenant_rows = await conn.fetch("""
-                SELECT m.team_id,
-                       COUNT(*) as memory_count,
-                       COALESCE(SUM(u.tokens), 0) as token_usage
-                FROM memories m
-                LEFT JOIN (
-                    SELECT user_id::text as user_id, SUM(total_tokens) as tokens
-                    FROM user_token_usage
-                    GROUP BY user_id
-                ) u ON u.user_id = m.team_id
-                WHERE m.team_id IS NOT NULL AND m.team_id <> ''
-                GROUP BY m.team_id
+                SELECT team_id, COUNT(*) as memory_count
+                FROM memories
+                WHERE team_id IS NOT NULL AND team_id <> ''
+                GROUP BY team_id
                 ORDER BY memory_count DESC
                 LIMIT 10
             """)
             for r in tenant_rows:
+                tid = r["team_id"]
+                uuid_str = str(safe_uuid(tid))
+                token_usage = token_map.get(uuid_str, 0)
                 top_tenants.append({
-                    "team_id": r["team_id"],
+                    "team_id": tid,
                     "memory_count": int(r["memory_count"] or 0),
-                    "token_usage": int(r["token_usage"] or 0),
+                    "token_usage": token_usage,
                 })
         finally:
             await conn.close()

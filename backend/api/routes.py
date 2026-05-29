@@ -666,9 +666,9 @@ async def get_user_stats(team_id: str = Depends(get_current_team)):
             total_documents = int(doc_row["n"]) if doc_row else 0
 
             # V7: L4 skills and code entities counts
-            sr = await conn.fetchrow("SELECT COUNT(*) as c FROM memory_skills")
+            sr = await conn.fetchrow("SELECT COUNT(*) as c FROM memory_skills WHERE team_id = $1", team_id)
             skills_count = int(sr["c"]) if sr else 0
-            cr = await conn.fetchrow("SELECT COUNT(*) as c FROM code_entities")
+            cr = await conn.fetchrow("SELECT COUNT(*) as c FROM code_entities WHERE team_id = $1", team_id)
             code_entities_count = int(cr["c"]) if cr else 0
 
             # Distinct non-default agents active in the last 7 days
@@ -793,10 +793,10 @@ async def store_memory(
                     r = await conn.fetchrow(
                         """SELECT * FROM user_provider_configs
                            WHERE is_active=true AND api_key IS NOT NULL AND api_key != ''
-                             AND (user_id=$1 OR user_id=$2)
+                             AND user_id=$1
                            ORDER BY validated_at DESC NULLS LAST, created_at DESC
                            LIMIT 1""",
-                        team_id, str(__import__('backend.memory.pg_repo', fromlist=['safe_uuid']).safe_uuid(team_id))
+                        __import__('backend.memory.pg_repo', fromlist=['safe_uuid']).safe_uuid(team_id)
                     )
                     cfg = dict(r) if r else None
             if cfg and cfg.get("api_key"):
@@ -816,13 +816,17 @@ async def store_memory(
         try:
             from backend.services.cost_tracker import CostTracker
             estimated = CostTracker.estimate_tokens(req.content or "")
-            async with pg_repo.pool.acquire() as conn:
-                await conn.execute(
-                    """INSERT INTO user_token_usage (user_id, provider_name, model_name, total_tokens, prompt_tokens, created_at)
-                       VALUES ($1, 'mcp_agent', 'memory-store', $2, $2, NOW())""",
-                    team_id, estimated
+            if pg_repo and hasattr(pg_repo, 'insert_user_token_usage'):
+                await pg_repo.insert_user_token_usage(
+                    user_id=team_id,
+                    provider_name="mcp_agent",
+                    model_name="memory-store",
+                    prompt_tokens=estimated,
+                    completion_tokens=0,
+                    total_tokens=estimated
                 )
-        except: pass
+        except Exception as e:
+            print(f"[store-token-usage] Warning: {e}")
 
     # Persist metadata to PostgreSQL (primary source of truth)
     if pg_repo:

@@ -43,19 +43,15 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
     
     entities: List[Dict[str, Any]] = []
     
-    # We can perform simple traversal of the AST
     def traverse(node, parent_class: str | None = None):
-        # Line numbers in tree-sitter are 0-indexed, we want 1-indexed
         start_line = node.start_position().row + 1
         end_line = node.end_position().row + 1
         node_kind = node.kind()
         
         if node_kind == "class_definition":
-            # Extract class name node
             name_node = node.child_by_field_name("name")
             class_name = content[name_node.start_byte():name_node.end_byte()] if name_node else "Unknown"
             
-            # Find docstring
             doc = ""
             body_node = node.child_by_field_name("body")
             if body_node and body_node.child_count() > 0:
@@ -65,6 +61,19 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
                     if val.kind() == "string":
                         doc = content[val.start_byte():val.end_byte()].strip("\"'")
             
+            # Extract base classes → INHERITS relations
+            # tree-sitter Python uses 'argument_list' for base class list
+            relations = []
+            for i in range(node.child_count()):
+                ch = node.child(i)
+                if ch.kind() == "argument_list":
+                    bases_text = content[ch.start_byte():ch.end_byte()].strip("()")
+                    for base in bases_text.split(","):
+                        base = base.strip()
+                        if base and base != "object":
+                            relations.append({"target_name": base, "rel_type": "INHERITS"})
+                    break
+            
             entities.append({
                 "entity_type": "class",
                 "name": class_name,
@@ -72,10 +81,10 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
                 "signature": f"class {class_name}",
                 "description": doc,
                 "start_line": start_line,
-                "end_line": end_line
+                "end_line": end_line,
+                "relations": relations,
             })
             
-            # Recurse inside body
             if body_node:
                 for i in range(body_node.child_count()):
                     traverse(body_node.child(i), parent_class=class_name)
@@ -84,7 +93,6 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
             name_node = node.child_by_field_name("name")
             func_name = content[name_node.start_byte():name_node.end_byte()] if name_node else "unknown"
             
-            # Reconstruct signature from parameters
             params_node = node.child_by_field_name("parameters")
             params = content[params_node.start_byte():params_node.end_byte()] if params_node else "()"
             
@@ -104,7 +112,18 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
                     val = first_expr.child(0)
                     if val.kind() == "string":
                         doc = content[val.start_byte():val.end_byte()].strip("\"'")
-                        
+
+            # Extract function calls → CALLS relations
+            call_re = re.compile(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(')
+            func_text = content[node.start_byte():node.end_byte()]
+            calls_found = set(call_re.findall(func_text))
+            _builtins = {"print","len","range","str","int","float","list","dict","set","tuple","bool","type","super","isinstance","hasattr","getattr","setattr","open","zip","map","filter","enumerate","sorted","reversed","any","all","min","max","sum","round","abs","id","repr","format","vars","dir","next","iter","callable","def","class","async","await"}
+            relations = [
+                {"target_name": c, "rel_type": "CALLS"}
+                for c in calls_found
+                if c not in _builtins and c != func_name and c != (parent_class or "")
+            ]
+
             entities.append({
                 "entity_type": "function",
                 "name": func_name,
@@ -112,11 +131,26 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
                 "signature": sig,
                 "description": doc,
                 "start_line": start_line,
-                "end_line": end_line
+                "end_line": end_line,
+                "relations": relations,
             })
             
         elif node_kind in ("import_statement", "import_from_statement"):
             module_name = content[node.start_byte():node.end_byte()].strip()
+            # Extract module target for IMPORTS relation
+            target = ""
+            if node_kind == "import_from_statement":
+                mod_node = node.child_by_field_name("module_name")
+                if mod_node:
+                    target = content[mod_node.start_byte():mod_node.end_byte()].strip()
+            elif node_kind == "import_statement":
+                # first name child
+                for i in range(node.child_count()):
+                    ch = node.child(i)
+                    if ch.kind() in ("dotted_name", "aliased_import"):
+                        target = content[ch.start_byte():ch.end_byte()].strip().split(" ")[0]
+                        break
+            relations = [{"target_name": target, "rel_type": "IMPORTS"}] if target else []
             entities.append({
                 "entity_type": "import",
                 "name": module_name,
@@ -124,7 +158,8 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
                 "signature": module_name,
                 "description": "",
                 "start_line": start_line,
-                "end_line": end_line
+                "end_line": end_line,
+                "relations": relations,
             })
             
         else:
@@ -135,33 +170,41 @@ def parse_python_treesitter(file_path: str, content: str) -> List[Dict[str, Any]
     return entities
 
 
+
 def parse_python_regex(file_path: str, content: str) -> List[Dict[str, Any]]:
-    """Fallback regex parser for Python."""
+    """Fallback regex parser for Python with relationship extraction (CALLS, INHERITS, IMPORTS)."""
     lines = content.splitlines()
     entities = []
     
-    # Class pattern: class ClassName(...)
-    class_pattern = re.compile(r"^\s*class\s+([a-zA-Z_][a-zA-Z0-9_]*)\b")
-    # Function pattern: def func_name(...)
-    func_pattern = re.compile(r"^\s*def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*(->\s*[^:]+)?\s*:")
-    # Import pattern
-    import_pattern = re.compile(r"^\s*(import\s+.+|from\s+.+\s+import\s+.+)")
+    class_pattern = re.compile(r"^\s*class\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s*\(([^)]+)\))?\s*:")
+    func_pattern = re.compile(r"^(\s*)(?:async\s+)?def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*(->\s*[^:]+)?\s*:")
+    import_pattern = re.compile(r"^\s*(import\s+(.+)|from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+import\s+(.+))")
     
     current_class = None
+    _builtins = {"print","len","range","str","int","float","list","dict","set","tuple","bool","type","super","isinstance","hasattr","getattr","setattr","open","zip","map","filter","enumerate","sorted","reversed","any","all","min","max","sum","round","abs","id","repr","format","vars","dir","next","iter","callable","def","class","async","await"}
     
     for idx, line in enumerate(lines):
         line_num = idx + 1
         
         # 1. Imports
         if import_match := import_pattern.match(line):
+            module_name = line.strip()
+            target = ""
+            if import_match.group(3):
+                target = import_match.group(3).strip()
+            elif import_match.group(2):
+                target = import_match.group(2).strip().split(" ")[0].split(",")[0]
+            
+            relations = [{"target_name": target, "rel_type": "IMPORTS"}] if target else []
             entities.append({
                 "entity_type": "import",
-                "name": line.strip(),
-                "qualified_name": line.strip(),
-                "signature": line.strip(),
+                "name": module_name,
+                "qualified_name": module_name,
+                "signature": module_name,
                 "description": "",
                 "start_line": line_num,
-                "end_line": line_num
+                "end_line": line_num,
+                "relations": relations
             })
             continue
             
@@ -169,6 +212,14 @@ def parse_python_regex(file_path: str, content: str) -> List[Dict[str, Any]]:
         if class_match := class_pattern.match(line):
             class_name = class_match.group(1)
             current_class = class_name
+            bases_text = class_match.group(2)
+            relations = []
+            if bases_text:
+                for base in bases_text.split(","):
+                    base = base.strip()
+                    if base and base != "object":
+                        relations.append({"target_name": base, "rel_type": "INHERITS"})
+            
             entities.append({
                 "entity_type": "class",
                 "name": class_name,
@@ -176,14 +227,37 @@ def parse_python_regex(file_path: str, content: str) -> List[Dict[str, Any]]:
                 "signature": line.strip(),
                 "description": "",
                 "start_line": line_num,
-                "end_line": line_num + 3  # rough estimate
+                "end_line": line_num + 3,  # rough estimate
+                "relations": relations
             })
             continue
             
         # 3. Functions
         if func_match := func_pattern.match(line):
-            func_name = func_match.group(1)
+            indent_str = func_match.group(1)
+            func_name = func_match.group(2)
             qual_name = f"{current_class}.{func_name}" if current_class else func_name
+            
+            func_body_lines = []
+            base_indent = len(indent_str)
+            for next_idx in range(idx + 1, len(lines)):
+                next_line = lines[next_idx]
+                if not next_line.strip():
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent <= base_indent:
+                    break
+                func_body_lines.append(next_line)
+            
+            func_text = "\n".join(func_body_lines)
+            call_re = re.compile(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(')
+            calls_found = set(call_re.findall(func_text))
+            relations = [
+                {"target_name": c, "rel_type": "CALLS"}
+                for c in calls_found
+                if c not in _builtins and c != func_name and c != (current_class or "")
+            ]
+            
             entities.append({
                 "entity_type": "function",
                 "name": func_name,
@@ -191,7 +265,8 @@ def parse_python_regex(file_path: str, content: str) -> List[Dict[str, Any]]:
                 "signature": line.strip(),
                 "description": "",
                 "start_line": line_num,
-                "end_line": line_num + 5  # rough estimate
+                "end_line": line_num + len(func_body_lines),
+                "relations": relations
             })
             
     return entities

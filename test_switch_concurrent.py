@@ -98,46 +98,45 @@ async def poll_pipeline(client, token, label, timeout=90):
         r = await client.get(f"{BASE}/api/user/llm/pipeline/status",
             headers={"Authorization": f"Bearer {token}"})
         c = r.json().get("counts", {})
-        done, fail = c.get("done", 0), c.get("failed", 0)
+        done, fail, dead = c.get("done", 0), c.get("failed", 0), c.get("dead", 0)
         if done != prev_done:
-            log(f"  [{label}] pending={c.get('pending',0)} processing={c.get('processing',0)} done={done} failed={fail}")
+            log(f"  [{label}] pending={c.get('pending',0)} processing={c.get('processing',0)} done={done} failed={fail} dead={dead}")
             prev_done = done
-        if c.get("pending", 1) == 0 and c.get("processing", 0) == 0 and (done > 0 or fail > 0):
-            return done, fail
+        if c.get("pending", 1) == 0 and c.get("processing", 0) == 0 and (done > 0 or fail > 0 or dead > 0):
+            return done, fail + dead
     return 0, 0
 
 async def get_token_usage(username, uuid_val):
     """从DB查真实调用了哪个 provider/model"""
-    import subprocess, json
-    r = subprocess.run(
-        ["docker", "exec", "ai-memory-os-postgres-1", "psql",
-         "-U", "memoryos", "-d", "memory_os",
-         "-t", "-A", "-F", ",", "-c",
-         f"SELECT provider_name,model_name,total_tokens FROM user_token_usage WHERE user_id='{uuid_val}' ORDER BY created_at;"],
-        capture_output=True, text=True
-    )
-    rows = []
-    for line in r.stdout.strip().splitlines():
-        parts = line.split(",")
-        if len(parts) == 3:
-            rows.append({"provider": parts[0], "model": parts[1], "tokens": parts[2]})
-    return rows
+    import asyncpg
+    conn = await asyncpg.connect("postgresql://memoryos:f7817b23eddc4e6fdc069a3d25e9fb6c@localhost:5432/memory_os")
+    try:
+        rows = await conn.fetch(
+            "SELECT provider_name, model_name, total_tokens FROM user_token_usage WHERE user_id=$1 AND provider_name != 'mcp_agent' ORDER BY created_at",
+            uuid_val
+        )
+        return [{"provider": r["provider_name"], "model": r["model_name"], "tokens": str(r["total_tokens"])} for r in rows]
+    finally:
+        await conn.close()
 
 async def cleanup_user(username):
     uid = str(safe_uuid(username))
-    import subprocess
-    subprocess.run(["docker", "exec", "ai-memory-os-postgres-1", "psql",
-        "-U", "memoryos", "-d", "memory_os", "-c",
-        f"""
-        DELETE FROM pipeline_queue WHERE team_id='{username}';
-        DELETE FROM memories WHERE team_id='{username}';
-        DELETE FROM user_provider_configs WHERE user_id='{uid}';
-        DELETE FROM user_token_usage WHERE user_id='{uid}';
-        DELETE FROM accounts WHERE username='{username}';
-        """], capture_output=True)
+    import asyncpg
+    conn = await asyncpg.connect("postgresql://memoryos:f7817b23eddc4e6fdc069a3d25e9fb6c@localhost:5432/memory_os")
+    try:
+        await conn.execute("DELETE FROM pipeline_queue WHERE team_id=$1", username)
+        await conn.execute("DELETE FROM memories WHERE team_id=$1", username)
+        await conn.execute("DELETE FROM user_provider_configs WHERE user_id=$1::uuid", safe_uuid(username))
+        await conn.execute("DELETE FROM user_token_usage WHERE user_id=$1::uuid", safe_uuid(username))
+        await conn.execute("DELETE FROM accounts WHERE username=$1", username)
+    finally:
+        await conn.close()
     import httpx as hx
     async with hx.AsyncClient() as c:
-        await c.delete(f"http://localhost:6333/collections/memories_{username}")
+        try:
+            await c.delete(f"http://localhost:6333/collections/memories_{username}")
+        except:
+            pass
 
 # ── 测试用例 ──────────────────────────────────────────────────────────────────
 
@@ -257,6 +256,10 @@ async def main():
     health = httpx.get(f"{BASE}/health").json()
     log(f"健康检查: {health}")
     assert health.get("status") == "ok", "服务未就绪"
+
+    # A/B/C/D 四个用户并发跑前清理
+    for name in ["tsw_user_A", "tsw_user_B", "tsw_user_C", "tsw_user_D"]:
+        await cleanup_user(name)
 
     results = {}
     # A/B/C/D 四个用户并发跑

@@ -202,16 +202,17 @@ class GraphStore:
                 id=memory_id,
             )
 
-    async def ingest_code_entity(self, entity_id: str, name: str, entity_type: str, file_path: str, team_id: str = "default") -> None:
+    async def ingest_code_entity(self, entity_id: str, name: str, entity_type: str, file_path: str, team_id: str = "default", qualified_name: str = "") -> None:
         query = """
         MERGE (c:Code {id: $id})
-        SET c.name = $name, c.entity_type = $entity_type, c.file_path = $file_path, c.team_id = $team_id, c.indexed_at = datetime()
+        SET c.name = $name, c.entity_type = $entity_type, c.file_path = $file_path, c.team_id = $team_id, c.qualified_name = $qualified_name, c.indexed_at = datetime()
         """
         async with self.driver.session() as session:
             await session.run(
                 query,
                 id=entity_id, name=name,
-                entity_type=entity_type, file_path=file_path, team_id=team_id
+                entity_type=entity_type, file_path=file_path, team_id=team_id,
+                qualified_name=qualified_name
             )
 
     async def create_code_relation(self, source_id: str, target_id: str, relation_type: str) -> None:

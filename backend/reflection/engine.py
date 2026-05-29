@@ -121,17 +121,32 @@ class ReflectionEngine:
         return n
 
     async def _verify_crossref(self, team_id):
-        """Boost importance of memories with graph relations."""
-        n=0
-        if not self.graph: return 0
-        async with self.pg.pool.acquire() as conn:
-            # Simple logic: if has > 0 relations in graph, importance += 0.1
-            rows = await conn.fetch("SELECT id FROM memories WHERE team_id=$1 AND COALESCE(importance, 0.5) < 0.9", team_id)
-            for r in rows:
-                # This is a placeholder for a more complex graph query
-                await conn.execute("UPDATE memories SET importance=importance+0.05 WHERE id=$1", r["id"])
-                n += 1
-                n += 1
+        """Boost importance of memories that have actual graph relations in Neo4j."""
+        n = 0
+        if not self.graph or not self.graph.driver:
+            return 0
+        try:
+            async with self.graph.driver.session() as session:
+                result = await session.run(
+                    "MATCH (m:Memory {team_id: $tid})-[r]-() "
+                    "RETURN DISTINCT m.id AS mid LIMIT 50",
+                    tid=team_id
+                )
+                records = await result.data()
+                linked_ids = [rec["mid"] for rec in records if rec.get("mid")]
+            if not linked_ids:
+                return 0
+            async with self.pg.pool.acquire() as conn:
+                for mid in linked_ids:
+                    res = await conn.execute(
+                        "UPDATE memories SET importance = LEAST(0.95, importance + 0.05) "
+                        "WHERE id = $1 AND COALESCE(importance, 0.5) < 0.9",
+                        mid
+                    )
+                    if "UPDATE 1" in res:
+                        n += 1
+        except Exception as e:
+            logging.getLogger("reflection").warning(f"_verify_crossref failed: {e}")
         return n
 
     async def _auto_promote(self, team_id):

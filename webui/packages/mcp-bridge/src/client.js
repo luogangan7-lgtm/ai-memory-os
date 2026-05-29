@@ -140,22 +140,20 @@ export class MemoryOSClient {
     this._reconnectAttempt = 0;
     while (this._shouldReconnect) {
       try {
-        process.stderr.write(`[Memory OS] Reconnecting (attempt ${this._reconnectAttempt + 1})...
-`);
-        // Open new SSE connection
+        process.stderr.write(`[Memory OS] Reconnecting (attempt ${this._reconnectAttempt + 1})...\n`);
         const url = `${this.server}/mcp?token=${this.token}`;
         const res = await fetch(url, { headers: { 'Accept': 'text/event-stream' } });
         if (!res.ok) throw new Error(`Handshake ${res.status}`);
         if (!res.body) throw new Error("No body");
+        await this._doConnect();
+        process.stderr.write('[Memory OS] Reconnected successfully\n');
+        return;
+      } catch (err) {
         this._reconnectAttempt++;
         const delay = Math.min(1000 * Math.pow(2, this._reconnectAttempt), 30000);
-        process.stderr.write(`[Memory OS] Reconnecting in ${delay}ms...
-`);
+        process.stderr.write(`[Memory OS] Reconnect failed (attempt ${this._reconnectAttempt}): ${err.message}, retrying in ${delay}ms\n`);
         await new Promise(r => setTimeout(r, delay));
-        continue;
       }
-      this._reconnectAttempt = 0;
-      return;
     }
   }
 
